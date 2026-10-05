@@ -565,6 +565,17 @@ pytest --cov=bot --cov-report=term-missing      # with the coverage report
 **CI:** [`.github/workflows/tests.yml`](.github/workflows/tests.yml) runs the suite and the
 Alembic migrations (upgrade → downgrade → upgrade on a real PostgreSQL 16) on every push and pull request.
 
+## 🔀 Development workflow
+
+- `main` is the stable branch; day-to-day work lands on **`development`**.
+- **Every change gets its own branch** (`claude/<topic>`), cut from `development`, and its own pull
+  request **into `development`**. CI (tests + PostgreSQL migration check) must be green; a green PR is
+  merged automatically (squash, so one PR = one commit).
+- Reverting is therefore one step: revert that PR's squash commit on `development`
+  (`git revert <sha>`, or the *Revert* button on the merged PR). If the PR added a migration, run
+  `alembic downgrade -1` first.
+- Promoting `development` to `main` is a manual decision.
+
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
