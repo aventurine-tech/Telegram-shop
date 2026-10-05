@@ -1,0 +1,67 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The settings module requires these at import time; the suite uses in-memory SQLite.
+  TOKEN: "1:test"
+  OWNER_ID: "1"
+  POSTGRES_DB: shop
+  POSTGRES_USER: shop
+  POSTGRES_PASSWORD: shop
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q --cov=bot --cov-report=term
+
+  migrations:
+    name: Migrations on PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: shop
+          POSTGRES_USER: shop
+          POSTGRES_PASSWORD: shop
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shop -d shop"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # The whole chain from scratch, then the newest revision down and back up.
+      - run: alembic upgrade head
+      - run: alembic downgrade -1
+      - run: alembic upgrade head

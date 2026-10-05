@@ -532,6 +532,9 @@ pytest                                          # full suite
 pytest --cov=bot --cov-report=term-missing      # with the coverage report
 ```
 
+**CI:** [`.github/workflows/tests.yml`](.github/workflows/tests.yml) runs the suite and the
+Alembic migrations (upgrade → downgrade → upgrade on a real PostgreSQL 16) on every push and pull request.
+
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
