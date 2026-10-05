@@ -64,6 +64,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # === Admin: Product update flow ===
         "admin.goods.update.prompt.name": "Введите название товара",
         "admin.goods.update.not_exists": "❌ Товар не может быть изменён (такого товара не существует)",
+        "admin.goods.update.is_option": "❌ Это вариант веса: его цена и остаток меняются отдельно, а название и категория задаются основным товаром",
         "admin.goods.update.prompt.new_name": "Введите новое название товара:",
         "admin.goods.update.prompt.description": "Введите описание товара:",
         "admin.goods.update.prompt.category": "Введите категорию товара (сейчас: «{category}»):",
@@ -269,6 +270,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # === Admin: Product update flow ===
         "admin.goods.update.prompt.name": "Enter the product name",
         "admin.goods.update.not_exists": "❌ Product cannot be updated (it does not exist)",
+        "admin.goods.update.is_option": "❌ This is a weight option: change its price and stock separately; its name and category follow the main product",
         "admin.goods.update.prompt.new_name": "Enter the new product name:",
         "admin.goods.update.prompt.description": "Enter the product description:",
         "admin.goods.update.prompt.category": "Enter the product's category (currently “{category}”):",

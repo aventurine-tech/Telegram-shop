@@ -373,3 +373,20 @@ class TestWebDeleteAndList:
 async def _value(view, obj):
     value = await view.get_list_value(obj, "variant_label")
     return value[0] if isinstance(value, tuple) else value
+
+
+class TestEditFlowRefusesOptions:
+
+    async def test_generic_edit_refuses_an_option(self, make_message, fsm_context):
+        from unittest.mock import AsyncMock
+        from bot.database.methods.create import create_category, create_item, create_item_option
+        from bot.handlers.admin import update_position as up
+        await create_category("EditCat")
+        await create_item("EditHead", "d", 1, "EditCat")
+        await create_item_option("EditHead", "50 g", 5, 1)
+        msg = make_message(text="EditHead · 50 g")
+        state = fsm_context
+        await up.check_item_name_for_update(msg, state)
+        msg.answer.assert_awaited()
+        assert "weight option" in msg.answer.await_args[0][0]
+        assert await state.get_state() is None

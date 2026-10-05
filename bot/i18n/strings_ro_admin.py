@@ -61,6 +61,7 @@ TRANSLATIONS = {"ro": {
         # === Admin: Product update flow ===
         "admin.goods.update.prompt.name": "Introduceți denumirea produsului",
         "admin.goods.update.not_exists": "❌ Produsul nu poate fi actualizat (nu există)",
+        "admin.goods.update.is_option": "❌ Aceasta este o opțiune de greutate: prețul și stocul se schimbă separat, iar numele și categoria urmează produsul principal",
         "admin.goods.update.prompt.new_name": "Introduceți noua denumire a produsului:",
         "admin.goods.update.prompt.description": "Introduceți descrierea produsului:",
         "admin.goods.update.prompt.category": "Introduceți categoria produsului (în prezent „{category}”):",
