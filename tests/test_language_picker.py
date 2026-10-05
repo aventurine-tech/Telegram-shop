@@ -243,15 +243,16 @@ class TestProfileLanguage:
         await lang_h.choose_language(call, fsm_context)
 
         assert (await check_user_cached(740002))["language"] == "ro"
-        call.message.delete.assert_not_awaited()
-        text = call.message.edit_text.await_args.args[0]
-        assert i18n.localize_in("ro", "profile.id", id=740002) in text
-        # Only the small message that swaps the bottom keyboard to the new language.
-        call.message.answer.assert_awaited_once()
-        sent = call.message.answer.await_args
-        assert sent.args[0] == i18n.localize_in("ro", "menu.welcome")
-        assert [b.text for b in sent.kwargs["reply_markup"].keyboard[0]] == [
+        # The picker is removed, the welcome line (it carries the keyboard) is sent first, the profile follows
+        # below it: the welcome line is always above the menu.
+        call.message.delete.assert_awaited_once()
+        sent = call.message.answer.await_args_list
+        assert len(sent) == 2
+        assert sent[0].args[0] == i18n.localize_in("ro", "menu.welcome")
+        assert [b.text for b in sent[0].kwargs["reply_markup"].keyboard[0]] == [
             i18n.localize_in("ro", k) for k in ("btn.nav.catalog", "btn.nav.cart", "btn.nav.profile")]
+        assert i18n.localize_in("ro", "profile.id", id=740002) in sent[1].args[0]
+        call.message.edit_text.assert_not_awaited()
 
 
 class TestLanguageMiddleware:
