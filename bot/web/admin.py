@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -401,6 +402,18 @@ def _translation_widget_args(descriptions: bool) -> dict:
     return args
 
 
+def _own_language_first(form_class, bases: tuple[str, ...], viewer: str) -> None:
+    """Put the field of the admin's own language right after the previous field, then the other languages.
+
+    WTForms orders fields by creation counter; the three language fields of one base keep the same set of
+    counters, just handed out starting with the viewer's language."""
+    for base in bases:
+        fields = {lang: getattr(form_class, f"{base}_{lang}") for lang in LANGS if hasattr(form_class, f"{base}_{lang}")}
+        order = [lang for lang in [viewer] + [l for l in LANGS if l != viewer] if lang in fields]
+        for lang, counter in zip(order, sorted(f.creation_counter for f in fields.values())):
+            fields[lang].creation_counter = counter
+
+
 class TranslatedModelView(AuditModelView):
     """Categories and products: three language fields instead of the canonical ``name`` / ``description``.
 
@@ -503,6 +516,7 @@ class CategoryAdmin(TranslatedModelView, model=Categories):
                 sa_select(Categories).where(Categories.parent_id.is_(None)).order_by(Categories.name)
             )).scalars().all()
         viewer = _viewer_language()
+        _own_language_first(Base, ("name",), viewer)      # the name in the admin's language comes first
         choices = [("", localize("web.form.parent_none"))] + [(str(c.id), pick(c, "name", viewer)) for c in tops]
 
         def coerce(value):
@@ -602,6 +616,113 @@ def _picture_error(code: str) -> str:
 Goods.picture = None
 
 
+class OptionsWidget:
+    """The weight options as add/remove rows (option, price, quantity) with a "+" button.
+
+    The posted value is still the plain ``label | price | stock`` text of a (hidden) textarea, which a small
+    script keeps in sync with the rows; without JavaScript the textarea itself stays editable."""
+
+    def __call__(self, field, **kwargs):
+        element_id = kwargs.get("id") or field.id
+        labels = {"option": localize("web.form.options_option"), "price": localize("web.col.price"),
+                  "stock": localize("web.col.stock"), "add": localize("web.form.options_add"),
+                  "remove": localize("web.form.options_remove"), "placeholder": localize("web.form.options_label_placeholder")}
+        script = _OPTIONS_SCRIPT.replace("__ID__", json.dumps(element_id)).replace(
+            "__LABELS__", json.dumps(labels, ensure_ascii=False).replace("</", "<\\/"))
+        textarea = (f'<textarea id="{escape(element_id)}" name="{escape(field.name)}" class="form-control" rows="4" '
+                    f'placeholder="{escape(localize("web.form.options_placeholder"))}">{escape(field._value())}</textarea>')
+        return Markup(textarea + "<script>" + script + "</script>")
+
+
+_OPTIONS_SCRIPT = r"""
+(function () {
+  var ta = document.getElementById(__ID__);
+  if (!ta) { return; }
+  var T = __LABELS__;
+  var box = document.createElement('div');
+  var list = document.createElement('div');
+  var add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'btn btn-outline-primary';
+  add.textContent = '\uFF0B ' + T.add;
+  box.appendChild(list);
+  box.appendChild(add);
+  ta.style.display = 'none';
+  ta.parentNode.insertBefore(box, ta.nextSibling);
+
+  function field(title, input, cls) {
+    var col = document.createElement('div');
+    col.className = cls;
+    var label = document.createElement('label');
+    label.className = 'form-label';
+    label.textContent = title;
+    col.appendChild(label);
+    col.appendChild(input);
+    return {col: col, label: label};
+  }
+  function input(type, attrs) {
+    var el = document.createElement('input');
+    el.type = type;
+    el.className = 'form-control';
+    for (var k in attrs) { el.setAttribute(k, attrs[k]); }
+    el.addEventListener('input', sync);
+    return el;
+  }
+  function renumber() {
+    var rows = list.querySelectorAll('.opt-row');
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].querySelector('.opt-title').textContent = T.option + ' ' + (i + 1);
+    }
+  }
+  function sync() {
+    var lines = [];
+    var rows = list.querySelectorAll('.opt-row');
+    for (var i = 0; i < rows.length; i++) {
+      var v = rows[i].querySelectorAll('input');
+      var a = v[0].value.trim(), b = v[1].value.trim(), c = v[2].value.trim();
+      if (a || b || c) { lines.push(a + ' | ' + b + (c !== '' ? ' | ' + c : '')); }
+    }
+    ta.value = lines.join('\n');
+  }
+  function addRow(label, price, stock) {
+    var row = document.createElement('div');
+    row.className = 'opt-row row g-2 align-items-end mb-2';
+    var a = field(T.option, input('text', {maxlength: 32, placeholder: T.placeholder}), 'col-md-4');
+    a.label.className = 'form-label opt-title';
+    var b = field(T.price, input('number', {min: 0, step: '0.01'}), 'col-md-3');
+    var c = field(T.stock, input('number', {min: 0, step: '1'}), 'col-md-3');
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn btn-outline-danger opt-del';
+    del.title = T.remove;
+    del.textContent = '\u00D7';
+    del.addEventListener('click', function () { row.remove(); renumber(); sync(); });
+    var last = document.createElement('div');
+    last.className = 'col-md-2';
+    last.appendChild(del);
+    row.appendChild(a.col); row.appendChild(b.col); row.appendChild(c.col); row.appendChild(last);
+    row.querySelectorAll('input')[0].value = label || '';
+    row.querySelectorAll('input')[1].value = price || '';
+    row.querySelectorAll('input')[2].value = stock || '';
+    list.appendChild(row);
+    renumber();
+  }
+  var lines = ta.value.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) { continue; }
+    var p = line.split('|');
+    addRow((p[0] || '').trim(), (p[1] || '').trim(), (p[2] || '').trim());
+  }
+  if (!list.children.length) { addRow('', '', ''); }
+  add.addEventListener('click', function () {
+    addRow('', '', '');
+    list.querySelectorAll('.opt-row:last-child input')[0].focus();
+  });
+})();
+"""
+
+
 class GoodsForm(Form):
     """Picture controls added to the generated product form (SQLAdmin has no extra-fields hook)."""
     picture = FileField(
@@ -674,11 +795,7 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         viewer = _viewer_language()
 
         # Description of the admin's own language right under the name, then the others.
-        unbound = {lang: getattr(Base, f"description_{lang}") for lang in LANGS if hasattr(Base, f"description_{lang}")}
-        order = [viewer] + [lang for lang in LANGS if lang != viewer]
-        counters = sorted(u.creation_counter for u in unbound.values())
-        for lang, counter in zip([l for l in order if l in unbound], counters):
-            unbound[lang].creation_counter = counter
+        _own_language_first(Base, ("description",), viewer)
 
         async with Database().session() as session:
             categories = (await session.execute(sa_select(Categories))).scalars().all()
@@ -706,9 +823,7 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         class LocalizedGoodsForm(Base):
             category = category_field
             options_text = TextAreaField(localize("web.col.options_text"), validators=[WtfOptional()],
-                                         description=localize("web.form.options_hint"),
-                                         render_kw={"class": "form-control", "rows": 4,
-                                                    "placeholder": localize("web.form.options_placeholder")})
+                                         description=localize("web.form.options_hint"), widget=OptionsWidget())
             picture = FileField(localize("web.col.picture"), description=localize("web.form.picture_hint"))
             remove_picture = BooleanField(localize("web.form.remove_picture"),
                                           description=localize("web.form.remove_picture_hint"))

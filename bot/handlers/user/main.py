@@ -164,9 +164,9 @@ async def open_main_menu(message: Message, user_id: int, role_data: int) -> None
     await message.answer(localize("menu.title"), reply_markup=markup)
 
 
-# One character: Telegram rejects an empty message. This message must stay in the chat (Telegram drops the
+# Telegram needs a message to hold the keyboard, and rejects empty or whitespace-only text. This message must stay in the chat (Telegram drops the
 # keyboard when the message that carries it is deleted); it is replaced, never removed.
-_KEYBOARD_CARRIER = "👇"
+_KEYBOARD_CARRIER = "\u2800"   # Braille blank: renders as an empty bubble; Telegram rejects plain whitespace
 
 
 async def send_bottom_nav(message: Message) -> None:
