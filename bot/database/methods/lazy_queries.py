@@ -59,6 +59,21 @@ async def query_categories(offset: int = 0, limit: int = 10, count_only: bool = 
         return [row[0] for row in result.all()]
 
 
+async def query_top_categories_with_ids(limit: int = 7, lang: str | None = None) -> list[tuple[int, str]]:
+    """``[(id, canonical name)]`` of the first top-level categories, ordered as the viewer sees them.
+
+    Feeds the main-menu buttons (callback data carries the id, never a name).
+    """
+    async with Database().session() as s:
+        result = await s.execute(
+            select(Categories.id, Categories.name)
+            .where(Categories.parent_id.is_(None))
+            .order_by(*_display_order(Categories, lang))
+            .limit(limit)
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+
 async def query_subcategories(parent_name: str, offset: int = 0, limit: int = 10,
                               count_only: bool = False, lang: str | None = None) -> Any:
     """Subcategories of a category (canonical names, ordered as the viewer sees them).

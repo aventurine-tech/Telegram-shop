@@ -13,9 +13,11 @@ from bot.database.methods import (
     select_user_items, check_user_cached
 )
 from bot.database.methods.read import get_cart_count, invalidate_user_cache
-from bot.database.methods.lazy_queries import query_user_operations_history
+from bot.database.methods.lazy_queries import query_user_operations_history, query_top_categories_with_ids
+from bot.database.methods.translations import category_labels
 from bot.handlers.other import check_sub_channel, _parse_channel_username
 from bot.keyboards import main_menu, back, profile_keyboard, check_sub
+from bot.keyboards.inline import MENU_CATEGORY_LIMIT
 from bot.keyboards.reply import bottom_nav_keyboard
 from bot.handlers.user._screen import edit_screen
 from bot.misc import EnvKeys
@@ -131,6 +133,16 @@ async def register_if_new(user_id: int, payload: str | None = None) -> int:
     return await check_role_cached(user_id)
 
 
+async def menu_categories() -> list[tuple[int, str]]:
+    """``[(id, label)]`` for the main-menu category buttons, in the viewer's language and order.
+
+    One extra row is fetched so the keyboard can tell there are more than it shows.
+    """
+    cats = await query_top_categories_with_ids(limit=MENU_CATEGORY_LIMIT + 1)
+    labels = await category_labels([name for _id, name in cats])
+    return [(cat_id, labels.get(name, name)) for cat_id, name in cats]
+
+
 async def open_main_menu(message: Message, user_id: int, role_data: int) -> None:
     """Answer in `message`'s chat with the main menu, or the subscribe prompt when the channel check fails."""
     channel_username = _parse_channel_username()
@@ -144,7 +156,8 @@ async def open_main_menu(message: Message, user_id: int, role_data: int) -> None
 
     # The bottom keyboard rides on its own message (one reply_markup per message), ahead of the inline menu.
     await send_bottom_nav(message)
-    markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_ID)
+    markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_ID,
+                       categories=await menu_categories())
     await message.answer(localize("menu.title"), reply_markup=markup)
 
 
@@ -192,7 +205,8 @@ async def back_to_menu_callback_handler(call: CallbackQuery, state: FSMContext):
 
     channel_username = _parse_channel_username()
 
-    markup = main_menu(role=role, channel=channel_username, helper=EnvKeys.HELPER_ID)
+    markup = main_menu(role=role, channel=channel_username, helper=EnvKeys.HELPER_ID,
+                       categories=await menu_categories())
     await call.message.edit_text(localize("menu.title"), reply_markup=markup)
     await state.clear()
 
@@ -267,7 +281,7 @@ async def check_sub_to_channel(call: CallbackQuery, state: FSMContext):
         if await _is_subscribed(call.bot, channel_username, user_id) is not False:
             await _ensure_user(user_id)
             role = await check_role_cached(user_id) or 0
-            markup = main_menu(role, channel_username, helper)
+            markup = main_menu(role, channel_username, helper, categories=await menu_categories())
             await call.message.edit_text(localize("menu.title"), reply_markup=markup)
             await state.clear()
             return

@@ -284,6 +284,25 @@ async def category_accepts_items(category_name: str) -> bool:
         )).scalar()
 
 
+async def parent_assignment_error(s, parent: Categories, own_id: int | None = None) -> str | None:
+    """Why ``parent`` cannot be the parent of a category, or None when it can (shared by the bot and the web panel).
+
+    ``own_id`` is the category being (re)parented (None for a new one). Codes: self_parent,
+    parent_not_top_level (two levels at most), has_children (a category with subcategories cannot
+    become a subcategory), parent_has_items (a parent holds subcategories, not products).
+    """
+    if own_id is not None and parent.id == own_id:
+        return "self_parent"
+    if parent.parent_id is not None:
+        return "parent_not_top_level"
+    if own_id is not None and (await s.execute(
+            select(exists().where(Categories.parent_id == own_id)))).scalar():
+        return "has_children"
+    if (await s.execute(select(exists().where(Goods.category_id == parent.id)))).scalar():
+        return "parent_has_items"
+    return None
+
+
 async def check_category(category_name: str) -> dict | None:
     """Return category as dict by name, or None."""
     return await _fetch_one_dict(Categories, Categories.name == category_name)

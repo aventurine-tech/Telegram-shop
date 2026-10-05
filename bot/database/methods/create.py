@@ -8,7 +8,9 @@ from bot.database.models import User, Goods, Categories, Role
 from bot.database.models.main import PromoCodes, CartItems, Reviews, StockSubscriptions, promo_scope_for
 from bot.database import Database
 from bot.database.methods.cache_utils import safe_create_task
-from bot.database.methods.read import invalidate_stats_cache, invalidate_item_cache, invalidate_category_cache
+from bot.database.methods.read import (
+    invalidate_stats_cache, invalidate_item_cache, invalidate_category_cache, parent_assignment_error,
+)
 
 # Cart limits: distinct positions per cart, and units of any one position.
 CART_MAX_ITEMS = 10
@@ -105,10 +107,9 @@ async def create_subcategory(category_name: str, parent_name: str,
         )).scalars().one_or_none()
         if parent is None:
             return False, "parent_not_found"
-        if parent.parent_id is not None:
-            return False, "parent_not_top_level"          # two levels at most
-        if (await s.execute(select(exists().where(Goods.category_id == parent.id)))).scalar():
-            return False, "parent_has_items"              # a parent holds subcategories, not products
+        error = await parent_assignment_error(s, parent)
+        if error:
+            return False, error                           # parent_not_top_level / parent_has_items
         s.add(Categories(
             name=category_name, parent_id=parent.id,
             **{f"name_{l}": clean_name(v) for l, v in (names or {}).items() if l in LANGS},
