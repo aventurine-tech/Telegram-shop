@@ -89,6 +89,8 @@ TRANSLATIONS = {"ro": {
         "language.picker.title": "🌐 Choose your language / Выберите язык / Alegeți limba",
         "btn.language": "🌐 Limbă",
         "language.changed": "✅ Limba: {language}",
+        "btn.all_categories": "🏪 Toate categoriile",
+        "shop.subcategories.title": "🏪 {name} — alegeți o subcategorie",
         "btn.nav.catalog": "🛍 Catalog",
         "btn.nav.cart": "🛒 Coș",
         "btn.nav.profile": "👤 Profil",
