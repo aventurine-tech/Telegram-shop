@@ -1,4 +1,4 @@
-import hmac
+import asyncio
 import logging
 import os
 import time
@@ -21,6 +21,11 @@ from sqlalchemy import select as sa_select
 
 from bot.misc import EnvKeys
 from bot.database.methods.audit import log_audit
+from bot.database.methods.web_users import get_web_user_auth, record_web_login
+from bot.i18n.main import LANGUAGES, current_language, localize, set_language
+from bot.web.language import LanguageMiddleware, LazyText, Localized, cookie_language, error_text
+from bot.web.passwords import DUMMY_HASH, verify_password
+from bot.web.session import current_web_user
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +85,7 @@ from bot.database.main import Database
 from bot.database.models.main import (
     User, Role, Categories, Goods, Orders, OrderItems, Operations, ReferralEarnings,
     AuditLog, PromoCodes, CartItems, Reviews, promo_scope_for,
-    OrderStatus,
+    OrderStatus, WebRole,
 )
 from bot.misc.images import ImageError, validate_image
 from bot.misc.metrics import get_metrics
@@ -98,6 +103,12 @@ from bot.middleware.security import invalidate_auth_caches, flush_all_role_cache
 
 # Authentication
 class AdminAuth(AuthenticationBackend):
+    def __init__(self, secret_key: str) -> None:
+        super().__init__(secret_key)
+        # The panel app already carries the one SessionMiddleware (with the cookie flags); a second one
+        # inside SQLAdmin would write its own copy of the session over it.
+        self.middlewares = []
+
     async def login(self, request: Request) -> bool:
         ip = _client_ip(request)
 
@@ -106,25 +117,34 @@ class AdminAuth(AuthenticationBackend):
             return False
 
         form = await request.form()
-        username = form.get("username")
-        password = form.get("password")
+        username = str(form.get("username") or "").strip()
+        password = str(form.get("password") or "")
 
-        # Constant-time comparison to avoid leaking credential length/content via
-        # response timing. str() guards against a missing form field (None).
-        creds_ok = (
-            hmac.compare_digest(str(username), str(EnvKeys.ADMIN_USERNAME))
-            and hmac.compare_digest(str(password), str(EnvKeys.ADMIN_PASSWORD))
+        user = await get_web_user_auth(username) if username else None
+        # An unknown username costs the same hash as a wrong password, so timing doesn't reveal which exist.
+        verified = await asyncio.to_thread(
+            verify_password, password, user["password_hash"] if user else DUMMY_HASH
         )
-        if creds_ok:
-            if (
-                username == "admin" and password == "admin"
-                and ip not in ("127.0.0.1", "::1", "localhost")
-            ):
-                await log_audit("web_login_blocked_default_creds", level="WARNING", details=f"ip={ip}", ip_address=ip)
+        if user is not None and verified:
+            if not user["is_active"]:
+                _login_limiter.record_failure(ip)
+                await log_audit("web_login_failed", level="WARNING", details=f"user={username}, reason=inactive",
+                                ip_address=ip)
                 return False
-            request.session.update({"authenticated": True})
+            if password == "admin" and ip not in ("127.0.0.1", "::1", "localhost"):
+                await log_audit("web_login_blocked_default_creds", level="WARNING",
+                                details=f"user={username}, ip={ip}", ip_address=ip)
+                return False
+            chosen = cookie_language(request)
+            await record_web_login(user["id"], chosen)
+            session = {"uid": user["id"], "role": user["role"]}
+            lang = user["language"] or chosen
+            if lang:
+                session["lang"] = lang
+            request.session.clear()
+            request.session.update(session)
             _login_limiter.reset(ip)
-            await log_audit("web_login", user_id=None, details=f"user={username}", ip_address=ip)
+            await log_audit("web_login", user_id=None, details=f"user={username}, role={user['role']}", ip_address=ip)
             return True
 
         _login_limiter.record_failure(ip)
@@ -132,20 +152,29 @@ class AdminAuth(AuthenticationBackend):
         return False
 
     async def logout(self, request: Request) -> bool:
-        await log_audit("web_logout", ip_address=_client_ip(request))
+        await log_audit("web_logout", details=f"uid={request.session.get('uid')}", ip_address=_client_ip(request))
         request.session.clear()
         return True
 
     async def authenticate(self, request: Request) -> bool:
-        return request.session.get("authenticated", False)
+        user = await current_web_user(request)
+        if user is None:
+            request.session.clear()
+            return False
+        # The account's own language wins; keep the session in step when it was changed elsewhere.
+        if user["language"] and request.session.get("lang") != user["language"]:
+            request.session["lang"] = user["language"]
+        if user["language"]:
+            set_language(user["language"])   # this very request already renders in it
+        return True
 
 
 def _safe_model_repr(model: Any, max_len: int = 500) -> str:
     """Return a truncated repr that excludes sensitive fields."""
-    _sensitive = {"balance", "password", "secret", "token", "value"}
+    _sensitive = {"balance", "password", "password_hash", "secret", "token", "value"}
     parts = []
     for col in getattr(model, "__table__", None).columns if hasattr(model, "__table__") else ():
-        if col.name in _sensitive:
+        if col.name in _sensitive or "password" in col.name:
             continue
         val = getattr(model, col.name, None)
         parts.append(f"{col.name}={val!r}")
@@ -161,13 +190,36 @@ def set_notifier_bot(bot: Any) -> None:
     _notifier_bot = bot
 
 
+class LocalizedModelView(ModelView):
+    """ModelView whose column labels follow the request language.
+
+    SQLAdmin builds ``_column_labels`` once; here it is computed per access: the ``web.col.<column>``
+    translation, else a label given in ``column_labels``, else the column name.
+    """
+
+    @property
+    def _column_labels(self) -> dict:
+        given = self.__dict__.get("_given_labels", {})
+        names = list(self._prop_names) + [n for n in getattr(self, "_list_prop_names", []) if n not in self._prop_names]
+        labels = {}
+        for prop in names:
+            key = f"web.col.{prop}"
+            text = localize(key)
+            labels[prop] = given.get(prop, prop) if text == key else text
+        return labels
+
+    @_column_labels.setter
+    def _column_labels(self, value: dict) -> None:
+        self.__dict__["_given_labels"] = value
+
+
 # Audited base view for mutable models
-class AuditModelView(ModelView):
+class AuditModelView(LocalizedModelView):
     async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         action = f"sqladmin_{'create' if is_created else 'update'}"
         await log_audit(
             action,
-            resource_type=self.name,
+            resource_type=type(self).name,
             resource_id=str(getattr(model, 'id', getattr(model, 'name', None))),
             details=_safe_model_repr(model),
             ip_address=_client_ip(request),
@@ -176,7 +228,7 @@ class AuditModelView(ModelView):
     async def after_model_delete(self, model: Any, request: Request) -> None:
         await log_audit(
             "sqladmin_delete",
-            resource_type=self.name,
+            resource_type=type(self).name,
             resource_id=str(getattr(model, 'id', getattr(model, 'name', None))),
             details=_safe_model_repr(model),
             ip_address=_client_ip(request),
@@ -194,8 +246,8 @@ class UserAdmin(AuditModelView, model=User):
         User.user_operations, User.user_orders,
         User.referral_earnings_received, User.referral_earnings_generated,
     ]
-    name = "User"
-    name_plural = "Users"
+    name = Localized("web.model.user.one")
+    name_plural = Localized("web.model.user.many")
     icon = "fa-solid fa-users"
 
     async def _invalidate(self, model: Any, *, blocked: bool | None = None) -> None:
@@ -252,21 +304,14 @@ class RoleAdmin(AuditModelView, model=Role):
     column_details_exclude_list = ["users"]
     form_excluded_columns = [Role.users]
     column_sortable_list = [Role.id, Role.name]
-    name = "Role"
-    name_plural = "Roles"
+    name = Localized("web.model.role.one")
+    name_plural = Localized("web.model.role.many")
     icon = "fa-solid fa-shield-halved"
     column_formatters = {"permissions": _format_perms_html}
     column_formatters_detail = {"permissions": _format_perms_html}
-    form_args = {
-        "permissions": {
-            "description": (
-                "Bitmask value — sum the flags you need: "
-                "USE=1, BROADCAST=2, SETTINGS=4, USERS=8, CATALOG=16, ADMINS=32, "
-                "OWNER=64, STATS=128, BALANCE=256, PROMOS=512, ORDERS=1024. "
-                "Example: 1951 = full Admin, 2047 = all (Owner)."
-            ),
-        },
-    }
+    @property
+    def form_args(self) -> dict:
+        return {"permissions": {"description": localize("web.form.permissions_hint")}}
 
     @staticmethod
     async def _flush_role_caches() -> None:
@@ -287,17 +332,17 @@ class CategoryAdmin(AuditModelView, model=Categories):
     column_list = [Categories.name]
     column_searchable_list = [Categories.name]
     form_excluded_columns = [Categories.items]
-    name = "Category"
-    name_plural = "Categories"
+    name = Localized("web.model.category.one")
+    name_plural = Localized("web.model.category.many")
     icon = "fa-solid fa-folder"
 
 
-_PICTURE_ERRORS = {
-    "too_large": "The picture is too large (10 MB at most).",
-    "invalid_image": "The picture could not be read as an image.",
-    "unsupported_format": "Only JPEG, PNG and WEBP pictures are supported.",
-    "item_not_found": "The product no longer exists, so the picture was not saved.",
-}
+_PICTURE_ERRORS = ("too_large", "invalid_image", "unsupported_format", "item_not_found")
+
+
+def _picture_error(code: str) -> str:
+    return localize(f"web.picture.err.{code if code in _PICTURE_ERRORS else 'invalid_image'}")
+
 
 # SQLAdmin looks the upload field up on the edited object when the file input is left empty; the picture
 # lives in its own table, so the product only needs a harmless placeholder for that lookup.
@@ -317,33 +362,30 @@ class GoodsForm(Form):
 class GoodsAdmin(AuditModelView, model=Goods):
     column_list = [Goods.id, Goods.name, "picture", Goods.price, Goods.stock, Goods.sale_percent,
                    Goods.sale_until, Goods.description, Goods.category_id]
-    column_labels = {"picture": "Picture"}
     form_base_class = GoodsForm
     column_searchable_list = [Goods.name]
     column_sortable_list = [Goods.id, Goods.name, Goods.price, Goods.stock]
-    name = "Product"
-    name_plural = "Products"
+    name = Localized("web.model.product.one")
+    name_plural = Localized("web.model.product.many")
     icon = "fa-solid fa-box"
-    form_args = {
-        "stock": {
-            "description": (
-                "Units on hand. Orders reserve stock when placed and cancelling an order "
-                "returns it; customers waiting for this product are notified when it goes from 0 to more."
-            ),
-        },
-        "sale_percent": {
-            "description": (
-                "Discount percent (0-100) applied while the sale is active. "
-                "Leave empty to disable the sale."
-            ),
-        },
-        "sale_until": {
-            "description": (
-                "Sale end time (UTC). The discount applies only while this is in "
-                "the future; a past/empty value means no active sale."
-            ),
-        },
-    }
+    @property
+    def form_args(self) -> dict:
+        return {
+            "stock": {"description": localize("web.form.stock_hint")},
+            "sale_percent": {"description": localize("web.form.sale_percent_hint")},
+            "sale_until": {"description": localize("web.form.sale_until_hint")},
+        }
+
+    async def scaffold_form(self, *args, **kwargs):
+        """The picture controls, labelled in the request language."""
+        Base = await super().scaffold_form(*args, **kwargs)
+
+        class LocalizedGoodsForm(Base):
+            picture = FileField(localize("web.col.picture"), description=localize("web.form.picture_hint"))
+            remove_picture = BooleanField(localize("web.form.remove_picture"),
+                                          description=localize("web.form.remove_picture_hint"))
+
+        return LocalizedGoodsForm
 
     async def list(self, request: Request):
         pagination = await super().list(request)
@@ -355,7 +397,7 @@ class GoodsAdmin(AuditModelView, model=Goods):
     async def get_list_value(self, obj: Any, prop: str):
         if prop == "picture":
             has = bool(getattr(obj, "picture", False))
-            return has, ("yes" if has else "\u2014")
+            return has, (localize("web.yes") if has else "\u2014")
         return await super().get_list_value(obj, prop)
 
     async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
@@ -370,12 +412,12 @@ class GoodsAdmin(AuditModelView, model=Goods):
         if upload is not None and hasattr(upload, "read"):
             content = await upload.read()
         if content and remove:
-            raise ValueError("Upload a new picture or tick \"Remove picture\", not both.")
+            raise ValueError(localize("web.picture.err.both"))
         if content:
             try:
                 validate_image(content)
             except ImageError as e:
-                raise ValueError(_PICTURE_ERRORS.get(e.code, _PICTURE_ERRORS["invalid_image"]))
+                raise ValueError(_picture_error(e.code))
         request.state.picture_upload = content or None
         request.state.picture_remove = remove
 
@@ -407,13 +449,13 @@ class GoodsAdmin(AuditModelView, model=Goods):
         if upload:
             ok, code = await set_item_image(name, upload)
             if not ok:
-                raise ValueError(_PICTURE_ERRORS.get(code, _PICTURE_ERRORS["invalid_image"]))
+                raise ValueError(_picture_error(code))
             action = "set"
         else:
             action = "remove" if await remove_item_image(name) else None
         if action:
             await log_audit(
-                "sqladmin_update_item_photo", resource_type=self.name, resource_id=str(getattr(model, "id", name)),
+                "sqladmin_update_item_photo", resource_type=type(self).name, resource_id=str(getattr(model, "id", name)),
                 details=f"item={name}, action={action}", ip_address=_client_ip(request),
             )
 
@@ -449,7 +491,7 @@ async def apply_order_action(action_name: str, order_id: int) -> tuple[bool, str
     return ok, code
 
 
-class OrderAdmin(ModelView, model=Orders):
+class OrderAdmin(LocalizedModelView, model=Orders):
     """Orders are read-only here; status changes are actions that reuse the bot's own order logic."""
     column_list = [Orders.id, Orders.user_id, Orders.status, Orders.payment_method, Orders.payment_status,
                    Orders.fulfillment, Orders.customer_name, Orders.phone, Orders.total,
@@ -467,8 +509,8 @@ class OrderAdmin(ModelView, model=Orders):
     can_create = False
     can_edit = False
     can_delete = False
-    name = "Order"
-    name_plural = "Orders"
+    name = Localized("web.model.order.one")
+    name_plural = Localized("web.model.order.many")
     icon = "fa-solid fa-box-open"
 
     async def _run(self, request: Request, action_name: str) -> RedirectResponse:
@@ -477,35 +519,38 @@ class OrderAdmin(ModelView, model=Orders):
             await apply_order_action(action_name, order_id)
         return RedirectResponse(request.url_for("admin:list", identity=self.identity), status_code=302)
 
-    @action(name="confirm_payment", label="Confirm MIA payment",
-            confirmation_message="Mark the MIA transfer as received and accept the selected orders?",
+    @action(name="confirm_payment", label=LazyText("web.action.confirm_payment"),
+            confirmation_message=LazyText("web.action.confirm_payment.ask"),
             add_in_detail=True, add_in_list=True)
     async def confirm_payment(self, request: Request):
         return await self._run(request, "payment_confirmed")
 
-    @action(name="confirm", label="Confirm order", confirmation_message="Confirm the selected orders?",
+    @action(name="confirm", label=LazyText("web.action.confirm"),
+            confirmation_message=LazyText("web.action.confirm.ask"),
             add_in_detail=True, add_in_list=True)
     async def confirm_order(self, request: Request):
         return await self._run(request, OrderStatus.CONFIRMED)
 
-    @action(name="ship", label="Mark as shipped", confirmation_message="Mark the selected orders as shipped?",
+    @action(name="ship", label=LazyText("web.action.ship"),
+            confirmation_message=LazyText("web.action.ship.ask"),
             add_in_detail=True, add_in_list=True)
     async def ship_order(self, request: Request):
         return await self._run(request, OrderStatus.SHIPPED)
 
-    @action(name="complete", label="Mark as completed", confirmation_message="Mark the selected orders as completed?",
+    @action(name="complete", label=LazyText("web.action.complete"),
+            confirmation_message=LazyText("web.action.complete.ask"),
             add_in_detail=True, add_in_list=True)
     async def complete_order(self, request: Request):
         return await self._run(request, OrderStatus.COMPLETED)
 
-    @action(name="cancel", label="Cancel order",
-            confirmation_message="Cancel the selected orders? Stock returns to the shelf; money already paid must be refunded by hand.",
+    @action(name="cancel", label=LazyText("web.action.cancel"),
+            confirmation_message=LazyText("web.action.cancel.ask"),
             add_in_detail=True, add_in_list=True)
     async def cancel_order(self, request: Request):
         return await self._run(request, OrderStatus.CANCELLED)
 
 
-class OrderItemsAdmin(ModelView, model=OrderItems):
+class OrderItemsAdmin(LocalizedModelView, model=OrderItems):
     column_list = [OrderItems.id, OrderItems.order_id, OrderItems.item_name, OrderItems.quantity,
                    OrderItems.unit_price, OrderItems.line_total]
     column_searchable_list = [OrderItems.item_name, OrderItems.order_id]
@@ -514,12 +559,12 @@ class OrderItemsAdmin(ModelView, model=OrderItems):
     can_create = False
     can_edit = False
     can_delete = False
-    name = "Order Line"
-    name_plural = "Order Lines"
+    name = Localized("web.model.order_line.one")
+    name_plural = Localized("web.model.order_line.many")
     icon = "fa-solid fa-list"
 
 
-class OperationsAdmin(ModelView, model=Operations):
+class OperationsAdmin(LocalizedModelView, model=Operations):
     column_list = [Operations.id, Operations.user_id, Operations.operation_value,
                    Operations.operation_time]
     column_searchable_list = [Operations.user_id]
@@ -528,12 +573,12 @@ class OperationsAdmin(ModelView, model=Operations):
     can_create = False
     can_edit = False
     can_delete = False
-    name = "Operation"
-    name_plural = "Operations"
+    name = Localized("web.model.operation.one")
+    name_plural = Localized("web.model.operation.many")
     icon = "fa-solid fa-money-bill-transfer"
 
 
-class ReferralEarningsAdmin(ModelView, model=ReferralEarnings):
+class ReferralEarningsAdmin(LocalizedModelView, model=ReferralEarnings):
     column_list = [ReferralEarnings.id, ReferralEarnings.referrer_id,
                    ReferralEarnings.referral_id, ReferralEarnings.amount,
                    ReferralEarnings.original_amount, ReferralEarnings.created_at]
@@ -543,12 +588,12 @@ class ReferralEarningsAdmin(ModelView, model=ReferralEarnings):
     can_create = False
     can_edit = False
     can_delete = False
-    name = "Referral Earning"
-    name_plural = "Referral Earnings"
+    name = Localized("web.model.referral_earning.one")
+    name_plural = Localized("web.model.referral_earning.many")
     icon = "fa-solid fa-handshake"
 
 
-class AuditLogAdmin(ModelView, model=AuditLog):
+class AuditLogAdmin(LocalizedModelView, model=AuditLog):
     column_list = [AuditLog.id, AuditLog.timestamp, AuditLog.level, AuditLog.user_id,
                    AuditLog.action, AuditLog.resource_type, AuditLog.resource_id,
                    AuditLog.details, AuditLog.ip_address]
@@ -558,8 +603,8 @@ class AuditLogAdmin(ModelView, model=AuditLog):
     can_create = False
     can_edit = False
     can_delete = False
-    name = "Audit Log"
-    name_plural = "Audit Logs"
+    name = Localized("web.model.audit_log.one")
+    name_plural = Localized("web.model.audit_log.many")
     icon = "fa-solid fa-clipboard-list"
 
 
@@ -581,8 +626,8 @@ def _format_promo_scope_html(model, name):
         f'border-radius:4px;font-size:11px">{escape(scope)}</span> '
         f'<span style="display:inline-block;background:#fed7d7;color:#9b2c2c;'
         f'padding:1px 6px;border-radius:4px;font-size:11px;font-weight:600" '
-        f'title="The bound category/item was deleted. This promo now applies to nothing.">'
-        f'DANGLING</span>'
+        f'title="{escape(localize("web.promo.dangling_hint"))}">'
+        f'{escape(localize("web.promo.dangling"))}</span>'
     )
 
 
@@ -597,33 +642,31 @@ class PromoCodeAdmin(AuditModelView, model=PromoCodes):
     form_columns = [PromoCodes.code, PromoCodes.discount_type, PromoCodes.discount_value,
                     PromoCodes.scope, PromoCodes.max_uses, PromoCodes.expires_at, PromoCodes.is_active]
     form_overrides = {"discount_type": SelectField, "scope": SelectField}
-    form_args = {
-        "discount_type": {
-            "choices": [
-                ("percent", "Percent (% off the price)"),
-                ("fixed", "Fixed amount off the price"),
-                ("balance", "Balance top-up (credit the user)"),
-            ],
-            "description": "How discount_value is applied.",
-        },
-        "scope": {
-            "choices": [
-                ("global", "Global (whole shop)"),
-                ("category", "Category (pick one in the Category field)"),
-                ("item", "Item (pick one in the Item field)"),
-            ],
-            "description": (
-                "Where the promo applies. Must match the binding: 'category' "
-                "needs a Category selected, 'item' needs an Item selected, "
-                "'global' needs neither. This is what keeps a promo scoped after "
-                "its category/item is deleted."
-            ),
-        },
-    }
+    @property
+    def form_args(self) -> dict:
+        return {
+            "discount_type": {
+                "choices": [
+                    ("percent", localize("web.promo.type_percent")),
+                    ("fixed", localize("web.promo.type_fixed")),
+                    ("balance", localize("web.promo.type_balance")),
+                ],
+                "description": localize("web.promo.type_hint"),
+            },
+            "scope": {
+                "choices": [
+                    ("global", localize("web.promo.scope_global")),
+                    ("category", localize("web.promo.scope_category")),
+                    ("item", localize("web.promo.scope_item")),
+                ],
+                "description": localize("web.promo.scope_hint"),
+            },
+        }
+
     column_formatters = {"scope": _format_promo_scope_html}
     column_formatters_detail = {"scope": _format_promo_scope_html}
-    name = "Promo Code"
-    name_plural = "Promo Codes"
+    name = Localized("web.model.promo_code.one")
+    name_plural = Localized("web.model.promo_code.many")
     icon = "fa-solid fa-tag"
 
     async def scaffold_form(self, *args, **kwargs):
@@ -638,7 +681,7 @@ class PromoCodeAdmin(AuditModelView, model=PromoCodes):
                 sa_select(Goods.id, Goods.name).order_by(Goods.name)
             )).all()
 
-        none_label = "— none (global) —"
+        none_label = localize("web.promo.none_global")
         cat_choices = [("", none_label)] + [(str(cid), name) for cid, name in cats]
         item_choices = [("", none_label)] + [(str(gid), name) for gid, name in items]
 
@@ -647,14 +690,14 @@ class PromoCodeAdmin(AuditModelView, model=PromoCodes):
 
         class PromoFormWithBindings(Form):
             category_id = SelectField(
-                "Category", choices=cat_choices, coerce=_coerce,
+                localize("web.promo.category"), choices=cat_choices, coerce=_coerce,
                 validators=[WtfOptional()],
-                description="Only for scope = category.",
+                description=localize("web.promo.category_hint"),
             )
             item_id = SelectField(
-                "Item", choices=item_choices, coerce=_coerce,
+                localize("web.promo.item"), choices=item_choices, coerce=_coerce,
                 validators=[WtfOptional()],
-                description="Only for scope = item.",
+                description=localize("web.promo.item_hint"),
             )
 
         return PromoFormWithBindings
@@ -663,21 +706,21 @@ class PromoCodeAdmin(AuditModelView, model=PromoCodes):
         """Validate/normalize a promo before persisting."""
         code = (data.get("code") or "").strip().upper()
         if not code:
-            raise ValueError("Code is required.")
+            raise ValueError(localize("web.promo.err.code_required"))
         data["code"] = code
 
         dtype = data.get("discount_type")
         if dtype not in ("percent", "fixed", "balance"):
-            raise ValueError("discount_type must be one of: percent, fixed, balance.")
+            raise ValueError(localize("web.promo.err.bad_type"))
 
         try:
             dval = Decimal(str(data.get("discount_value")))
         except (InvalidOperation, TypeError):
-            raise ValueError("discount_value must be a number.")
+            raise ValueError(localize("web.promo.err.value_not_number"))
         if dval < 0:
-            raise ValueError("discount_value must be >= 0.")
+            raise ValueError(localize("web.promo.err.value_negative"))
         if dtype == "percent" and dval > 100:
-            raise ValueError("A percent discount_value must be between 0 and 100.")
+            raise ValueError(localize("web.promo.err.percent_range"))
 
         # The SelectFields coerce to int or None; normalize anything else too.
         def _as_id(v):
@@ -694,18 +737,15 @@ class PromoCodeAdmin(AuditModelView, model=PromoCodes):
         data["item_id"] = item_id
 
         if category_id is not None and item_id is not None:
-            raise ValueError("A promo cannot bind both a category and an item — choose one.")
+            raise ValueError(localize("web.promo.err.both_bound"))
 
         scope = (data.get("scope") or "global").strip()
         expected = promo_scope_for(category_id, item_id)
         if scope != expected:
-            raise ValueError(
-                f"Scope '{scope}' does not match the binding — select '{expected}' "
-                f"(or set/clear the matching Category/Item)."
-            )
+            raise ValueError(localize("web.promo.err.scope_mismatch", scope=scope, expected=expected))
 
 
-class CartItemsAdmin(ModelView, model=CartItems):
+class CartItemsAdmin(LocalizedModelView, model=CartItems):
     column_list = [CartItems.id, CartItems.user_id, CartItems.item_id, CartItems.added_at]
     column_searchable_list = [CartItems.user_id, CartItems.item_id]
     column_sortable_list = [CartItems.id, CartItems.added_at]
@@ -713,8 +753,8 @@ class CartItemsAdmin(ModelView, model=CartItems):
     can_create = False
     can_edit = False
     can_delete = False
-    name = "Cart Item"
-    name_plural = "Cart Items"
+    name = Localized("web.model.cart_item.one")
+    name_plural = Localized("web.model.cart_item.many")
     icon = "fa-solid fa-cart-plus"
 
 
@@ -725,8 +765,8 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
     column_searchable_list = [Reviews.user_id, Reviews.item_id]
     column_sortable_list = [Reviews.id, Reviews.rating, Reviews.created_at]
     column_default_sort = (Reviews.id, True)
-    name = "Review"
-    name_plural = "Reviews"
+    name = Localized("web.model.review.one")
+    name_plural = Localized("web.model.review.many")
     icon = "fa-solid fa-star"
 
     async def _invalidate(self, model: Any) -> None:
@@ -748,6 +788,14 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
 
 
 # Health & Metrics Endpoints
+async def _signed_in(request: Request) -> bool:
+    try:
+        return await current_web_user(request) is not None
+    except Exception as e:  # the database being down must not break the health probe
+        logger.error(f"Panel session check failed: {e}")
+        return False
+
+
 async def health_check(request: Request) -> JSONResponse:
     db_ok = True
     try:
@@ -758,7 +806,7 @@ async def health_check(request: Request) -> JSONResponse:
         db_ok = False
 
     status_code = 200 if db_ok else 503
-    if not request.session.get("authenticated"):
+    if not await _signed_in(request):
         return JSONResponse(
             {"status": "healthy" if db_ok else "unhealthy"},
             status_code=status_code,
@@ -785,7 +833,7 @@ async def health_check(request: Request) -> JSONResponse:
 
 
 async def prometheus_metrics(request: Request) -> PlainTextResponse:
-    if not request.session.get("authenticated"):
+    if not await _signed_in(request):
         return PlainTextResponse("Unauthorized", status_code=401)
     metrics = get_metrics()
     if not metrics:
@@ -794,7 +842,7 @@ async def prometheus_metrics(request: Request) -> PlainTextResponse:
 
 
 async def metrics_json(request: Request) -> JSONResponse:
-    if not request.session.get("authenticated"):
+    if not await _signed_in(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
     metrics = get_metrics()
     if not metrics:
@@ -819,7 +867,11 @@ def create_admin_app(bot: Any = None) -> Starlette:
         Route("/metrics/prometheus", prometheus_metrics),
     ] + export_routes
 
+    from bot.web.accounts import MyAccountView, WebUserAdmin
+
     app = Starlette(routes=routes)
+    # Added first so it ends up inside SessionMiddleware: it reads the language out of the session.
+    app.add_middleware(LanguageMiddleware)
     app.add_middleware(
         SessionMiddleware,
         secret_key=EnvKeys.SECRET_KEY,
@@ -834,9 +886,14 @@ def create_admin_app(bot: Any = None) -> Starlette:
         engine=Database().engine,
         authentication_backend=auth_backend,
         title="Telegram Shop Admin",
-        # Override the (blank) SQLAdmin index page with our help/cheat-sheet.
+        # Our own login, layout and help pages replace SQLAdmin's.
         templates_dir=os.path.join(os.path.dirname(__file__), "templates"),
     )
+    env = admin.templates.env
+    env.globals["_"] = localize
+    env.globals["languages"] = LANGUAGES
+    env.globals["current_language"] = current_language
+    env.globals["error_text"] = error_text
 
     admin.add_view(UserAdmin)
     admin.add_view(RoleAdmin)
@@ -851,5 +908,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     admin.add_view(CartItemsAdmin)
     if EnvKeys.REVIEWS_ENABLED == "1":
         admin.add_view(ReviewsAdmin)
+    admin.add_view(WebUserAdmin)
+    admin.add_view(MyAccountView)
 
     return app

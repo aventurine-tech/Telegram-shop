@@ -12,6 +12,8 @@ from bot.database.models.main import Goods
 from bot.misc.images import MAX_IMAGE_BYTES
 from bot.web.admin import GoodsAdmin, GoodsForm
 
+pytestmark = pytest.mark.usefixtures("english")
+
 
 def _png(size=(4, 4), fmt="PNG") -> bytes:
     from PIL import Image

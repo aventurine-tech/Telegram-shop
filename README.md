@@ -73,7 +73,13 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   process memory, batched audit rows, cached paginator counts, single-flighted cache misses,
   invalidation by name — never by scanning the keyspace). **Optional** Redis caching and
   persistent FSM storage; the bot runs without Redis too.
-- **Localization** — Romanian, Russian and English (`BOT_LOCALE=ro|ru|en`).
+- **Localization** — English, Russian and Romanian in **both** the bot and the web panel. Every Telegram
+  user is asked for their language at `/start` and it is remembered (🌐 Language in the profile changes it);
+  messages to someone else — staff order alerts, status updates to customers, restock notices — are
+  sent in *their* language. `BOT_LOCALE` is only the default for people who haven't chosen yet.
+- **Web accounts** — several logins for the panel with two levels: **Admin** (everything, plus creating,
+  disabling and editing accounts) and **Staff** (everything else). Passwords are stored hashed; the login
+  page asks for the language and remembers it per account.
 
 ## 🧾 How an order works
 
@@ -320,7 +326,7 @@ Staff with the order-management permission always get order alerts in private ch
 | `CHANNEL_URL` / `CHANNEL_ID`              | Optional news channel (new-product posts, subscription check) | –                                 |
 | `HELPER_ID`                               | Support user Telegram ID                                      | –                                 |
 | `RULES`                                   | Rules text shown in the bot                                   | –                                 |
-| `BOT_LOCALE`                              | `ru`, `ro` or `en`                                                | `ru`                              |
+| `BOT_LOCALE`                              | Default language (`en`, `ru`, `ro`) for people who haven't chosen one | `ru`                          |
 | `BOT_LOGFILE` / `BOT_AUDITFILE`           | Log file paths                                                | `logs/bot.log` / `logs/audit.log` |
 | `LOG_TO_STDOUT` / `LOG_TO_FILE` / `DEBUG` | `1`/`0` toggles                                               | `1` / `1` / `0`                   |
 | `REVIEWS_ENABLED`                         | Enable product reviews (`1`/`0`)                              | `1`                               |
@@ -333,7 +339,7 @@ Staff with the order-management permission always get order alerts in private ch
 | Variable                            | Description                                                    | Default                   |
 |-------------------------------------|----------------------------------------------------------------|---------------------------|
 | `ADMIN_HOST` / `ADMIN_PORT`         | Bind address / port                                            | `localhost` / `9090`      |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Panel login                                                    | `admin` / `admin`         |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | First Admin account, **created only when no web account exists yet**; after that accounts are managed in the panel | `admin` / `admin` |
 | `SECRET_KEY`                        | Session signing key                                            | `change-me-in-production` |
 | `ADMIN_COOKIE_SECURE`               | Mark session cookie `Secure`; `auto` = on unless loopback-only | `auto` (or `1` / `0`)     |
 
@@ -420,6 +426,22 @@ Two ways to manage the shop:
   export CSV. Orders are **read-only** there on purpose: status changes, cancellations and MIA
   verification go through the bot so stock, balance and referral rules can never be bypassed.
   The landing page is a built-in cheat sheet.
+
+### Web accounts
+
+Open **Web accounts** in the panel (Admins only) to add people. The first Admin is created from
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` the first time the panel starts; change that password under
+**My account** and create personal accounts for everyone else.
+
+| Level     | Can do                                                                                   |
+|-----------|------------------------------------------------------------------------------------------|
+| **Admin** | Everything in the panel, plus create / edit / disable / delete web accounts              |
+| **Staff** | Everything else (catalog, orders, users, exports…); no access to web accounts             |
+
+You can't delete, disable or demote yourself, and the last active Admin is always protected.
+Disabling or demoting an account takes effect on its next request. **My account** (everyone) lets a
+person change their own password and language. SQLAdmin's own generic buttons (Save, Cancel, Search…)
+stay in English; everything we add is translated.
 
 ### Handling orders
 

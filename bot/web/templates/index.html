@@ -1,13 +1,11 @@
 {% extends "layout.html" %}
+{% block content_header %}{% endblock %}
 {% block content %}
 <div class="container-xl py-3">
 
   <div class="mb-3">
-    <h2 class="mb-1">Telegram Shop — Admin Panel</h2>
-    <div class="text-muted">
-      Quick reference for the panel. Every create/edit/delete here is audit-logged,
-      and the bot's caches are refreshed automatically after a change.
-    </div>
+    <h2 class="mb-1">{{ _('web.help.title') }}</h2>
+    <div class="text-muted">{{ _('web.help.intro') }}</div>
   </div>
 
   <div class="row row-cards">
@@ -15,56 +13,35 @@
     <!-- Selling goods -->
     <div class="col-lg-6">
       <div class="card">
-        <div class="card-header"><h3 class="card-title">📦 Selling goods (product + stock)</h3></div>
-        <div class="card-body">
-          <p>A <b>Product</b> is a physical item: name, price, description, category, optional
-             sale and the number of units on hand (<code>stock</code>).</p>
-          <ol class="mb-2">
-            <li>Create a <b>Category</b> (if needed).</li>
-            <li>Create a <b>Product</b> — set name, price, description, category and <code>stock</code>.</li>
-            <li>Optionally upload a <b>Picture</b> (JPEG, PNG or WEBP, up to 10&nbsp;MB) — it is kept as uploaded and
-                shown on the product card in the bot. Tick <i>Remove picture</i> on the edit page to delete it;
-                the <i>Picture</i> column in the list shows which products have one.</li>
-            <li>Change <code>stock</code> whenever goods arrive or are written off.</li>
-          </ol>
-          <p class="mb-2"><code>stock</code> is reserved when a customer places an order and returned
-             when the order is cancelled. A product at <code>0</code> cannot be ordered; customers who
-             asked to be notified get a message when it goes from 0 to more.</p>
-          <p class="text-muted mb-0">Renaming or deleting a product keeps carts, reviews and
-             order history consistent automatically.</p>
-        </div>
+        <div class="card-header"><h3 class="card-title">{{ _('web.help.goods.title') }}</h3></div>
+        <div class="card-body">{{ _('web.help.goods.body') | safe }}</div>
       </div>
     </div>
 
     <!-- Permissions -->
     <div class="col-lg-6">
       <div class="card">
-        <div class="card-header"><h3 class="card-title">🔐 Roles &amp; permissions</h3></div>
+        <div class="card-header"><h3 class="card-title">{{ _('web.help.perms.title') | safe }}</h3></div>
         <div class="card-body">
-          <p>A role's <code>permissions</code> is a <b>bitmask</b>: add up the values of the
-             abilities you want. Built-in roles: <b>USER</b> (1), <b>ADMIN</b>, <b>OWNER</b>
-             (all bits). You can only grant permissions you hold yourself.</p>
+          <p>{{ _('web.help.perms.intro') | safe }}</p>
           <div class="table-responsive">
             <table class="table table-sm table-vcenter mb-2">
-              <thead><tr><th>Bit</th><th>Value</th><th>Grants</th></tr></thead>
+              <thead><tr>
+                <th>{{ _('web.help.perms.col_bit') }}</th><th>{{ _('web.help.perms.col_value') }}</th>
+                <th>{{ _('web.help.perms.col_grants') }}</th>
+              </tr></thead>
               <tbody>
-                <tr><td>USE</td><td>1</td><td>Basic bot access</td></tr>
-                <tr><td>BROADCAST</td><td>2</td><td>Mass messaging</td></tr>
-                <tr><td>SETTINGS</td><td>4</td><td>Maintenance mode</td></tr>
-                <tr><td>USERS</td><td>8</td><td>View / block users, referrals, orders</td></tr>
-                <tr><td>CATALOG</td><td>16</td><td>Categories, products, stock</td></tr>
-                <tr><td>ADMINS</td><td>32</td><td>Create roles, assign roles</td></tr>
-                <tr><td>OWNER</td><td>64</td><td>Owner-only operations</td></tr>
-                <tr><td>STATS</td><td>128</td><td>Statistics, logs</td></tr>
-                <tr><td>BALANCE</td><td>256</td><td>Top-up / deduct balance</td></tr>
-                <tr><td>PROMO</td><td>512</td><td>Promo-code management</td></tr>
-                <tr><td>ORDERS</td><td>1024</td><td>View orders, verify MIA payments, change order status</td></tr>
+                {% for bit, value, key in [
+                  ('USE', 1, 'use'), ('BROADCAST', 2, 'broadcast'), ('SETTINGS', 4, 'settings'),
+                  ('USERS', 8, 'users'), ('CATALOG', 16, 'catalog'), ('ADMINS', 32, 'admins'),
+                  ('OWNER', 64, 'owner'), ('STATS', 128, 'stats'), ('BALANCE', 256, 'balance'),
+                  ('PROMO', 512, 'promo'), ('ORDERS', 1024, 'orders')] %}
+                <tr><td>{{ bit }}</td><td>{{ value }}</td><td>{{ _('web.help.perm.' ~ key) }}</td></tr>
+                {% endfor %}
               </tbody>
             </table>
           </div>
-          <p class="mb-0"><b>Example:</b> a catalog manager who also sees stats =
-             USE + CATALOG + STATS = 1 + 16 + 128 = <code>145</code>.
-             <span class="text-muted">Prefer the bot's role menu for a click-to-toggle UI.</span></p>
+          <p class="mb-0">{{ _('web.help.perms.example') | safe }}</p>
         </div>
       </div>
     </div>
@@ -72,45 +49,24 @@
     <!-- What each section does -->
     <div class="col-lg-6">
       <div class="card">
-        <div class="card-header"><h3 class="card-title">🧭 What each section is for</h3></div>
-        <div class="card-body">
-          <ul class="mb-0">
-            <li><b>Users</b> — balance, role, block status (edits take effect immediately).</li>
-            <li><b>Roles</b> — permission bitmasks (see the table).</li>
-            <li><b>Categories / Products</b> — the catalog, with stock per product.</li>
-            <li><b>Orders / Order Lines</b> — customer orders (see the tip below).</li>
-            <li><b>Promo Codes</b> — percent / fixed / balance codes, limits, expiry.</li>
-            <li><b>Operations / Referral Earnings</b> — read-only balance history.</li>
-            <li><b>Reviews</b> — 1–5★ product reviews.</li>
-            <li><b>Audit Logs</b> — read-only record of every admin action.</li>
-          </ul>
-        </div>
+        <div class="card-header"><h3 class="card-title">{{ _('web.help.sections.title') }}</h3></div>
+        <div class="card-body"><ul class="mb-0">{{ _('web.help.sections.body') | safe }}</ul></div>
       </div>
     </div>
 
     <!-- Tips -->
     <div class="col-lg-6">
       <div class="card">
-        <div class="card-header"><h3 class="card-title">💡 Good to know</h3></div>
-        <div class="card-body">
-          <ul class="mb-0">
-            <li>Orders, order lines, operations and audit logs are <b>read-only</b> by design.</li>
-            <li>To handle an order, tick it in the <b>Orders</b> list (or open it) and use the
-                <b>Actions</b> menu: confirm MIA payment, confirm, shipped, completed, cancel. These run
-                through the same logic as the bot, so stock, balance refunds, referral commissions and
-                customer notifications always stay correct. A move that is not allowed (for example
-                shipping an order whose MIA payment is not verified) is skipped and logged.
-                Cancelling does <b>not</b> return cash or MIA money — refund it by hand.</li>
-            <li>CSV exports: <code>/export/users</code>, <code>/export/orders</code>,
-                <code>/export/order_items</code>, <code>/export/operations</code>
-                (optional <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code>).</li>
-            <li>Prices/balances use exact decimals — enter plain numbers (e.g. <code>199.99</code>).</li>
-            <li>A promo code's <code>discount_type</code> is one of
-                <code>percent</code>, <code>fixed</code>, or <code>balance</code>.</li>
-            <li>Most day-to-day tasks are also available in the bot's in-chat admin menu,
-                which is often quicker for catalog and role edits.</li>
-          </ul>
-        </div>
+        <div class="card-header"><h3 class="card-title">{{ _('web.help.tips.title') }}</h3></div>
+        <div class="card-body"><ul class="mb-0">{{ _('web.help.tips.body') | safe }}</ul></div>
+      </div>
+    </div>
+
+    <!-- Web accounts -->
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">{{ _('web.help.accounts.title') }}</h3></div>
+        <div class="card-body">{{ _('web.help.accounts.body') | safe }}</div>
       </div>
     </div>
 

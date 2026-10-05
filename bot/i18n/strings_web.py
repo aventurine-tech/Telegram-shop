@@ -221,8 +221,7 @@ TRANSLATIONS = {
 
         # === Web accounts (admin only) ===
         "web.account.password": "Password",
-        "web.account.password_hint_create": "At least {min} characters. It is stored hashed and can never be shown again.",
-        "web.account.password_hint_edit": "Leave empty to keep the current password. Otherwise at least {min} characters.",
+        "web.account.password_hint": "At least {min} characters. When editing, leave empty to keep the current password. It is stored hashed and never shown again.",
         "web.account.role_hint": "Admin can do everything, including managing accounts. Staff can use every other section.",
         "web.account.active_hint": "A disabled account cannot sign in, and an open session ends at once.",
         "web.account.language_hint": "The panel language for this person. Empty = they are asked on their first sign-in.",
@@ -511,8 +510,7 @@ TRANSLATIONS = {
                                   "деньги нужно вернуть вручную."),
 
         "web.account.password": "Пароль",
-        "web.account.password_hint_create": "Не короче {min} символов. Хранится в виде хеша и больше нигде не показывается.",
-        "web.account.password_hint_edit": "Оставьте пустым, чтобы не менять пароль. Иначе не короче {min} символов.",
+        "web.account.password_hint": "Не короче {min} символов. При редактировании оставьте пустым, чтобы не менять пароль. Хранится в виде хеша и больше нигде не показывается.",
         "web.account.role_hint": "Администратор может всё, включая управление аккаунтами. Сотрудник работает во всех остальных разделах.",
         "web.account.active_hint": "Отключённый аккаунт не может войти, а открытый сеанс завершается сразу.",
         "web.account.language_hint": "Язык панели для этого человека. Пусто = его спросят при первом входе.",

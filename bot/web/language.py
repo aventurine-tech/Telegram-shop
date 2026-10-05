@@ -5,12 +5,13 @@ then the ``web_lang`` cookie set from the login page, then the bot default (BOT_
 goes into the i18n ContextVar for the duration of the request, so ``localize`` and the Jinja ``_()``
 helper need no request object.
 """
+from http import HTTPStatus
 from http.cookies import SimpleCookie
 from urllib.parse import parse_qs
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from bot.i18n.main import LANGUAGE_CODES, localize, use_language
+from bot.i18n.main import LANGUAGE_CODES, current_language, localize, use_language
 from bot.i18n.strings import TRANSLATIONS
 from bot.misc import EnvKeys
 
@@ -107,5 +108,21 @@ class LanguageMiddleware:
                 message = {**message, "headers": [*message.get("headers", []), (b"set-cookie", value.encode("latin-1"))]}
             await send(message)
 
-        with use_language(lang):
-            await self.app(scope, receive, send_with_cookie if picked else send)
+        forward = send_with_cookie if picked else send
+        # Nothing chosen: keep the default in force (BOT_LOCALE). Wrapping either way means a later
+        # set_language() in this request (authenticate picking up a changed account language) is undone after it.
+        with use_language(lang or current_language()):
+            await self.app(scope, receive, forward)
+
+
+def error_text(status_code: int, message: str | None) -> str:
+    """Text for the error page: a specific message as is, a bare HTTP phrase in the request language."""
+    try:
+        phrase = HTTPStatus(int(status_code)).phrase
+    except ValueError:
+        phrase = ""
+    if message and message != phrase:
+        return str(message)
+    key = f"web.error.{status_code}"
+    text = localize(key)
+    return str(message or "") if text == key else text

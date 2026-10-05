@@ -12,6 +12,9 @@ from bot.database.models.main import Goods, Fulfillment, PaymentMethod, PaymentS
 from bot.web.admin import GoodsAdmin, OrderAdmin, apply_order_action, set_notifier_bot, _PERM_FLAGS
 
 
+pytestmark = pytest.mark.usefixtures("english")
+
+
 class TestWebPanelStockEdits:
     def _request(self):
         request = MagicMock()

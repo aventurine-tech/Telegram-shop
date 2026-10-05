@@ -140,6 +140,12 @@ class TestWebUserStorage:
         await create_web_user("Carol", "password-1")
         assert await create_web_user("carol", "password-2") == (False, "username_taken")
 
+    async def test_login_lookup_ignores_case(self):
+        await create_web_user("Boss", "password-1")
+        assert (await get_web_user_auth("boss"))["username"] == "Boss"
+        assert (await get_web_user_auth(" BOSS "))["username"] == "Boss"
+        assert await get_web_user_auth("nobody") is None
+
     async def test_active_admin_count(self):
         await create_web_user("a1", "password-1", WebRole.ADMIN)
         await create_web_user("a2", "password-1", WebRole.ADMIN, is_active=False)

@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from bot.database.main import Database
 from bot.database.models.main import User, Orders, OrderItems, Operations
+from bot.web.session import current_web_user
 
 
 BATCH_SIZE = 1000
@@ -85,12 +86,13 @@ def _parse_date_params(request: Request):
     return from_date, to_date
 
 
-def _check_auth(request: Request):
-    return request.session.get("authenticated", False)
+async def _check_auth(request: Request) -> bool:
+    """Any signed-in, still-active account (Admin or Staff) may export."""
+    return await current_web_user(request) is not None
 
 
 async def export_users(request: Request):
-    if not _check_auth(request):
+    if not await _check_auth(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from_date, to_date = _parse_date_params(request)
@@ -114,7 +116,7 @@ async def export_users(request: Request):
 
 
 async def export_orders(request: Request):
-    if not _check_auth(request):
+    if not await _check_auth(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from_date, to_date = _parse_date_params(request)
@@ -140,7 +142,7 @@ async def export_orders(request: Request):
 
 
 async def export_order_items(request: Request):
-    if not _check_auth(request):
+    if not await _check_auth(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from_date, to_date = _parse_date_params(request)
@@ -165,7 +167,7 @@ async def export_order_items(request: Request):
 
 
 async def export_operations(request: Request):
-    if not _check_auth(request):
+    if not await _check_auth(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from_date, to_date = _parse_date_params(request)

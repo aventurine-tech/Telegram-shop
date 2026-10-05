@@ -185,8 +185,7 @@ TRANSLATIONS = {
                                   "trebuie returnați manual."),
 
         "web.account.password": "Parola",
-        "web.account.password_hint_create": "Cel puțin {min} caractere. Se păstrează criptat și nu mai poate fi afișată niciodată.",
-        "web.account.password_hint_edit": "Lăsați gol pentru a păstra parola actuală. Altfel, cel puțin {min} caractere.",
+        "web.account.password_hint": "Cel puțin {min} caractere. La editare, lăsați gol pentru a păstra parola actuală. Se păstrează criptat și nu mai este afișată niciodată.",
         "web.account.role_hint": "Administratorul poate face orice, inclusiv să gestioneze conturile. Angajatul poate folosi toate celelalte secțiuni.",
         "web.account.active_hint": "Un cont dezactivat nu se poate autentifica, iar o sesiune deschisă se încheie imediat.",
         "web.account.language_hint": "Limba panoului pentru această persoană. Gol = va fi întrebată la prima autentificare.",

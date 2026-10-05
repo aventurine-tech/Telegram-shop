@@ -85,15 +85,37 @@ class TestParseDateParams:
         assert _parse_date_params(_request(**params)) == (expected_from, expected_to)
 
 
+async def _account(username="exporter", role="staff", active=True):
+    """A web account; returns the session an Admin/Staff browser would carry."""
+    from bot.database.methods.web_users import create_web_user, get_web_user_auth
+    if await get_web_user_auth(username) is None:
+        ok, _ = await create_web_user(username, "correct horse", role, is_active=active)
+        assert ok
+    return {"uid": (await get_web_user_auth(username))["id"], "role": role}
+
+
 class TestCheckAuth:
 
-    @pytest.mark.parametrize("session,expected", [
-        ({"authenticated": True}, True),
-        ({"authenticated": False}, False),
-        ({}, False),  # no session key at all
+    @pytest.mark.parametrize("role", ["admin", "staff"])
+    async def test_any_active_account_passes(self, role):
+        assert await _check_auth(_request(session=await _account(role=role))) is True
+
+    @pytest.mark.parametrize("session", [
+        {"authenticated": True},   # the old session shape no longer counts
+        {"uid": 12345, "role": "admin"},   # an account that does not exist
+        {"uid": "1", "role": "admin"},
+        {},                        # no session key at all
     ])
-    def test_auth(self, session, expected):
-        assert _check_auth(_request(session=session)) is expected
+    async def test_everything_else_is_refused(self, session):
+        assert await _check_auth(_request(session=session)) is False
+
+    async def test_disabled_account_is_refused(self):
+        assert await _check_auth(_request(session=await _account(active=False))) is False
+
+    async def test_role_change_invalidates_the_session(self):
+        session = await _account(role="admin")
+        session["role"] = "staff"      # the cookie says staff, the account is admin: not the same session
+        assert await _check_auth(_request(session=session)) is False
 
 
 class TestExportEndpointsRequireAuth:
@@ -158,7 +180,7 @@ class TestStreamCsv:
         await user_factory(telegram_id=770020)
         await _add_order(770020, customer="=HYPERLINK(\"http://evil\",\"click\")")
 
-        response = await export_orders(_request(session={"authenticated": True}))
+        response = await export_orders(_request(session=await _account()))
         body = await _collect(response)
 
         rows = list(csv.reader(io.StringIO(body)))
@@ -169,7 +191,7 @@ class TestStreamCsv:
         await user_factory(telegram_id=770021)
         await _add_order(770021, lines=(("@SUM(1+1)", 1, 100),))
 
-        response = await export_order_items(_request(session={"authenticated": True}))
+        response = await export_order_items(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
         assert [r[2] for r in rows[1:]] == ["'@SUM(1+1)"]
@@ -177,12 +199,10 @@ class TestStreamCsv:
 
 class TestExportEndpoints:
 
-    AUTHED = {"authenticated": True}
-
     async def test_users_export_contains_the_seeded_user(self, user_factory):
         await user_factory(telegram_id=770030, balance=99)
 
-        response = await export_users(_request(session=self.AUTHED))
+        response = await export_users(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
         assert rows[0][0] == "telegram_id"
@@ -193,7 +213,7 @@ class TestExportEndpoints:
         await user_factory(telegram_id=770040)
         await add_operation(770040, 150, NOW)
 
-        response = await export_operations(_request(session=self.AUTHED))
+        response = await export_operations(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
         assert rows[0] == ["id", "user_id", "operation_value", "operation_time"]
@@ -204,7 +224,7 @@ class TestExportEndpoints:
         await user_factory(telegram_id=770050)
         order_id = await _add_order(770050, total=100)
 
-        response = await export_orders(_request(session=self.AUTHED))
+        response = await export_orders(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
         assert rows[0][:4] == ["id", "user_id", "status", "payment_method"]
@@ -216,7 +236,7 @@ class TestExportEndpoints:
         await user_factory(telegram_id=770051)
         order_id = await _add_order(770051, total=300, lines=(("Lamp", 2, 200), ("Cable", 1, 100)))
 
-        response = await export_order_items(_request(session=self.AUTHED))
+        response = await export_order_items(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
         assert rows[0] == ["id", "order_id", "item_name", "quantity", "unit_price", "line_total"]
@@ -231,7 +251,7 @@ class TestExportEndpoints:
 
         cutoff = (NOW - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
         for endpoint in (export_orders, export_order_items):
-            response = await endpoint(_request(session=self.AUTHED, **{"from": cutoff}))
+            response = await endpoint(_request(session=await _account(), **{"from": cutoff}))
             rows = list(csv.reader(io.StringIO(await _collect(response))))
             assert len(rows) == 1  # header only
 
@@ -241,7 +261,7 @@ class TestExportEndpoints:
 
         far_future = (NOW + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
         response = await export_operations(
-            _request(session=self.AUTHED, **{"from": far_future})
+            _request(session=await _account(), **{"from": far_future})
         )
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 

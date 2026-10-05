@@ -25,7 +25,9 @@ def web_user_to_dict(u: WebUsers) -> dict:
 async def get_web_user_auth(username: str) -> dict | None:
     """The account *with* its hash, for the login check only."""
     async with Database().session() as s:
-        u = (await s.execute(select(WebUsers).where(WebUsers.username == username))).scalars().first()
+        u = (await s.execute(
+            select(WebUsers).where(func.lower(WebUsers.username) == (username or "").strip().lower())
+        )).scalars().first()
         return None if u is None else {**web_user_to_dict(u), "password_hash": u.password_hash}
 
 

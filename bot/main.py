@@ -111,6 +111,14 @@ async def _start_admin_server(bot: Bot):
     """Create and start the admin web server as a background task; return it."""
     import uvicorn
     from bot.web import create_admin_app
+    from bot.database.methods.web_users import bootstrap_web_admin
+
+    # The first Admin comes from ADMIN_USERNAME / ADMIN_PASSWORD, once, while no web account exists yet.
+    try:
+        if await bootstrap_web_admin(EnvKeys.ADMIN_USERNAME, EnvKeys.ADMIN_PASSWORD):
+            logging.info("Created the first web-panel Admin account from ADMIN_USERNAME / ADMIN_PASSWORD")
+    except Exception:
+        logging.exception("Could not create the first web-panel Admin account; nobody will be able to sign in")
 
     # The bot goes in so panel edits can reach users (e.g. restock notifications).
     admin_app = create_admin_app(bot)

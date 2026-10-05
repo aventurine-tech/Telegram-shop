@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="d-flex align-items-center justify-content-center vh-100">
+  <form class="col-lg-4 col-md-6 col-11 card card-md" action="{{ url_for('admin:login') }}" method="POST" autocomplete="off">
+    <div class="card-body">
+      <div class="text-center mb-3" role="group" aria-label="{{ _('web.login.choose_language') }}">
+        <div class="text-muted small mb-2">{{ _('web.login.choose_language') }}</div>
+        {% for code, label in languages %}
+        <a href="?lang={{ code }}" hreflang="{{ code }}" lang="{{ code }}"
+           class="btn btn-sm {{ 'btn-primary' if code == current_language() else 'btn-outline-secondary' }}">{{ label }}</a>
+        {% endfor %}
+      </div>
+      <h2 class="card-title text-center mb-4">{{ _('web.login.title', title=admin.title) }}</h2>
+      <div class="mb-3">
+        <label class="form-label">{{ _('web.login.username') }}</label>
+        <input name="username" type="text" class="form-control{{ ' is-invalid' if error }}"
+               placeholder="{{ _('web.login.username_ph') }}" autocomplete="username" autofocus>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">{{ _('web.login.password') }}</label>
+        <div class="input-group input-group-flat">
+          <input name="password" type="password" class="form-control{{ ' is-invalid' if error }}"
+                 placeholder="{{ _('web.login.password_ph') }}" autocomplete="current-password">
+          {% if error %}<div class="invalid-feedback">{{ _('web.login.error') }}</div>{% endif %}
+        </div>
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary w-100">{{ _('web.login.submit') }}</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

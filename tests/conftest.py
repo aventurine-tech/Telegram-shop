@@ -412,3 +412,11 @@ def role_factory():
         return await create_role(name, permissions)
 
     return _create
+
+
+@pytest.fixture
+def english():
+    """Render web-panel text in English (the default language of the test environment is Russian)."""
+    from bot.i18n.main import use_language
+    with use_language("en"):
+        yield
