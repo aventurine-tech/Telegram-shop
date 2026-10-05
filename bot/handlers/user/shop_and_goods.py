@@ -33,6 +33,8 @@ from bot.keyboards import item_info, back, lazy_paginated_keyboard, order_keyboa
 from bot.keyboards.inline import simple_buttons, rating_keyboard
 from aiogram.types import InlineKeyboardButton
 from bot.i18n import localize, esc
+from bot.database.methods.translations import category_labels, item_labels
+from bot.misc.localized import pick
 from bot.handlers.user._screen import edit_screen, is_photo_message
 from bot.misc import EnvKeys, LazyPaginator, ReviewRequest
 from bot.misc.metrics import get_metrics
@@ -151,11 +153,13 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
         out_of_stock=out_of_stock, subscribed=subscribed,
     )
 
-    description = item_info_data["description"]
+    # Shown in the viewer's language; every lookup below keeps using the canonical `item_name`.
+    display_name = pick(item_info_data, "name")
+    description = pick(item_info_data, "description")
 
     def build_text(desc: str) -> str:
         lines = [
-            localize("shop.item.title", name=esc(item_name)),
+            localize("shop.item.title", name=esc(display_name)),
             localize("shop.item.description", description=esc(desc)),
             price_line,
             quantity_line,
@@ -249,10 +253,11 @@ async def _show_categories_page(call: CallbackQuery, state: FSMContext, page: in
     # Pre-fetch page items to build the index map used by the item_callback.
     page_items = await paginator.get_page(page)
     items_index = {cat: idx for idx, cat in enumerate(page_items)}
+    labels = await category_labels(page_items)     # display text only; callbacks stay canonical
 
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
-        item_text=lambda cat: cat,
+        item_text=lambda cat: labels.get(cat, cat),
         item_callback=lambda cat: f"cat:{items_index[cat]}:{page}",
         page=page,
         back_cb="back_to_menu",
@@ -297,10 +302,11 @@ async def _show_goods_page(call: CallbackQuery, state: FSMContext,
 
     page_items = await paginator.get_page(page)
     items_index = {item: i for i, item in enumerate(page_items)}
+    labels = await item_labels(page_items)
 
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
-        item_text=lambda item: item,
+        item_text=lambda item: labels.get(item, item),
         item_callback=lambda item: f"itm:{items_index[item]}:{page}",
         page=page,
         back_cb=f"categories-page_{cat_page}",
@@ -450,9 +456,10 @@ async def _show_search_page(target, state: FSMContext, query: str, page: int):
         return
 
     items_index = {item: i for i, item in enumerate(page_items)}
+    labels = await item_labels(page_items)
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
-        item_text=lambda item: item,
+        item_text=lambda item: labels.get(item, item),
         item_callback=lambda item: f"sitm:{items_index[item]}:{page}",
         page=page,
         back_cb="shop",
@@ -657,6 +664,11 @@ async def redeem_promo_code_handler(message: Message, state: FSMContext):
 
 # --- Review Handlers ---
 
+async def _display_name(item_name: str) -> str:
+    """The product's name in the viewer's language (the canonical name if it has no translation)."""
+    return (await item_labels([item_name])).get(item_name, item_name)
+
+
 @router.callback_query(F.data == "review")
 async def start_review_handler(call: CallbackQuery, state: FSMContext):
     if EnvKeys.REVIEWS_ENABLED != "1":
@@ -683,7 +695,7 @@ async def start_review_handler(call: CallbackQuery, state: FSMContext):
     await state.update_data(review_item_name=item_name)
     await edit_screen(
         call,
-        localize("review.prompt_rating", name=esc(item_name)),
+        localize("review.prompt_rating", name=esc(await _display_name(item_name))),
         reply_markup=rating_keyboard(),
     )
     await state.set_state(ReviewFSM.waiting_rating)
@@ -786,7 +798,7 @@ async def view_reviews_handler(call: CallbackQuery, state: FSMContext):
         )
         return
 
-    lines = [localize("review.list_title", name=esc(item_name)), ""]
+    lines = [localize("review.list_title", name=esc(await _display_name(item_name))), ""]
     for r in reviews:
         if r.get('text'):
             lines.append(localize(

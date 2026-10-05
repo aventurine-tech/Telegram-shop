@@ -1,4 +1,5 @@
 from aiogram import Router, F
+from aiogram.filters import StateFilter
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -9,12 +10,15 @@ from bot.handlers.other import is_safe_item_name
 from bot.handlers.admin._common import (
     _notify_restock_safe, announce_arrival, parse_price, parse_quantity,
     IMAGE_MESSAGE, download_message_image, image_error_text,
+    other_languages, language_label, check_translation, translation_limit,
 )
 from bot.keyboards.inline import back
+from bot.keyboards.translations import skip_keyboard
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.misc import EnvKeys
 from bot.misc.images import ImageError, validate_image
+from bot.misc.localized import MAX_DESCRIPTION_LEN
 from bot.i18n import localize, esc
 from bot.states import AddItemFSM
 
@@ -50,20 +54,116 @@ async def check_item_name_for_add(message: Message, state):
         )
         return
 
-    await state.update_data(item_name=item_name)
-    await message.answer(localize('admin.goods.add.prompt.description'), reply_markup=back('goods_management'))
-    await state.set_state(AddItemFSM.waiting_item_description)
+    await state.update_data(item_name=item_name, item_names={}, item_name_queue=other_languages())
+    await _next_name_translation(message, state)
+
+
+async def _next_name_translation(target: Message, state):
+    """Asks for the product name in the next language, or moves on to the description."""
+    data = await state.get_data()
+    queue = list(data.get('item_name_queue') or [])
+    if not queue:
+        await target.answer(localize('admin.goods.add.prompt.description'), reply_markup=back('goods_management'))
+        await state.set_state(AddItemFSM.waiting_item_description)
+        return
+    await target.answer(
+        localize('admin.goods.add.prompt.name_translation', language=language_label(queue[0])),
+        reply_markup=skip_keyboard('add_item_skip_tr', 'goods_management'),
+    )
+    await state.set_state(AddItemFSM.waiting_item_name_translation)
+
+
+async def _next_description_translation(target: Message, state):
+    """Asks for the product description in the next language, or moves on to the price."""
+    data = await state.get_data()
+    queue = list(data.get('item_desc_queue') or [])
+    if not queue:
+        await target.answer(localize('admin.goods.add.prompt.price', currency=EnvKeys.PAY_CURRENCY),
+                            reply_markup=back('goods_management'))
+        await state.set_state(AddItemFSM.waiting_item_price)
+        return
+    await target.answer(
+        localize('admin.goods.add.prompt.description_translation', language=language_label(queue[0])),
+        reply_markup=skip_keyboard('add_item_skip_tr', 'goods_management'),
+    )
+    await state.set_state(AddItemFSM.waiting_item_description_translation)
+
+
+@router.message(AddItemFSM.waiting_item_name_translation, F.text,
+                HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_item_name_translation(message: Message, state):
+    """
+    Take the product name in the current language (validated) and move on.
+    """
+    data = await state.get_data()
+    queue = list(data.get('item_name_queue') or [])
+    if not queue:
+        await _next_name_translation(message, state)
+        return
+    value, error = check_translation('name', message.text)
+    if error:
+        await message.answer(localize(error, max=translation_limit('name')),
+                             reply_markup=skip_keyboard('add_item_skip_tr', 'goods_management'))
+        return
+    names = dict(data.get('item_names') or {})
+    names[queue[0]] = value
+    await state.update_data(item_names=names, item_name_queue=queue[1:])
+    await _next_name_translation(message, state)
+
+
+@router.message(AddItemFSM.waiting_item_description_translation, F.text,
+                HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_item_description_translation(message: Message, state):
+    """
+    Take the product description in the current language (validated) and move on.
+    """
+    data = await state.get_data()
+    queue = list(data.get('item_desc_queue') or [])
+    if not queue:
+        await _next_description_translation(message, state)
+        return
+    value, error = check_translation('description', message.text)
+    if error:
+        await message.answer(localize(error, max=translation_limit('description')),
+                             reply_markup=skip_keyboard('add_item_skip_tr', 'goods_management'))
+        return
+    descriptions = dict(data.get('item_descriptions') or {})
+    descriptions[queue[0]] = value
+    await state.update_data(item_descriptions=descriptions, item_desc_queue=queue[1:])
+    await _next_description_translation(message, state)
+
+
+@router.callback_query(F.data == 'add_item_skip_tr',
+                       StateFilter(AddItemFSM.waiting_item_name_translation,
+                                   AddItemFSM.waiting_item_description_translation),
+                       HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_item_skip_translation(call: CallbackQuery, state):
+    """
+    Leave the current language empty (it falls back to the main-language text).
+    """
+    await call.answer()
+    data = await state.get_data()
+    if await state.get_state() == AddItemFSM.waiting_item_name_translation:
+        await state.update_data(item_name_queue=list(data.get('item_name_queue') or [])[1:])
+        await _next_name_translation(call.message, state)
+    else:
+        await state.update_data(item_desc_queue=list(data.get('item_desc_queue') or [])[1:])
+        await _next_description_translation(call.message, state)
 
 
 @router.message(AddItemFSM.waiting_item_description, F.text)
 async def add_item_description(message: Message, state):
     """
-    Save description and proceed to price input.
+    Save the (main-language) description and ask for it in the other languages.
     """
-    await state.update_data(item_description=(message.text or "").strip())
-    await message.answer(localize('admin.goods.add.prompt.price', currency=EnvKeys.PAY_CURRENCY),
-                         reply_markup=back('goods_management'))
-    await state.set_state(AddItemFSM.waiting_item_price)
+    description = (message.text or "").strip()
+    if len(description) > MAX_DESCRIPTION_LEN:
+        await message.answer(localize('admin.translations.too_long', max=MAX_DESCRIPTION_LEN),
+                             reply_markup=back('goods_management'))
+        return
+    await state.update_data(item_description=description, item_descriptions={},
+                            item_desc_queue=other_languages())
+    await _next_description_translation(message, state)
 
 
 @router.message(AddItemFSM.waiting_item_price, F.text)
@@ -130,9 +230,11 @@ async def _create_product(message: Message, user, state, image: bytes | None = N
     data = await state.get_data()
     item_name = data.get('item_name')
     stock = data.get('item_stock') or 0
+    translated = set(data.get('item_names') or {}) | set(data.get('item_descriptions') or {})
 
     await create_item(item_name, data.get('item_description'), data.get('item_price'),
-                      data.get('item_category'), stock=stock)
+                      data.get('item_category'), stock=stock,
+                      names=data.get('item_names') or None, descriptions=data.get('item_descriptions') or None)
 
     created = await get_item_info(item_name)    # uncached: the name step may have cached a miss
     photo_ok = None
@@ -154,7 +256,8 @@ async def _create_product(message: Message, user, state, image: bytes | None = N
 
     admin_name = user.first_name or str(user.id)
     await log_audit("create_item", user_id=user.id, resource_type="Item", resource_id=item_name,
-                    details=f"admin={admin_name}, stock={stock}, photo={'yes' if photo_ok else 'no'}")
+                    details=f"admin={admin_name}, stock={stock}, photo={'yes' if photo_ok else 'no'}, "
+                            f"translations={','.join(sorted(translated)) or '-'}")
 
     await state.clear()
 

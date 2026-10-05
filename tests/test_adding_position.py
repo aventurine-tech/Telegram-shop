@@ -9,17 +9,29 @@ from bot.handlers.admin.adding_position import (
     add_item_callback_handler, check_item_name_for_add, add_item_description,
     add_item_price, check_category_for_add_item, add_item_stock,
     add_item_photo, add_item_skip_photo, add_item_photo_reprompt,
+    add_item_name_translation, add_item_description_translation, add_item_skip_translation,
 )
 from bot.database.methods.product_images import get_item_image_bytes
 from bot.misc.images import MAX_IMAGE_BYTES
 from bot.states import AddItemFSM
 
 
+def _skip_call():
+    call = AsyncMock()
+    call.data = "add_item_skip_tr"
+    call.from_user.id = 1
+    return call
+
+
 async def _walk_to_stock_prompt(make_message, fsm_context, *,
                                 name="NewItem", price="100", category="AddCat"):
-    """Drive the FSM from the name prompt up to the stock quantity prompt."""
+    """Drive the FSM from the name prompt up to the stock quantity prompt (translations skipped)."""
     await check_item_name_for_add(make_message(text=name, user_id=1), fsm_context)
+    for _ in range(2):
+        await add_item_skip_translation(_skip_call(), fsm_context)
     await add_item_description(make_message(text="A description", user_id=1), fsm_context)
+    for _ in range(2):
+        await add_item_skip_translation(_skip_call(), fsm_context)
     await add_item_price(make_message(text=price, user_id=1), fsm_context)
     await check_category_for_add_item(make_message(text=category, user_id=1), fsm_context)
 
@@ -39,7 +51,8 @@ class TestItemNameStep:
     async def test_valid_name_advances_to_description(self, make_message, fsm_context):
         await check_item_name_for_add(make_message(text="Fresh Item", user_id=1), fsm_context)
 
-        assert await fsm_context.get_state() == AddItemFSM.waiting_item_description
+        # The name is stored; the other two languages are asked before the description.
+        assert await fsm_context.get_state() == AddItemFSM.waiting_item_name_translation
         assert (await fsm_context.get_data())["item_name"] == "Fresh Item"
 
     async def test_existing_name_is_refused(self, make_message, fsm_context, item_factory):

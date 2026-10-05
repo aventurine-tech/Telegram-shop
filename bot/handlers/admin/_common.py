@@ -3,10 +3,14 @@ from html import escape as _esc
 
 from aiogram import F
 
-from bot.i18n import localize
+from bot.i18n import localize, LANGUAGES
+from bot.i18n import main as _i18n_main
 from bot.logger_mesh import logger
 from bot.misc import EnvKeys
 from bot.misc.images import ImageError, MAX_IMAGE_BYTES
+from bot.misc.localized import (
+    LANGS, MAX_NAME_LEN, MAX_DESCRIPTION_LEN, clean_name, clean_description,
+)
 
 # Numeric(12, 2) leaves 10 integer digits; anything larger is a DB error. Shared by the add and the update flows so they cannot drift.
 MAX_ITEM_PRICE = 99_999_999
@@ -136,3 +140,41 @@ async def download_message_image(message) -> bytes | None:
         logger.warning("downloading a product picture failed: %s", e)
         raise ImageError("download_failed")
     return buf.getvalue()
+
+
+# --- Catalog translations (names / descriptions in en, ru, ro) ---
+
+def main_language() -> str:
+    """The language the canonical (lookup-key) name/description is written in: BOT_LOCALE."""
+    lang = _i18n_main.get_locale()
+    return lang if lang in LANGS else LANGS[0]
+
+
+def other_languages() -> list[str]:
+    """The languages besides the main one, in picker order."""
+    main = main_language()
+    return [code for code, _ in LANGUAGES if code in LANGS and code != main]
+
+
+def language_label(code: str) -> str:
+    """Picker label of a language ("🇷🇴 Română")."""
+    return dict(LANGUAGES).get(code, code)
+
+
+def check_translation(field: str, text: str | None) -> tuple[str | None, str | None]:
+    """Clean and validate admin input for a translated ``field`` ("name" / "description").
+
+    Returns ``(value, None)`` or ``(None, i18n key of the error)``: blank after cleaning
+    -> ``admin.translations.invalid``, over the limit -> ``admin.translations.too_long``.
+    """
+    cleaner, limit = (clean_name, MAX_NAME_LEN) if field == "name" else (clean_description, MAX_DESCRIPTION_LEN)
+    value = cleaner(text)
+    if value is None:
+        return None, "admin.translations.invalid"
+    if len(value) > limit:
+        return None, "admin.translations.too_long"
+    return value, None
+
+
+def translation_limit(field: str) -> int:
+    return MAX_NAME_LEN if field == "name" else MAX_DESCRIPTION_LEN

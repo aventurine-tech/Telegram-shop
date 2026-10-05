@@ -16,7 +16,7 @@ from sqlalchemy import text
 
 from markupsafe import Markup, escape
 from wtforms import BooleanField, FileField, Form, SelectField
-from wtforms.validators import Optional as WtfOptional
+from wtforms.validators import Optional as WtfOptional, StopValidation
 from sqlalchemy import select as sa_select
 
 from bot.misc import EnvKeys
@@ -88,10 +88,12 @@ from bot.database.models.main import (
     OrderStatus, WebRole,
 )
 from bot.misc.images import ImageError, validate_image
+from bot.misc.localized import LANGS, MAX_DESCRIPTION_LEN, MAX_NAME_LEN, clean_description, clean_name
 from bot.misc.metrics import get_metrics
 from bot.misc.caching import get_cache_manager
 from bot.database.methods.read import (
     invalidate_user_cache, invalidate_item_cache, invalidate_rating_cache, get_item_name_by_id,
+    invalidate_category_cache,
 )
 from bot.database.methods.cache_utils import safe_create_task
 from bot.database.methods.product_images import items_with_images, remove_item_image, set_item_image
@@ -328,13 +330,96 @@ class RoleAdmin(AuditModelView, model=Role):
         await self._flush_role_caches()
 
 
+def _translation_fields(descriptions: bool) -> list[str]:
+    fields = [f"name_{lang}" for lang in LANGS]
+    return fields + ([f"description_{lang}" for lang in LANGS] if descriptions else [])
+
+
+def _name_length_validator(lang: str):
+    """Translated replacement for the generic max-length message SQLAdmin adds to String columns.
+
+    Raising StopValidation keeps that English-only validator from also running.
+    """
+    def check(form, field):
+        value = clean_name(field.data)
+        if value is not None and len(value) > MAX_NAME_LEN:
+            raise StopValidation(localize("web.form.tr_too_long_name",
+                                          language=localize(f"web.form.lang.{lang}"), limit=MAX_NAME_LEN))
+    return check
+
+
+def _translation_form_args(descriptions: bool) -> dict:
+    """Per-language field hints, in the request language."""
+    args = {}
+    for lang in LANGS:
+        language = localize(f"web.form.lang.{lang}")
+        args[f"name_{lang}"] = {"description": localize("web.form.name_tr_hint", language=language),
+                                "validators": [_name_length_validator(lang)]}
+        if descriptions:
+            args[f"description_{lang}"] = {"description": localize("web.form.description_tr_hint", language=language)}
+    return args
+
+
+def _translation_widget_args(descriptions: bool) -> dict:
+    """SQLAdmin's stock templates do not print a field's ``description``, so the same hint is also the
+    placeholder: it shows in the empty field, which is exactly when the fallback matters."""
+    args = {k: {"placeholder": v["description"]} for k, v in _translation_form_args(descriptions).items()}
+    for lang in LANGS:
+        if descriptions:
+            args[f"description_{lang}"]["rows"] = 5
+    return args
+
+
+def _normalize_translations(data: dict, descriptions: bool) -> None:
+    """Clean the submitted translations in place: blank -> None, too long -> a translated ValueError."""
+    for lang in LANGS:
+        language = localize(f"web.form.lang.{lang}")
+        for field, cleaner, limit, err in (
+            (f"name_{lang}", clean_name, MAX_NAME_LEN, "web.form.tr_too_long_name"),
+            (f"description_{lang}", clean_description, MAX_DESCRIPTION_LEN, "web.form.tr_too_long_description"),
+        ):
+            if field not in data or (field.startswith("description_") and not descriptions):
+                continue
+            value = cleaner(data[field])
+            if value is not None and len(value) > limit:
+                raise ValueError(localize(err, language=language, limit=limit))
+            data[field] = value
+
+
 class CategoryAdmin(AuditModelView, model=Categories):
     column_list = [Categories.name]
-    column_searchable_list = [Categories.name]
-    form_excluded_columns = [Categories.items]
+    column_searchable_list = [Categories.name, Categories.name_en, Categories.name_ru, Categories.name_ro]
+    form_columns = ["name"] + _translation_fields(False)
     name = Localized("web.model.category.one")
     name_plural = Localized("web.model.category.many")
     icon = "fa-solid fa-folder"
+
+    @property
+    def form_args(self) -> dict:
+        return _translation_form_args(False)
+
+    @property
+    def form_widget_args(self) -> dict:
+        return _translation_widget_args(False)
+
+    async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
+        # On an edit `model` still holds the pre-edit name here; remember it for the cache invalidation.
+        request.state.category_old_name = None if is_created else getattr(model, "name", None)
+        _normalize_translations(data, False)
+
+    async def _invalidate(self, model: Any, old_name: str | None = None) -> None:
+        # Every translation rides in the cached `category:<name>` row, so any edit drops it (and the old
+        # key on a rename).
+        for name in {n for n in (getattr(model, "name", None), old_name) if n}:
+            safe_create_task(invalidate_category_cache(name))
+
+    async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
+        await super().after_model_change(data, model, is_created, request)
+        await self._invalidate(model, getattr(request.state, "category_old_name", None))
+
+    async def after_model_delete(self, model: Any, request: Request) -> None:
+        await super().after_model_delete(model, request)
+        await self._invalidate(model)
 
 
 _PICTURE_ERRORS = ("too_large", "invalid_image", "unsupported_format", "item_not_found")
@@ -363,14 +448,23 @@ class GoodsAdmin(AuditModelView, model=Goods):
     column_list = [Goods.id, Goods.name, "picture", Goods.price, Goods.stock, Goods.sale_percent,
                    Goods.sale_until, Goods.description, Goods.category_id]
     form_base_class = GoodsForm
-    column_searchable_list = [Goods.name]
+    column_searchable_list = [Goods.name, Goods.name_en, Goods.name_ru, Goods.name_ro]
     column_sortable_list = [Goods.id, Goods.name, Goods.price, Goods.stock]
+    # Canonical (main-language) fields first, the optional translations after them.
+    form_columns = ["name", "description", "price", "category", "stock", "sale_percent", "sale_until"] \
+        + _translation_fields(True)
     name = Localized("web.model.product.one")
     name_plural = Localized("web.model.product.many")
     icon = "fa-solid fa-box"
+
+    @property
+    def form_widget_args(self) -> dict:
+        return _translation_widget_args(True)
+
     @property
     def form_args(self) -> dict:
         return {
+            **_translation_form_args(True),
             "stock": {"description": localize("web.form.stock_hint")},
             "sale_percent": {"description": localize("web.form.sale_percent_hint")},
             "sale_until": {"description": localize("web.form.sale_until_hint")},
@@ -403,6 +497,9 @@ class GoodsAdmin(AuditModelView, model=Goods):
     async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         # The model still holds the stock from before the edit here; remember it for the restock check.
         request.state.stock_before = 0 if is_created else int(getattr(model, "stock", 0) or 0)
+        # Likewise the pre-edit name (model is not mutated yet), so a rename can drop the old name's caches.
+        request.state.item_old_name = None if is_created else getattr(model, "name", None)
+        _normalize_translations(data, True)
 
         # The picture controls are not columns of the product: take them out of `data` so SQLAdmin does not
         # try to set them on the model, and check the upload before anything is saved.
@@ -421,14 +518,15 @@ class GoodsAdmin(AuditModelView, model=Goods):
         request.state.picture_upload = content or None
         request.state.picture_remove = remove
 
-    async def _invalidate(self, model: Any) -> None:
-        name = getattr(model, "name", None)
-        if name:
+    async def _invalidate(self, model: Any, old_name: str | None = None) -> None:
+        # The translations ride in the cached `item_info:<name>` row; on a rename the old name's entries
+        # (info, values, image, rating) must go too.
+        for name in {n for n in (getattr(model, "name", None), old_name) if n}:
             safe_create_task(invalidate_item_cache(name))
 
     async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         await super().after_model_change(data, model, is_created, request)
-        await self._invalidate(model)
+        await self._invalidate(model, getattr(request.state, "item_old_name", None))
 
         name = getattr(model, "name", None)
         stock_before = getattr(request.state, "stock_before", None)

@@ -7,6 +7,7 @@ from bot.database.methods.read import (
     get_item_info, select_item_stock,
 )
 from bot.database.methods.update import update_item
+from bot.database.methods.read import check_category
 from bot.handlers.admin.categories_management import (
     process_category_for_add, process_category_for_delete,
     check_category_for_update, check_category_name_for_update,
@@ -239,9 +240,11 @@ class TestCategoryManagement:
 
         await process_category_for_add(msg, fsm_context)
 
+        # The main name is accepted; creation waits for the translation steps (see test_translations_admin).
         msg.answer.assert_called_once()
-        text = msg.answer.call_args[0][0]
-        assert "success" in text
+        assert "prompt.translation" in msg.answer.call_args[0][0]
+        assert await check_category("NewCategory") is None
+        assert (await fsm_context.get_data())["cat_name"] == "NewCategory"
 
     async def test_add_duplicate_category(self, make_message, fsm_context, category_factory):
 
@@ -292,6 +295,27 @@ class TestCategoryManagement:
         msg2.answer.assert_called_once()
         text = msg2.answer.call_args[0][0]
         assert "success" in text
+
+    @pytest.mark.parametrize("bad", ["", "   ", "<b></b>", "x" * 101])
+    async def test_rename_to_invalid_name_is_refused(self, make_message, fsm_context, category_factory, bad):
+        await category_factory("KeepMe")
+        await check_category_for_update(make_message(text="KeepMe", user_id=900044), fsm_context)
+
+        msg = make_message(text=bad, user_id=900044)
+        await check_category_name_for_update(msg, fsm_context)
+
+        assert "invalid_data" in msg.answer.call_args[0][0]
+        assert await check_category("KeepMe") is not None
+        assert await fsm_context.get_state() is None
+
+    async def test_rename_sanitizes_the_new_name(self, make_message, fsm_context, category_factory):
+        await category_factory("Before")
+        await check_category_for_update(make_message(text="Before", user_id=900044), fsm_context)
+
+        await check_category_name_for_update(make_message(text="  <i>After</i>   name ", user_id=900044), fsm_context)
+
+        assert await check_category("After name") is not None
+        assert await check_category("Before") is None
 
 
 class TestGoodsManagement:

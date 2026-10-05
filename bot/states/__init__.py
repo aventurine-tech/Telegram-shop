@@ -8,3 +8,4 @@ from .orders_admin_state import OrdersAdminFSM
 from .role_state import RoleMgmtFSM
 from .promo_state import PromoFSM
 from .review_state import ReviewFSM
+from .translation_state import TranslationFSM
