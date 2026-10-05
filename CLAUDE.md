@@ -31,8 +31,8 @@ Tests use in-memory SQLite (shared across tests in a session: never assume a tab
 key-echo `localize` mock (`conftest.py`; modules that localize are listed in `_LOCALIZING_MODULES` — a new one must be
 added there). CI (`.github/workflows/tests.yml`): "Unit tests" + "Migrations on PostgreSQL" (upgrade → downgrade -1 →
 upgrade on PG16). To test a migration locally: `pg_ctlcluster 16 main start`, create a DB, `alembic upgrade head`,
-`alembic downgrade -1`, `alembic upgrade head` (env `POSTGRES_HOST=localhost`). Alembic head: `b8d4f6a2c3e5`
-(mailings; before it `a7c3e5f1b2d4` = product options); chain files in `migrations/versions/`.
+`alembic downgrade -1`, `alembic upgrade head` (env `POSTGRES_HOST=localhost`). Alembic head: `c9e5a7b3d4f6`
+(client profiles; before it `b8d4f6a2c3e5` = mailings, before that `a7c3e5f1b2d4` = product options); chain files in `migrations/versions/`.
 
 Deploy (owner): `git pull && docker compose up -d --build`, then `/start` once in the bot (migrations run on start).
 

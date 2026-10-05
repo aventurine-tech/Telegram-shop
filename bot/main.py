@@ -21,6 +21,7 @@ from bot.database.models import register_models
 from bot.logger_mesh import configure_logging
 from bot.middleware import setup_rate_limiting, RateLimitConfig
 from bot.middleware.language import LanguageMiddleware
+from bot.middleware.profile import ProfileMiddleware
 from bot.middleware.clean_chat import (
     CleanChatMiddleware, CleanChatRequestMiddleware, clean_chat_enabled,
 )
@@ -82,6 +83,10 @@ def _register_middlewares(
     language_middleware = LanguageMiddleware()
     dp.message.middleware(language_middleware)
     dp.callback_query.middleware(language_middleware)
+
+    profile_middleware = ProfileMiddleware()
+    dp.message.middleware(profile_middleware)
+    dp.callback_query.middleware(profile_middleware)
 
     dp.message.middleware(security_middleware)
     dp.callback_query.middleware(security_middleware)
