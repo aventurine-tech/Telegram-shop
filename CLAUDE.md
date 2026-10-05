@@ -25,14 +25,14 @@ Read [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) next: what exists, what 
 
 ```bash
 export TOKEN=1:x OWNER_ID=1 POSTGRES_DB=x POSTGRES_USER=x POSTGRES_PASSWORD=x
-python -m pytest -q -p no:cacheprovider            # ~95 s, 1950 passed / 6 skipped at last count
+python -m pytest -q -p no:cacheprovider            # ~95 s, 2009 passed / 6 skipped at last count
 ```
 Tests use in-memory SQLite (shared across tests in a session: never assume a table is empty), `FakeCache`, and a
 key-echo `localize` mock (`conftest.py`; modules that localize are listed in `_LOCALIZING_MODULES` — a new one must be
 added there). CI (`.github/workflows/tests.yml`): "Unit tests" + "Migrations on PostgreSQL" (upgrade → downgrade -1 →
 upgrade on PG16). To test a migration locally: `pg_ctlcluster 16 main start`, create a DB, `alembic upgrade head`,
-`alembic downgrade -1`, `alembic upgrade head` (env `POSTGRES_HOST=localhost`). Alembic head: `a7c3e5f1b2d4`
-(product options); chain files in `migrations/versions/`.
+`alembic downgrade -1`, `alembic upgrade head` (env `POSTGRES_HOST=localhost`). Alembic head: `b8d4f6a2c3e5`
+(mailings; before it `a7c3e5f1b2d4` = product options); chain files in `migrations/versions/`.
 
 Deploy (owner): `git pull && docker compose up -d --build`, then `/start` once in the bot (migrations run on start).
 

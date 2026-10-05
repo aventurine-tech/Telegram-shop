@@ -1567,6 +1567,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     set_notifier_bot(bot)
 
     from bot.web.export import export_routes
+    from bot.web.mailings import MailingAdmin, mailing_routes
 
     async def root_redirect(request: Request) -> RedirectResponse:
         return RedirectResponse(url="/admin")
@@ -1576,7 +1577,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
-    ] + export_routes
+    ] + export_routes + mailing_routes
 
     from bot.web.accounts import MyAccountView, WebUserAdmin
 
@@ -1617,6 +1618,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     admin.add_view(OperationsAdmin)
     admin.add_view(GoodsAdmin)
     admin.add_view(CategoryAdmin)
+    admin.add_view(MailingAdmin)
     admin.add_view(PromoCodeAdmin)
     if EnvKeys.REVIEWS_ENABLED == "1":
         admin.add_view(ReviewsAdmin)

@@ -1,13 +1,13 @@
 # Project status
 
-_Last updated: 2026-10-05 (after PR #17). Branch of record: `development`; `main` is untouched on purpose._
+_Last updated: 2026-10-05 (after PR #20). Branch of record: `development`; `main` is untouched on purpose._
 
 ## In one paragraph
 
 A Telegram shop bot for physical goods (MIA transfer verified by staff, or cash on delivery / pickup), with a
 catalog of categories → subcategories → products → weight options, order tracking, staff roles, a multi-account web
 panel, and English / Russian / Romanian everywhere. Everything below is **built, merged into `development` and
-covered by automated tests** (1950 passing). Nothing has been signed off in a live shop yet: the owner is testing the
+covered by automated tests** (2009 passing). Nothing has been signed off in a live shop yet: the owner is testing the
 deployed bot and reporting issues from screenshots.
 
 ## What exists
@@ -48,6 +48,24 @@ deployed bot and reporting issues from screenshots.
 | #15 | Role permission tags; clear, status-aware order buttons |
 | #16 | Keyboard message = localized welcome line |
 | #17 | Welcome line stays above the menu after a language change |
+| #18 | Docs: CLAUDE.md, status, README, run-and-test |
+| #19 | Web sidebar in groups (Orders, Clients, Payments, Catalog, Marketing, Settings, Log out) + "Payments to verify" |
+| #20 | **Mailings** (web): editor with toolbar/placeholders/live preview, picture, audiences, schedule, delivery report, test to myself |
+
+## Mailings (PR #20) — how it works
+
+- Web: **Marketing → Mailings** (Admin role only). Fields: title, group (all / ro / ru / en / with orders / without
+  orders, each with its current head-count), text (B/I/U/S/link toolbar, placeholders `{first_name|friend}`,
+  `{last_name}`, `{full_name}`, `{username}`, `{telegram_id}`, counter, live Telegram-style preview), one picture,
+  *when* (draft / send now / schedule in UTC), options (no link previews, silent, no forwarding/saving).
+- Sending: `MailingSender` (`bot/misc/services/mailing_sender.py`), batches of 25 + 1 s pause, started by the 15 s
+  scheduler loop in `RecoveryManager`; picture uploaded once then reused by `file_id`; caption > 1024 = picture, then text.
+  Counts delivered / blocked / failed; *Cancel mailing* works while sending. A mailing interrupted by a restart is marked
+  *Interrupted* and **never resumed** (no duplicate sends).
+- *Send test to me* uses the **Telegram ID** saved in **Settings → My account**.
+- Tables/migration: `mailings`, `web_users.telegram_id` (`b8d4f6a2c3e5`). Code: `bot/web/mailings.py`,
+  `bot/misc/mailing_text.py`, `bot/database/methods/mailings.py`.
+- Not live-tested in Telegram by Claude: only unit tests, a fake bot and headless Chromium for the editor script.
 
 ## Open items (need the owner)
 

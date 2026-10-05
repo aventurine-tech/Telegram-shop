@@ -155,6 +155,8 @@ class WebUsers(Database.BASE):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())
     last_login_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The person's own Telegram ID: where "send me a test" mailings go.
+    telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     __table_args__ = (
         CheckConstraint("role IN ('admin','staff')", name='ck_web_users_role'),
@@ -548,3 +550,65 @@ class StockSubscriptions(Database.BASE):
 async def register_models():
     """Seed the built-in roles (USER/ADMIN/OWNER)."""
     await Role.insert_roles()
+
+
+class MailingStatus:
+    DRAFT = 'draft'          # being written; nothing is sent
+    SCHEDULED = 'scheduled'  # will go out at scheduled_at (a "send now" is scheduled for now)
+    SENDING = 'sending'
+    SENT = 'sent'
+    CANCELLED = 'cancelled'
+    FAILED = 'failed'        # e.g. the bot restarted while sending
+
+    ALL = (DRAFT, SCHEDULED, SENDING, SENT, CANCELLED, FAILED)
+    EDITABLE = (DRAFT, SCHEDULED)
+
+
+class MailingSegment:
+    ALL = 'all'
+    LANG_RO = 'lang_ro'
+    LANG_RU = 'lang_ru'
+    LANG_EN = 'lang_en'
+    WITH_ORDERS = 'with_orders'
+    WITHOUT_ORDERS = 'without_orders'
+
+    CHOICES = (ALL, LANG_RO, LANG_RU, LANG_EN, WITH_ORDERS, WITHOUT_ORDERS)
+
+
+class Mailings(Database.BASE):
+    """A mass message written in the web panel: text (Telegram HTML), optional picture, audience and time."""
+    __tablename__ = 'mailings'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False, default='')
+    # The picture exactly as uploaded, plus Telegram's cached file_id (a shortcut, the bytes are the truth).
+    image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    image_file_id: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    segment: Mapped[str] = mapped_column(String(16), nullable=False, default=MailingSegment.ALL)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default=MailingStatus.DRAFT, index=True)
+    scheduled_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    disable_preview: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default='0')
+    silent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default='0')
+    protect_content: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default='0')
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+    sent: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+    blocked: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+    created_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','scheduled','sending','sent','cancelled','failed')",
+                        name='ck_mailings_status'),
+        CheckConstraint("segment IN ('all','lang_ro','lang_ru','lang_en','with_orders','without_orders')",
+                        name='ck_mailings_segment'),
+    )
+
+    def __str__(self):
+        return self.title or ""
+

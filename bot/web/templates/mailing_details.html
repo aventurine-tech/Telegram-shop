@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+{% block content %}
+{# A mailing: the message as customers will see it, the delivery report and the actions that fit its status. #}
+{% set mid = get_object_identifier(model) %}
+{% set notice = model_view.notice_for(request) %}
+{% set editable = model.status in ('draft', 'scheduled') %}
+{% set busy = model.status in ('scheduled', 'sending') %}
+<div class="col-12">
+  {% if notice %}
+  <div class="alert alert-{{ notice[0] }}" role="alert">{{ notice[1] }}</div>
+  {% endif %}
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title">{{ model.title }}</h3>
+      {% set raw_status, status_badge = model_view.get_detail_value(model, 'status') %}
+      <div class="ms-auto">{{ status_badge }}</div>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <div class="text-muted mb-2">{{ _('web.mailing.details.preview') }}</div>
+          <div class="p-3" style="background:#e7f0fa;border-radius:12px;max-width:420px;overflow-wrap:anywhere;color:#111;">
+            {% if model.image %}<img src="/mailing-image/{{ mid }}" alt="" style="max-width:100%;border-radius:8px;margin-bottom:8px;">{% endif %}
+            <div>{{ model_view.preview_html(model) }}</div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="text-muted mb-2">{{ _('web.mailing.details.progress') }}</div>
+          <div class="progress mb-2">
+            <div class="progress-bar" style="width: {{ model_view.progress_percent(model) }}%"
+              role="progressbar" aria-valuenow="{{ model_view.progress_percent(model) }}" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+          <div class="mb-3"><strong>{{ _('web.col.delivered') }}:</strong> {{ _('web.mailing.delivered', sent=model.sent, total=model.total) }}</div>
+          <div class="text-muted mb-3">{{ model_view.stats_text(model) }}</div>
+          <table class="table table-sm">
+            <tbody>
+              {% for name in ['segment', 'scheduled_at', 'started_at', 'finished_at', 'created_by', 'created_at', 'disable_preview', 'silent', 'protect_content'] %}
+              {% set value, formatted = model_view.get_detail_value(model, name) %}
+              <tr><td class="text-muted">{{ model_view._column_labels.get(name, name) }}</td><td>{{ formatted }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <a href="{{ url_for('admin:list', identity=model_view.identity) }}" class="btn">{{ _('web.details.back') }}</a>
+        {% if editable %}
+        <a href="{{ url_for('admin:edit', identity=model_view.identity, pk=mid) }}" class="btn btn-primary">{{ _('web.mailing.action.edit') }}</a>
+        {% endif %}
+        <a href="{{ model_view._url_for_action(request, 'send-test') }}?pks={{ mid }}" class="btn btn-outline-primary"
+          onclick="return confirm({{ _('web.mailing.action.test.ask') | tojson }});">{{ _('web.mailing.action.test') }}</a>
+        <a href="{{ model_view._url_for_action(request, 'duplicate') }}?pks={{ mid }}" class="btn btn-outline-secondary">{{ _('web.mailing.action.duplicate') }}</a>
+        {% if busy %}
+        <a href="{{ model_view._url_for_action(request, 'cancel-mailing') }}?pks={{ mid }}" class="btn btn-outline-danger"
+          onclick="return confirm({{ _('web.mailing.action.cancel.ask') | tojson }});">{{ _('web.mailing.action.cancel') }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% if model.status == 'sending' or model.status == 'scheduled' %}
+<script>setTimeout(function () { window.location.reload(); }, 5000);</script>
+{% endif %}
+{% endblock %}

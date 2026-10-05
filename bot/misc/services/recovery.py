@@ -11,11 +11,13 @@ class RecoveryManager:
 
     UNPAID_ORDER_INTERVAL = 60
     HEALTH_CHECK_INTERVAL = 60
+    MAILING_INTERVAL = 15
     ERROR_BACKOFF = 30
 
     def __init__(self, bot):
         self.bot = bot
         self.recovery_tasks = []
+        self.mailing_tasks: set = set()
         self.running = False
 
     async def start(self):
@@ -31,12 +33,24 @@ class RecoveryManager:
             self._run_periodically(self.periodic_health_check, self.HEALTH_CHECK_INTERVAL)
         ))
 
+        # A mailing still 'sending' lost its sender with the previous process: never resume (nobody gets it twice).
+        try:
+            from bot.database.methods.mailings import fail_interrupted_mailings
+            interrupted = await fail_interrupted_mailings()
+            if interrupted:
+                logger.warning("%s mailing(s) were interrupted by a restart and marked failed", interrupted)
+        except Exception as e:
+            logger.error("could not check interrupted mailings: %s", e)
+        self.recovery_tasks.append(asyncio.create_task(
+            self._run_periodically(self.dispatch_due_mailings, self.MAILING_INTERVAL)
+        ))
+
     async def stop(self):
         """Stopping the recovery system"""
         self.running = False
-        for task in self.recovery_tasks:
+        for task in [*self.recovery_tasks, *self.mailing_tasks]:
             task.cancel()
-        await asyncio.gather(*self.recovery_tasks, return_exceptions=True)
+        await asyncio.gather(*self.recovery_tasks, *self.mailing_tasks, return_exceptions=True)
         logger.info("Recovery manager stopped")
 
     async def _run_periodically(self, step, interval: int):
@@ -66,6 +80,20 @@ class RecoveryManager:
             await notify_customer(self.bot, order, "mia_expired")
             for name in order.get("restocked", []):
                 await notify_restock(self.bot, name)
+
+    async def dispatch_due_mailings(self):
+        """Start every scheduled mailing whose time has come (each runs as its own task)."""
+        from bot.database.methods.mailings import claim_due_mailing
+        from bot.misc.services.mailing_sender import MailingSender
+
+        while True:
+            mailing = await claim_due_mailing()
+            if mailing is None:
+                return
+            logger.info("Mailing %s started (%s)", mailing["id"], mailing["segment"])
+            task = asyncio.create_task(MailingSender(self.bot).run(mailing["id"]))
+            self.mailing_tasks.add(task)
+            task.add_done_callback(self.mailing_tasks.discard)
 
     async def periodic_health_check(self):
         """One DB + cache health probe"""

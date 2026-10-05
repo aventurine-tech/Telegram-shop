@@ -70,7 +70,7 @@ class TestSidebar:
         assert groups["clients"] == ["Customers", "Referral Earnings", "Cart Items"]
         assert groups["payments"] == ["Payments to verify", "Balance operations"]
         assert groups["catalog"] == ["Products", "Categories"]
-        assert groups["marketing"][0] == "Promo Codes"
+        assert groups["marketing"][:2] == ["Mailings", "Promo Codes"]
         assert groups["settings"] == ["Web Accounts", "Roles", "Audit Logs", "My account"]
         assert "Order Lines" not in titles(html)           # reached from an order, not from the menu
         await c.aclose()

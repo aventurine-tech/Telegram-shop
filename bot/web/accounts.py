@@ -13,7 +13,7 @@ from bot.database.main import Database
 from bot.database.methods.audit import log_audit
 from bot.database.methods.web_users import (
     LANGS, count_active_admins, get_web_user, get_web_user_auth,
-    set_web_user_language, set_web_user_password,
+    set_web_user_language, set_web_user_password, set_web_user_telegram_id,
 )
 from bot.database.models.main import WebRole, WebUsers
 from bot.i18n.main import LANGUAGES, localize, use_language
@@ -211,6 +211,15 @@ class MyAccountView(BaseView):
                     user = {**user, "language": lang}
                 else:
                     error = localize("web.account.err.language_invalid")
+            elif which == "telegram":
+                raw = str(form.get("telegram_id") or "").strip()
+                if raw and not (raw.isdigit() and 0 < int(raw) < 2 ** 63):
+                    error = localize("web.my.err.telegram_id")
+                elif await set_web_user_telegram_id(user["id"], int(raw) if raw else None):
+                    user = {**user, "telegram_id": int(raw) if raw else None}
+                    message = localize("web.my.telegram_saved")
+                else:
+                    error = localize("web.my.err.generic")
 
         context = {"user": user, "message": message, "error": error, "title": localize("web.my.title")}
         if lang_override:

@@ -19,6 +19,7 @@ def web_user_to_dict(u: WebUsers) -> dict:
     return {
         "id": u.id, "username": u.username, "role": u.role, "language": u.language,
         "is_active": u.is_active, "created_at": u.created_at, "last_login_at": u.last_login_at,
+        "telegram_id": u.telegram_id,
     }
 
 
@@ -92,6 +93,18 @@ async def set_web_user_language(user_id: int, language: str) -> bool:
         if not u:
             return False
         u.language = language
+    return True
+
+
+async def set_web_user_telegram_id(user_id: int, telegram_id: int | None) -> bool:
+    """Remember (or clear, with None) the person's Telegram ID, where their test mailings are sent."""
+    if telegram_id is not None and (isinstance(telegram_id, bool) or telegram_id <= 0):
+        return False
+    async with Database().session() as s:
+        u = (await s.execute(select(WebUsers).where(WebUsers.id == user_id))).scalars().first()
+        if not u:
+            return False
+        u.telegram_id = telegram_id
     return True
 
 

@@ -466,8 +466,20 @@ Two ways to manage the shop:
 
 The sidebar is grouped, in this order: **Orders** · **Clients** (customers, referral earnings, carts) · **Payments**
 (MIA payments waiting to be verified, balance operations) · **Catalog** (products, categories) · **Marketing**
-(promo codes, reviews) · **Settings** (web accounts, roles, audit log, My account) · **Log out**. Groups collapse and stay
+(**mailings**, promo codes, reviews) · **Settings** (web accounts, roles, audit log, My account) · **Log out**. Groups collapse and stay
 open while you are inside one; names follow the panel language.
+
+### Mailings (Marketing → Mailings)
+
+Mass messages written in the browser (Admin role): a title, a **group** (all customers, Romanian / Russian / English
+speakers, customers with / without orders — each shows how many people it reaches), the text in an editor with
+**bold / italic / underline / strike / link** buttons and **placeholders** (`{first_name|friend}`, `{last_name}`,
+`{full_name}`, `{username}`, `{telegram_id}`), one picture, and **when**: a draft, *send now* or a date and time (UTC).
+A live Telegram-style preview and a character counter (1024 with a picture, 4096 without) sit under the editor.
+Options: no link previews, silent notification, forbid forwarding/saving. The list shows status, group, date and
+**Delivered 534 out of 1188**; the details page has a progress bar and **Send test to me** (set your Telegram ID under
+*Settings → My account*), **Cancel mailing** and **Duplicate**. People who blocked the bot are skipped and counted; a
+mailing interrupted by a restart is marked *Interrupted* and is never resumed.
 
 ### Web accounts
 
@@ -596,7 +608,7 @@ Balances, referrals, promo codes, reviews and carts are kept.
 
 ## 🧪 Testing
 
-**1950 tests** (`pytest`, ~95 s). The data layer runs against a real in-memory async SQLite database
+**2009 tests** (`pytest`, ~95 s). The data layer runs against a real in-memory async SQLite database
 (real SQL, transactions, and constraints) — only external services (Telegram Bot API, Redis)
 are mocked. What's covered:
 

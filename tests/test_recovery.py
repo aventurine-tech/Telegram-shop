@@ -94,10 +94,11 @@ class TestRecoveryManager:
         # Patch the recovery methods to not actually run
         self.manager.expire_unpaid_orders = AsyncMock()
         self.manager.periodic_health_check = AsyncMock()
+        self.manager.dispatch_due_mailings = AsyncMock()
 
         await self.manager.start()
         assert self.manager.running is True
-        assert len(self.manager.recovery_tasks) == 2
+        assert len(self.manager.recovery_tasks) == 3     # expiry, health check, due mailings
 
         await self.manager.stop()
         assert self.manager.running is False
