@@ -26,19 +26,32 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 - [Configuration](#-configuration)
 - [Installation](#-installation)
 - [Admin panel](#-admin-panel)
+- [Importing the UMBRA catalog](#-importing-the-umbra-catalog)
 - [Upgrading from the digital-goods shop](#-upgrading-from-the-digital-goods-shop)
 - [Testing](#-testing)
+- [Development workflow](#-development-workflow)
+- [Project documentation](#-project-documentation)
 
 ---
 
 ## ✨ Features
 
-- **Catalog & stock** — categories and products, each with an integer **units in stock**.
-- **Subcategories** — a top-level category can hold subcategories (two levels max, e.g. *Hookah tobacco → Classic / Intense*). A category holds either subcategories or products, never both. Top-level categories appear as buttons on the main menu; promo codes bound to a parent also cover its subcategories.
-- **Weight options** — a product can have options such as *50 g / 200 g*, each with its own price, stock and sale. The product card shows a selector; lists and search show only the main product; reviews are shared. Admins add options with *➕ Add option* in the bot, or in the web panel inside the product itself (*Options* rows — press ＋ to add a row with option name, price and quantity; options share the product's picture and description and are not listed as separate products).
-- **Clean chat** — the chat shows only the current menu: each screen replaces the previous one, the user's own messages are removed once handled, and `/start` sweeps the last ~100 messages. Notifications sent to staff stay. Set `CLEAN_CHAT=0` to keep the full history.
-  Stock is *reserved* the moment an order is placed and *released* if the order is cancelled,
-  so two customers can never buy the last unit. Optional time-limited per-product sales.
+- **Catalog & stock** — categories and products, each with an integer **units in stock**. Stock is *reserved* the
+  moment an order is placed and *released* if the order is cancelled, so two customers can never buy the last
+  unit. Optional time-limited per-product sales.
+- **Subcategories** — a top-level category can hold subcategories (two levels max, e.g. *Hookah tobacco → Classic /
+  Intense*). A category holds either subcategories or products, never both. Top-level categories appear as buttons on
+  the main menu; promo codes bound to a parent also cover its subcategories.
+- **Weight options** — a product can have options such as *50 g / 200 g*, each with its own price, stock and sale and
+  sharing the product's picture and description. The product card shows a selector; lists and search show only the main
+  product; reviews are shared; the cart and orders show `NAME · 200 g` in the customer's language. Admins add options
+  with *➕ Add option* in the bot, or inside the product in the web panel (*Options* rows: press **＋** to add a row with
+  option name, price and stock; remove a row to delete the option).
+- **Bottom menu & clean chat** — a permanent keyboard (🛍 Catalog · 🛒 Cart · 👤 Profile) sits under the chat. It is
+  carried by a short welcome line ("Welcome to UMBRA" / "Bun venit la UMBRA" / «Добро пожаловать в UMBRA») that always
+  stays above the menu. The chat shows only the current screen: each screen replaces the previous one, the user's own
+  messages are removed once handled, and `/start` sweeps the last ~100 messages. Messages sent to staff stay.
+  `CLEAN_CHAT=0` keeps the full history.
 - **Product pictures** — each product can have one picture, shown on its card in the shop and kept exactly
   as uploaded (JPEG, PNG or WEBP, up to 10 MB). Admins add it in the bot (an optional photo step when
   creating a product, or **Change photo / Remove photo** on the product's stock screen) or in the web panel
@@ -178,16 +191,19 @@ flowchart TD
     API -->|webhook POST| WH["POST /webhook<br/>own Starlette app on WEBHOOK_PORT"]
     WH -->|secret token compared in constant time| DP
     DP["aiogram Dispatcher<br/>allowed updates: message, callback_query"]
-    DP --> M1["RateLimit<br/>global 30/min + per-action buckets"]
+    DP --> M0["CleanChat<br/>current screen tracked · user message removed after handling"]
+    M0 --> M1["RateLimit<br/>global 30/min + per-action buckets"]
     M1 --> M2["Analytics<br/>metrics + conversion funnels"]
     M2 --> M3["Auth<br/>role cache · blocked users"]
     M3 --> M4["Security<br/>audit · maintenance gate · 1h replay guard"]
-    M4 --> R["Routers: admin → other → user"]
+    M4 --> R["Routers: language → bottom menu → admin → other → user"]
     R --> H[Handler]
 ```
 
 The middleware order is the order they are registered in [`bot/main.py`](bot/main.py) —
-aiogram runs the first-registered outermost, so rate limiting rejects a flood first.
+aiogram runs the first-registered outermost. The clean-chat layer wraps everything (it tidies up after the handler
+returns); rate limiting still rejects a flood before any handler runs. Bot requests also pass a session middleware
+(`CleanChatRequestMiddleware`) that deletes the previous screen when a new message is sent to the chat being served.
 
 **What runs, and what it talks to**
 
@@ -246,6 +262,8 @@ Exact columns, indexes and `CHECK` constraints live in
 ```mermaid
 erDiagram
     categories ||--o{ goods: "groups"
+    categories ||--o{ categories: "parent_id (subcategories)"
+    goods ||--o{ goods: "variant_of (weight options)"
     goods ||--o| product_images: "optional picture"
     goods ||--o{ order_items: "sold as (snapshot)"
     orders ||--|{ order_items: "lines"
@@ -279,7 +297,9 @@ The data model, in plain terms:
 - **users** — one row per Telegram user: store balance, role, and (optionally) who referred them.
 - **roles** — a name plus a permission **bitmask** (see the table under *Admin panel*).
 - **categories → goods** — a product belongs to a category and carries `stock`, the units on
-  hand (`CHECK (stock >= 0)`).
+  hand (`CHECK (stock >= 0)`). `categories.parent_id` makes a subcategory (two levels, enforced in code);
+  `goods.variant_of` / `variant_label` make a **weight option** — its own row with its own price and stock, named
+  `"<product> · <label>"`, in its product's category.
 - **orders** / **order_items** — an order stores its status, payment method and status,
   fulfilment, contact details, total, the part paid from balance, the MIA screenshot, and the
   MIA pay-by deadline. Each line keeps the product **name and price as a snapshot** (the
@@ -345,6 +365,7 @@ Staff with the order-management permission always get order alerts in private ch
 | `BOT_LOGFILE` / `BOT_AUDITFILE`           | Log file paths                                                | `logs/bot.log` / `logs/audit.log` |
 | `LOG_TO_STDOUT` / `LOG_TO_FILE` / `DEBUG` | `1`/`0` toggles                                               | `1` / `1` / `0`                   |
 | `REVIEWS_ENABLED`                         | Enable product reviews (`1`/`0`)                              | `1`                               |
+| `CLEAN_CHAT`                              | Keep the chat down to the current screen (`1`/`0`)            | `1`                               |
 
 </details>
 
@@ -438,9 +459,10 @@ Two ways to manage the shop:
 - **In-chat menu** — buttons are shown according to your permissions. Best for day-to-day order
   handling: you get the alert, open the order, and act on it from the same message.
 - **Web panel** (SQLAdmin, `/admin`) — browse/search every table, edit the catalog and stock, and
-  export CSV. Orders are **read-only** there on purpose: status changes, cancellations and MIA
-  verification go through the bot so stock, balance and referral rules can never be bypassed.
-  The landing page is a built-in cheat sheet.
+  export CSV. Orders cannot be edited freely there on purpose: an order's details page offers only the
+  moves that fit its state (e.g. a new MIA order: *Confirm MIA payment* / *Cancel*; a new cash order:
+  *Confirm order* / *Cancel*; closed orders: none), and every move runs through the same code as the bot,
+  so stock, balance and referral rules can never be bypassed. The landing page is a built-in cheat sheet.
 
 ### Web accounts
 
@@ -478,16 +500,18 @@ also notifies the people waiting for it.
 
 ### Catalog & stock
 
-Create/edit/delete categories and products. When adding a product you can attach a picture (or skip).
-A product's **stock** can be set to an exact number
+Create/edit/delete categories (optionally under a parent) and products. When adding a product you can attach a
+picture (or skip). In the web panel a product has **one name** (shown in every language) and descriptions per language,
+and its *Options* rows hold the weights. A product's **stock** can be set to an exact number
 or adjusted by +N / −N; stock going from `0` to something announces the restock to waiting
 customers. You can also set a **time-limited sale** (a % off with an expiry); the sale price is
 computed server-side and a promo code stacks on top of it.
 
 ### Roles & permissions
 
-Create custom roles by toggling permission **bits**. You can never grant a permission you don't
-hold yourself, and the built-in `USER`/`ADMIN`/`OWNER` roles can't be deleted.
+Create custom roles by toggling permissions — in the web panel they are **tags you tick** (Orders, Catalog,
+Statistics, …) and the number is calculated for you; in the bot you toggle the same bits. You can never grant a
+permission you don't hold yourself, and the built-in `USER`/`ADMIN`/`OWNER` roles can't be deleted.
 
 | Permission  | Value | Grants                                             |
 |-------------|-------|----------------------------------------------------|
@@ -504,7 +528,7 @@ hold yourself, and the built-in `USER`/`ADMIN`/`OWNER` roles can't be deleted.
 | `ORDERS`    | 1024  | See orders, verify MIA payments, change order status; receives order alerts |
 
 A role's permissions is the **sum** of the values it grants (e.g. USE + ORDERS = 1 + 1024 =
-`1025` — a packer who can only handle orders).
+`1025` — a packer who can only handle orders); the web panel does the adding when you tick the tags.
 
 ### Broadcast, statistics & monitoring
 
@@ -529,6 +553,26 @@ the database in batches. Shutdown is graceful.
 
 ---
 
+## 📥 Importing the UMBRA catalog
+
+`scripts/umbramd/catalog.json` holds the hookah-tobacco catalog crawled from umbramd.com (54 products,
+73 weight options: Classic / Intense, Solo / Mix, 50 g / 200 g, flavour texts in ro/en/ru); `REPORT.md` lists
+the counts and the site's own inconsistencies. A flavour sold in both strengths becomes two products
+(`SOLO 11` in Classic, `SOLO 11 Intense` in Intense). Pictures are downloaded from the site during the import.
+
+1. Copy `scripts/umbramd/prices.template.csv` to `data/prices.csv` and fill in the price per weight in MDL
+   (add rows such as `intense,SOLO 11,200,320` for exceptions; `*` matches anything, the most specific row wins).
+2. Rebuild so the script is in the image: `docker compose up -d --build`.
+3. Check first: `docker compose exec bot python -m scripts.import_catalog scripts/umbramd/catalog.json --prices data/prices.csv --dry-run`
+4. Import: the same command without `--dry-run`. Use `--top-category "Premium hookah tobacco"` to put the
+   Classic / Intense subcategories under an existing empty category instead of creating a new top category.
+
+Stock is 0 for everything (set it per option in the admin panel). Existing items are never changed, so the
+command can be re-run safely; options without a price are skipped and listed. To refresh the data from the site:
+`python -m scripts.crawl_umbramd`.
+
+---
+
 ## 🔁 Upgrading from the digital-goods shop
 
 `alembic upgrade head` converts an existing database in place:
@@ -547,7 +591,7 @@ Balances, referrals, promo codes, reviews and carts are kept.
 
 ## 🧪 Testing
 
-**1216 tests** (`pytest`). The data layer runs against a real in-memory async SQLite database
+**1950 tests** (`pytest`, ~95 s). The data layer runs against a real in-memory async SQLite database
 (real SQL, transactions, and constraints) — only external services (Telegram Bot API, Redis)
 are mocked. What's covered:
 
@@ -571,6 +615,13 @@ are mocked. What's covered:
   caching & invalidation, pagination, i18n, validators, audit logging, CSV export.
 - **Keyboards & routing** — every callback payload fits Telegram's 64-byte limit, and every
   pagination prefix has a handler registered for it.
+- **Catalog structure** — subcategory rules and navigation, weight options (data layer, customer selector, admin bot
+  and web rows), translated names and descriptions, picture upload.
+- **Web panel** — forms (single product name, options rows, localized category dropdown, description order), role
+  permission tags, order details actions per state, accounts and languages.
+- **Chat behaviour** — clean-chat middleware (screen tracking, user-message removal, `/start` sweep), the bottom
+  keyboard and welcome line, language switching.
+- **UMBRA import** — crawler parsing and the importer (dry run, idempotence, prices, pictures), with no network.
 
 ```bash
 pytest                                          # full suite
@@ -589,26 +640,18 @@ Alembic migrations (upgrade → downgrade → upgrade on a real PostgreSQL 16) o
 - Reverting is therefore one step: revert that PR's squash commit on `development`
   (`git revert <sha>`, or the *Revert* button on the merged PR). If the PR added a migration, run
   `alembic downgrade -1` first.
-- Promoting `development` to `main` is a manual decision.
+- Promoting `development` to `main` is a manual decision; `main` has not been touched yet.
+- If a PR is merged before CI finishes, re-check `development`; anything that missed the merge goes onto a fresh branch.
+- Update the shop with `git pull && docker compose up -d --build`, then send `/start` once.
+
+## 📚 Project documentation
+
+- [`CLAUDE.md`](CLAUDE.md) — handoff for a new AI/developer session: working agreements, commands, code map, design rules,
+  quirks learned the hard way.
+- [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — what exists, PR history, open items, known risks.
+- [`docs/run-and-test.pdf`](docs/run-and-test.pdf) — step-by-step run and test guide (source: `docs/run-and-test.md`;
+  rebuild with `python docs/build_pdf.py`, needs `reportlab`).
 
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
-
-## One-time import of the UMBRA catalog
-
-`scripts/umbramd/catalog.json` holds the hookah-tobacco catalog crawled from umbramd.com (54 products,
-73 weight options: Classic / Intense, Solo / Mix, 50 g / 200 g, flavour texts in ro/en/ru); `REPORT.md` lists
-the counts and the site's own inconsistencies. A flavour sold in both strengths becomes two products
-(`SOLO 11` in Classic, `SOLO 11 Intense` in Intense). Pictures are downloaded from the site during the import.
-
-1. Copy `scripts/umbramd/prices.template.csv` to `data/prices.csv` and fill in the price per weight in MDL
-   (add rows such as `intense,SOLO 11,200,320` for exceptions; `*` matches anything, the most specific row wins).
-2. Rebuild so the script is in the image: `docker compose up -d --build`.
-3. Check first: `docker compose exec bot python -m scripts.import_catalog scripts/umbramd/catalog.json --prices data/prices.csv --dry-run`
-4. Import: the same command without `--dry-run`. Use `--top-category "Premium hookah tobacco"` to put the
-   Classic / Intense subcategories under an existing empty category instead of creating a new top category.
-
-Stock is 0 for everything (set it per option in the admin panel). Existing items are never changed, so the
-command can be re-run safely; options without a price are skipped and listed. To refresh the data from the site:
-`python -m scripts.crawl_umbramd`.
