@@ -188,7 +188,7 @@ class TestListAndDetails:
     async def test_details_in_every_language(self, boss):
         await boss.post(f"/admin/{M}/create", data=form())
         m = (await all_mailings())[0]
-        for lang, word in (("ru", "Отправить тест мне"), ("ro", "Trimite test mie")):
+        for lang, word in (("ru", "Отправить тест себе"), ("ro", "Trimite un test pentru mine")):
             boss.cookies.set(LANG_COOKIE, lang)
             assert word in (await boss.get(f"/admin/{M}/details/{m.id}")).text
 
