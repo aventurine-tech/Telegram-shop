@@ -26,13 +26,19 @@ async def delete_item(item_name: str) -> None:
         safe_create_task(invalidate_category_cache(category_name))
 
 
-async def delete_category(category_name: str) -> None:
-    """Delete a category and all products/stock inside it (CASCADE handles items)."""
+async def delete_category(category_name: str) -> str:
+    """Delete a category and all products/stock inside it (CASCADE handles items).
+
+    A category that still has subcategories is refused (``"has_subcategories"``) rather than
+    silently taking them with it. Returns ``"ok"`` or ``"not_found"`` otherwise.
+    """
     async with Database().session() as s:
         result = await s.execute(select(Categories).where(Categories.name == category_name))
         cat = result.scalars().first()
         if not cat:
-            return
+            return "not_found"
+        if (await s.execute(select(func.count(Categories.id)).where(Categories.parent_id == cat.id))).scalar():
+            return "has_subcategories"
         items_result = await s.execute(select(Goods.name).where(Goods.category_id == cat.id))
         items = items_result.all()
         item_names = [i[0] for i in items]
@@ -53,6 +59,7 @@ async def delete_category(category_name: str) -> None:
     # The category delete cascades to its goods; their per-item caches (item_info / stock) would otherwise serve deleted products until TTL, so invalidate each one
     for name in item_names:
         safe_create_task(invalidate_item_cache(name))
+    return "ok"
 
 
 async def delete_role(role_id: int) -> tuple[bool, str | None]:
