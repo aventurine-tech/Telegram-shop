@@ -5,7 +5,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.database.models import Permission
 from bot.database.methods import get_item_info, create_item
-from bot.database.methods.read import resolve_category_name, resolve_item_name
+from bot.database.methods.read import category_accepts_items, resolve_category_name, resolve_item_name
 from bot.database.methods.product_images import set_item_image
 from bot.handlers.other import is_safe_item_name
 from bot.handlers.admin._common import (
@@ -205,6 +205,12 @@ async def check_category_for_add_item(message: Message, state):
     if not category_name:
         await message.answer(
             localize('admin.goods.add.category.not_found'),
+            reply_markup=back('goods_management')
+        )
+        return
+    if not await category_accepts_items(category_name):
+        await message.answer(
+            localize('admin.goods.add.category.has_subcategories'),
             reply_markup=back('goods_management')
         )
         return

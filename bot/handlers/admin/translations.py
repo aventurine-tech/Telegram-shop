@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.database.methods.audit import log_audit_bg
-from bot.database.methods.read import check_category, get_item_info, resolve_category_name
+from bot.database.methods.read import check_category, get_category_by_id, get_item_info, resolve_category_name
 from bot.database.methods.translations import set_category_translations, set_item_translations
 from bot.database.models import Permission
 from bot.filters import HasPermissionFilter
@@ -19,7 +19,7 @@ from bot.handlers.other import caller_name
 from bot.i18n import localize, esc
 from bot.keyboards.inline import back
 from bot.keyboards.translations import editor_keyboard, field_keyboard
-from bot.misc.localized import LANGS
+from bot.misc.localized import LANGS, pick
 from bot.states import TranslationFSM, StockFSM
 
 router = Router()
@@ -55,11 +55,14 @@ async def _load(state: FSMContext) -> tuple[str | None, str | None, dict | None]
     return kind, name, row
 
 
-def _card_text(kind: str, name: str, row: dict, admin_lang: str | None = None) -> str:
+def _card_text(kind: str, name: str, row: dict, admin_lang: str | None = None,
+               parent_name: str | None = None) -> str:
     """The editor text: the three languages, the admin's own first (``admin_lang``), the main one marked."""
     main = main_language()
     lines = [localize('admin.translations.card.title.category' if kind == 'c'
                       else 'admin.translations.card.title.item', name=esc(name)), '']
+    if parent_name:
+        lines += [localize('admin.translations.card.parent', name=esc(parent_name)), '']
     for lang in wizard_languages(admin_lang):
         is_main = lang == main
         label = language_label(lang)
@@ -88,7 +91,11 @@ async def _show_card(target: Message, state: FSMContext, *, note: str | None = N
         return
     await state.set_state(TranslationFSM.card)
     admin_lang = (await state.get_data()).get('tr_admin_lang')
-    text = _card_text(kind, name, row, admin_lang)
+    parent_name = None
+    if kind == 'c' and row.get('parent_id'):
+        parent = await get_category_by_id(row['parent_id'])
+        parent_name = pick(parent, 'name', admin_lang) if parent else None
+    text = _card_text(kind, name, row, admin_lang, parent_name)
     if note:
         text = f"{note}\n\n{text}"
     markup = editor_keyboard([c for c in wizard_languages(admin_lang) if c in other_languages()],

@@ -174,6 +174,10 @@ class Categories(Database.BASE):
     name_en: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # A subcategory points at its parent (two levels at most: a parent is always top-level, and a
+    # category with subcategories holds no products). NULL = top-level. Enforced in code.
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey('categories.id', ondelete="RESTRICT"), nullable=True, index=True)
     items: Mapped[list["Goods"]] = relationship(
         "Goods", back_populates="category", lazy='raise', passive_deletes=True)
 

@@ -8,7 +8,9 @@ from bot.database.models import User, Goods, Categories, Role
 from bot.database.models.main import PromoCodes, CartItems, Reviews, StockSubscriptions, promo_scope_for
 from bot.database import Database
 from bot.database.methods.cache_utils import safe_create_task
-from bot.database.methods.read import invalidate_stats_cache, invalidate_item_cache, invalidate_category_cache
+from bot.database.methods.read import (
+    invalidate_stats_cache, invalidate_item_cache, invalidate_category_cache, parent_assignment_error,
+)
 
 # Cart limits: distinct positions per cart, and units of any one position.
 CART_MAX_ITEMS = 10
@@ -54,6 +56,9 @@ async def create_item(item_name: str, item_description: str, item_price: int, ca
         cat = (await s.execute(select(Categories.id).where(Categories.name == category_name))).scalar()
         if not cat:
             return
+        # A category with subcategories holds no products of its own.
+        if (await s.execute(select(exists().where(Categories.parent_id == cat)))).scalar():
+            return
         s.add(
             Goods(
                 name=item_name,
@@ -85,6 +90,35 @@ async def create_category(category_name: str, names: dict[str, str] | None = Non
     safe_create_task(invalidate_stats_cache())
     # Drops the cached categories:count
     safe_create_task(invalidate_category_cache(category_name))
+
+
+async def create_subcategory(category_name: str, parent_name: str,
+                             names: dict[str, str] | None = None) -> tuple[bool, str]:
+    """Create a category under a top-level parent. Returns ``(ok, code)``.
+
+    Codes: success, exists, parent_not_found, parent_not_top_level, parent_has_items.
+    """
+    from bot.misc.localized import LANGS, clean_name
+    async with Database().session() as s:
+        if (await s.execute(select(exists().where(Categories.name == category_name)))).scalar():
+            return False, "exists"
+        parent = (await s.execute(
+            select(Categories).where(Categories.name == parent_name).with_for_update()
+        )).scalars().one_or_none()
+        if parent is None:
+            return False, "parent_not_found"
+        error = await parent_assignment_error(s, parent)
+        if error:
+            return False, error                           # parent_not_top_level / parent_has_items
+        s.add(Categories(
+            name=category_name, parent_id=parent.id,
+            **{f"name_{l}": clean_name(v) for l, v in (names or {}).items() if l in LANGS},
+        ))
+
+    safe_create_task(invalidate_stats_cache())
+    safe_create_task(invalidate_category_cache(parent_name))
+    safe_create_task(invalidate_category_cache(category_name))
+    return True, "success"
 
 
 async def create_role(name: str, permissions: int) -> int | None:

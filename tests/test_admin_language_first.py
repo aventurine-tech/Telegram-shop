@@ -72,6 +72,7 @@ async def _cat_wizard(make_message, make_callback_query, fsm_context, texts):
             await cm.skip_category_translation(_skip(make_callback_query, "cat_tr_skip"), fsm_context)
         else:
             await cm.process_category_translation(make_message(text=text, user_id=ADMIN_ID), fsm_context)
+    await cm.skip_category_parent(_skip(make_callback_query, "cat_parent_skip"), fsm_context)
     return first
 
 
@@ -100,6 +101,7 @@ class TestAddCategoryLanguageFirst:
         while await fsm_context.get_state() == CategoryFSM.waiting_add_category_translation:
             asked.append((await fsm_context.get_data())["cat_queue"][0])
             await cm.skip_category_translation(_skip(make_callback_query, "cat_tr_skip"), fsm_context)
+        await cm.skip_category_parent(_skip(make_callback_query, "cat_parent_skip"), fsm_context)
         assert asked == _others(admin)
         # Only the admin's language was entered -> it is the canonical name.
         cat = await check_category("Name")

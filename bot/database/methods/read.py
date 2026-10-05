@@ -252,6 +252,57 @@ async def _resolve_name(model, text: str) -> str | None:
     return None
 
 
+async def get_category_by_id(category_id: int) -> dict | None:
+    """Category row (all columns, incl. translations and parent_id) by id, or None."""
+    return await _fetch_one_dict(Categories, Categories.id == int(category_id))
+
+
+async def category_children_count(category_id: int) -> int:
+    """How many subcategories a category has."""
+    async with Database().session() as s:
+        return (await s.execute(
+            select(func.count(Categories.id)).where(Categories.parent_id == category_id)
+        )).scalar() or 0
+
+
+async def category_items_count(category_id: int) -> int:
+    """How many products sit directly in a category."""
+    async with Database().session() as s:
+        return (await s.execute(
+            select(func.count(Goods.id)).where(Goods.category_id == category_id)
+        )).scalar() or 0
+
+
+async def category_accepts_items(category_name: str) -> bool:
+    """A product may only go into an existing category that has no subcategories."""
+    async with Database().session() as s:
+        cat_id = (await s.execute(select(Categories.id).where(Categories.name == category_name))).scalar()
+        if cat_id is None:
+            return False
+        return not (await s.execute(
+            select(exists().where(Categories.parent_id == cat_id))
+        )).scalar()
+
+
+async def parent_assignment_error(s, parent: Categories, own_id: int | None = None) -> str | None:
+    """Why ``parent`` cannot be the parent of a category, or None when it can (shared by the bot and the web panel).
+
+    ``own_id`` is the category being (re)parented (None for a new one). Codes: self_parent,
+    parent_not_top_level (two levels at most), has_children (a category with subcategories cannot
+    become a subcategory), parent_has_items (a parent holds subcategories, not products).
+    """
+    if own_id is not None and parent.id == own_id:
+        return "self_parent"
+    if parent.parent_id is not None:
+        return "parent_not_top_level"
+    if own_id is not None and (await s.execute(
+            select(exists().where(Categories.parent_id == own_id)))).scalar():
+        return "has_children"
+    if (await s.execute(select(exists().where(Goods.category_id == parent.id)))).scalar():
+        return "parent_has_items"
+    return None
+
+
 async def check_category(category_name: str) -> dict | None:
     """Return category as dict by name, or None."""
     return await _fetch_one_dict(Categories, Categories.name == category_name)
@@ -718,8 +769,16 @@ async def promo_rule_error(s, promo, user_id, *, goods=None, require_balance=Fal
             return "wrong_category"
         if promo.item_id and (goods is None or promo.item_id != goods.id):
             return "wrong_item"
-        if promo.category_id and (goods is None or promo.category_id != goods.category_id):
-            return "wrong_category"
+        if promo.category_id:
+            if goods is None:
+                return "wrong_category"
+            if promo.category_id != goods.category_id:
+                # A promo bound to a parent category also covers the products of its subcategories.
+                parent_id = (await s.execute(
+                    select(Categories.parent_id).where(Categories.id == goods.category_id)
+                )).scalar()
+                if parent_id != promo.category_id:
+                    return "wrong_category"
 
     return None
 

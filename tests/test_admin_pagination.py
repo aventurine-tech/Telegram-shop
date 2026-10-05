@@ -190,6 +190,7 @@ class TestEveryNavPrefixHasAHandler:
         ("bot.handlers.admin.orders_management", "ords_", "ords_new_1"),
         ("bot.handlers.admin.shop_management", "users-page_", "users-page_1"),
         ("bot.handlers.user.shop_and_goods", "categories-page_", "categories-page_1"),
+        ("bot.handlers.user.shop_and_goods", "subcat-page_", "subcat-page_1"),
         ("bot.handlers.user.shop_and_goods", "gp_", "gp_1"),
         ("bot.handlers.user.shop_and_goods", "sp_", "sp_1"),
         ("bot.handlers.admin.promo_management", "promos-page_", "promos-page_1"),

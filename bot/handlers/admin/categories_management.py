@@ -4,7 +4,7 @@ from aiogram.types import CallbackQuery, Message
 from bot.i18n import localize, esc
 from bot.handlers.other import caller_name
 from bot.database.models import Permission
-from bot.database.methods import create_category, delete_category, update_category
+from bot.database.methods import create_category, create_subcategory, delete_category, update_category
 from bot.database.methods.read import resolve_category_name
 from bot.handlers.admin._common import (
     admin_language, main_language, wizard_languages, language_label, check_translation, translation_limit,
@@ -95,7 +95,7 @@ async def _next_category_translation(target: Message, user, state):
     data = await state.get_data()
     queue = list(data.get("cat_queue") or [])
     if not queue:
-        await _create_category_with_names(target, user, state)
+        await _ask_parent(target, state)
         return
     await target.answer(
         localize("admin.categories.add.prompt.translation", language=language_label(queue[0])),
@@ -111,7 +111,7 @@ async def process_category_translation(message: Message, state):
     data = await state.get_data()
     queue = list(data.get("cat_queue") or [])
     if not queue:
-        await _create_category_with_names(message, message.from_user, state)
+        await _ask_parent(message, state)
         return
     value, error = check_translation("name", message.text)
     if error:
@@ -142,6 +142,48 @@ async def skip_category_translation(call: CallbackQuery, state):
     await _next_category_translation(call.message, call.from_user, state)
 
 
+async def _ask_parent(target: Message, state):
+    """Last, optional step: the parent category (the new category becomes its subcategory)."""
+    await target.answer(
+        localize("admin.categories.add.prompt.parent"),
+        reply_markup=skip_keyboard("cat_parent_skip", "categories_management"),
+    )
+    await state.set_state(CategoryFSM.waiting_add_category_parent)
+
+
+@router.message(CategoryFSM.waiting_add_category_parent, F.text,
+                HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def process_category_parent(message: Message, state):
+    """The parent category, typed in any language; an unknown one is asked for again."""
+    parent = await resolve_category_name(message.text)
+    if not parent:
+        await message.answer(
+            localize("admin.categories.add.parent.not_found"),
+            reply_markup=skip_keyboard("cat_parent_skip", "categories_management"),
+        )
+        return
+    await state.update_data(cat_parent=parent)
+    await _create_category_with_names(message, message.from_user, state)
+
+
+@router.callback_query(F.data == 'cat_parent_skip', CategoryFSM.waiting_add_category_parent,
+                       HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def skip_category_parent(call: CallbackQuery, state):
+    """No parent: the category is created at the top level."""
+    await call.answer()
+    await state.update_data(cat_parent=None)
+    await _create_category_with_names(call.message, call.from_user, state)
+
+
+# create_subcategory refusal code -> localization key
+_SUBCATEGORY_ERRORS = {
+    "exists": "admin.categories.add.exist",
+    "parent_not_found": "admin.categories.add.parent.not_found",
+    "parent_not_top_level": "admin.categories.add.parent.not_top_level",
+    "parent_has_items": "admin.categories.add.parent.has_items",
+}
+
+
 async def _create_category_with_names(target: Message, user, state):
     """Creates the category with the collected names; ``target`` is where replies go, ``user`` is the
     admin who acted.
@@ -153,17 +195,28 @@ async def _create_category_with_names(target: Message, user, state):
     data = await state.get_data()
     names = dict(data.get("cat_names") or {})
     category_name = derive_canonical(names, main_language(), data.get("cat_lang"))
+    parent = data.get("cat_parent")
     await state.clear()
     if not category_name:
         await target.answer(localize("errors.invalid_data"), reply_markup=back("categories_management"))
         return
-    await create_category(category_name, names=names)
+    if parent:
+        ok, code = await create_subcategory(category_name, parent, names=names)
+        if not ok:
+            await target.answer(
+                localize(_SUBCATEGORY_ERRORS.get(code, "errors.something_wrong")),
+                reply_markup=back("categories_management"),
+            )
+            return
+    else:
+        await create_category(category_name, names=names)
     await target.answer(
         localize("admin.categories.add.success"),
         reply_markup=back("categories_management"),
     )
     await log_audit("create_category", user_id=user.id, resource_type="Category", resource_id=category_name,
-                    details=f"admin={user.first_name or user.id}, translations={','.join(sorted(names)) or '-'}")
+                    details=f"admin={user.first_name or user.id}, translations={','.join(sorted(names)) or '-'}, "
+                            f"parent={parent or '-'}")
 
 
 @router.callback_query(F.data == 'delete_category', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
@@ -192,7 +245,21 @@ async def process_category_for_delete(message: Message, state):
             reply_markup=back("categories_management"),
         )
     else:
-        await delete_category(category_name)
+        result = await delete_category(category_name)
+        if result == "has_subcategories":
+            await message.answer(
+                localize("admin.categories.delete.has_subcategories"),
+                reply_markup=back("categories_management"),
+            )
+            await state.clear()
+            return
+        if result == "not_found":
+            await message.answer(
+                localize("admin.categories.delete.not_found"),
+                reply_markup=back("categories_management"),
+            )
+            await state.clear()
+            return
         await message.answer(
             localize("admin.categories.delete.success"),
             reply_markup=back("categories_management"),

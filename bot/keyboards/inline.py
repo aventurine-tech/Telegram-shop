@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Callable, Iterable, Tuple
+from typing import Callable, Iterable, Sequence, Tuple
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.i18n import localize, LANGUAGES
@@ -8,12 +8,29 @@ from bot.misc.localized import pick
 from bot.misc import LazyPaginator, EnvKeys # noqa: F401
 
 
-def main_menu(role: int, channel: str | None = None, helper: str | None = None) -> InlineKeyboardMarkup:
+MENU_CATEGORY_LIMIT = 6     # category buttons on the main menu; more than this adds "All categories"
+
+
+def main_menu(role: int, channel: str | None = None, helper: str | None = None,
+              categories: Sequence[Tuple[int, str]] | None = None) -> InlineKeyboardMarkup:
     """
     Main menu.
+
+    `categories` are the top-level categories as ``(id, display label)`` in the viewer's order. They
+    replace the Shop button, one per row (``mcat:<id>``); past MENU_CATEGORY_LIMIT an
+    "All categories" button opens the full list. Without categories the plain Shop button stays.
     """
     kb = InlineKeyboardBuilder()
-    kb.button(text=localize("btn.shop"), callback_data="shop")
+    shown = list(categories or ())[:MENU_CATEGORY_LIMIT]
+    for cat_id, label in shown:
+        kb.button(text=label, callback_data=f"mcat:{cat_id}")
+    full_rows = len(shown)
+    if shown:
+        if len(categories) > MENU_CATEGORY_LIMIT:
+            kb.button(text=localize("btn.all_categories"), callback_data="shop")
+            full_rows += 1
+    else:
+        kb.button(text=localize("btn.shop"), callback_data="shop")
     kb.button(text=localize("btn.rules"), callback_data="rules")
     kb.button(text=localize("btn.profile"), callback_data="profile")
     if helper:
@@ -22,7 +39,7 @@ def main_menu(role: int, channel: str | None = None, helper: str | None = None) 
         kb.button(text=localize("btn.channel"), url=f"https://t.me/{channel.lstrip('@')}")
     if Permission.has_any_admin_perm(role):
         kb.button(text=localize("btn.admin_menu"), callback_data="console")
-    kb.adjust(2)
+    kb.adjust(*([1] * full_rows), 2)
     return kb.as_markup()
 
 

@@ -43,15 +43,55 @@ async def query_categories(offset: int = 0, limit: int = 10, count_only: bool = 
     if count_only:
         async def _count():
             async with Database().session() as s:
-                return (await s.execute(select(func.count(Categories.id)))).scalar() or 0
+                return (await s.execute(
+                    select(func.count(Categories.id)).where(Categories.parent_id.is_(None))
+                )).scalar() or 0
         return await _cached_count("categories:count", _count)
 
     async with Database().session() as s:
         result = await s.execute(
             select(Categories.name)
+            .where(Categories.parent_id.is_(None))
             .order_by(*_display_order(Categories, lang))
             .offset(offset)
             .limit(limit)
+        )
+        return [row[0] for row in result.all()]
+
+
+async def query_top_categories_with_ids(limit: int = 7, lang: str | None = None) -> list[tuple[int, str]]:
+    """``[(id, canonical name)]`` of the first top-level categories, ordered as the viewer sees them.
+
+    Feeds the main-menu buttons (callback data carries the id, never a name).
+    """
+    async with Database().session() as s:
+        result = await s.execute(
+            select(Categories.id, Categories.name)
+            .where(Categories.parent_id.is_(None))
+            .order_by(*_display_order(Categories, lang))
+            .limit(limit)
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+
+async def query_subcategories(parent_name: str, offset: int = 0, limit: int = 10,
+                              count_only: bool = False, lang: str | None = None) -> Any:
+    """Subcategories of a category (canonical names, ordered as the viewer sees them).
+
+    Not cached: the sets are tiny and an admin adding one expects it to show at once.
+    """
+    async with Database().session() as s:
+        parent_id = (await s.execute(
+            select(Categories.id).where(Categories.name == parent_name)
+        )).scalar()
+        if parent_id is None:
+            return 0 if count_only else []
+        base = Categories.parent_id == parent_id
+        if count_only:
+            return (await s.execute(select(func.count(Categories.id)).where(base))).scalar() or 0
+        result = await s.execute(
+            select(Categories.name).where(base)
+            .order_by(*_display_order(Categories, lang)).offset(offset).limit(limit)
         )
         return [row[0] for row in result.all()]
 
