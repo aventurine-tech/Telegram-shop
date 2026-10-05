@@ -87,7 +87,7 @@ class TestKeyboard:
 
     def test_every_locale_defines_nav_keys(self):
         for strings in TRANSLATIONS.values():
-            assert all(k in strings for k in (*_KEYS, "menu.quick"))
+            assert all(k in strings for k in _KEYS)
 
 
 class TestTaps:
@@ -168,8 +168,10 @@ class TestSending:
         await start(msg, fsm_context)
 
         calls = msg.answer.await_args_list
-        assert [c.args[0] for c in calls] == ["menu.quick", "menu.title"]
+        assert [c.args[0] for c in calls] == ["👇", "menu.title"]
         assert isinstance(calls[0].kwargs["reply_markup"], ReplyKeyboardMarkup)
+        # The carrier is removed again: the chat shows no text for the keyboard.
+        msg.answer.return_value.delete.assert_awaited_once()
         assert not isinstance(calls[1].kwargs["reply_markup"], ReplyKeyboardMarkup)
 
     async def test_not_sent_with_subscription_prompt(self, make_message, env_menu):
@@ -185,7 +187,7 @@ class TestSending:
         call = make_callback_query(data="lang:ru", user_id=910012)
         await lang_h.choose_language(call, fsm_context)
         sent = call.message.answer.await_args
-        assert sent.args[0] == "menu.quick"
+        assert sent.args[0] == "👇"
         assert isinstance(sent.kwargs["reply_markup"], ReplyKeyboardMarkup)
 
 

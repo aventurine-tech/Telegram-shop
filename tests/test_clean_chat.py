@@ -142,3 +142,19 @@ class TestUpdateMiddleware:
         assert cc.clean_chat_enabled() is False
         monkeypatch.setenv("CLEAN_CHAT", "1")
         assert cc.clean_chat_enabled() is True
+
+
+class TestOutsideScreen:
+
+    async def test_sends_inside_the_block_are_not_tracked_and_replace_nothing(self):
+        cc.tracker.set(5, 7)
+        mw = cc.CleanChatRequestMiddleware()
+        bot = bot_mock()
+        token = cc._serving_chat.set(5)
+        try:
+            with cc.outside_screen():
+                await mw(AsyncMock(return_value=sent(5, 8)), bot, SendMessage(chat_id=5, text="👇"))
+            assert cc._serving_chat.get() == 5          # restored afterwards
+        finally:
+            cc._serving_chat.reset(token)
+        assert not bot.delete_message.await_count and cc.tracker.get(5) == 7

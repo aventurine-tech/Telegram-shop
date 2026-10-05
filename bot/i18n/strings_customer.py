@@ -100,7 +100,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.nav.catalog": "🛍 Каталог",
         "btn.nav.cart": "🛒 Корзина",
         "btn.nav.profile": "👤 Профиль",
-        "menu.quick": "👇 Быстрое меню всегда внизу",
     },
     "en": {
         # === Product card / stock ===
@@ -201,6 +200,5 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.nav.catalog": "🛍 Catalog",
         "btn.nav.cart": "🛒 Cart",
         "btn.nav.profile": "👤 Profile",
-        "menu.quick": "👇 Quick menu is always at the bottom",
     },
 }

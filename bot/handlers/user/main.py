@@ -1,3 +1,5 @@
+import contextlib
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.enums.chat_type import ChatType
@@ -19,6 +21,7 @@ from bot.handlers.other import check_sub_channel, _parse_channel_username
 from bot.keyboards import main_menu, back, profile_keyboard, check_sub
 from bot.keyboards.inline import MENU_CATEGORY_LIMIT
 from bot.keyboards.reply import bottom_nav_keyboard
+from bot.middleware.clean_chat import outside_screen
 from bot.handlers.user._screen import edit_screen
 from bot.misc import EnvKeys
 from bot.misc.metrics import get_metrics
@@ -161,9 +164,20 @@ async def open_main_menu(message: Message, user_id: int, role_data: int) -> None
     await message.answer(localize("menu.title"), reply_markup=markup)
 
 
+# One character: Telegram rejects an empty message, and the carrier is deleted straight after sending.
+_KEYBOARD_CARRIER = "👇"
+
+
 async def send_bottom_nav(message: Message) -> None:
-    """(Re)send the persistent Catalog / Cart / Profile keyboard in the current language."""
-    await message.answer(localize("menu.quick"), reply_markup=bottom_nav_keyboard())
+    """(Re)send the persistent Catalog / Cart / Profile keyboard in the current language.
+
+    Telegram attaches a reply keyboard to a message, so a one-character carrier is sent and removed
+    at once: the keyboard stays, the chat shows no text for it. The carrier is kept out of the clean-chat
+    screen tracking so it never replaces the screen the user is looking at."""
+    with outside_screen():
+        sent = await message.answer(_KEYBOARD_CARRIER, reply_markup=bottom_nav_keyboard())
+    with contextlib.suppress(Exception):  # cosmetic: a carrier that lingers is harmless
+        await sent.delete()
 
 
 def start_payload(text: str | None) -> str | None:
