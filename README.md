@@ -469,6 +469,15 @@ The sidebar is grouped, in this order: **Orders** · **Clients** (customers, ref
 (**mailings**, promo codes, reviews) · **Settings** (web accounts, roles, audit log, My account) · **Log out**. Groups collapse and stay
 open while you are inside one; names follow the panel language.
 
+### Clients (Clients → Customers)
+
+Every customer has a profile: **first / last name and @username** (read from Telegram and refreshed while they use the
+bot, at most once per 5 minutes), **phone** and **delivery address** (saved from their latest order; a pickup order
+updates only the phone), language, balance, first contact / last activity, blocked flag and staff **notes**. The list
+searches by id, name, username, phone and address and exports to CSV; the details page shows the full **order history**
+(each order links to its page) with the total. Nothing is imported: existing customers get their phone and address
+from their past orders when the migration runs, and names as soon as they next use the bot.
+
 ### Mailings (Marketing → Mailings)
 
 Mass messages written in the browser (Admin role): a title, a **group** (all customers, Romanian / Russian / English

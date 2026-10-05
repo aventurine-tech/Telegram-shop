@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+{% block content %}
+{# A client: what we know about them, and their orders (newest first). #}
+{% set orders = (model.user_orders or []) | sort(attribute='id', reverse=True) %}
+<div class="col-12">
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title">{{ model.first_name or '' }} {{ model.last_name or '' }}
+        {% if model.username %}<a href="https://t.me/{{ model.username }}" target="_blank" rel="noopener noreferrer">@{{ model.username }}</a>{% endif %}
+        <span class="text-muted ms-2">{{ model.telegram_id }}</span></h3>
+    </div>
+    <div class="card-body">
+      <table class="table table-sm table-vcenter">
+        <tbody>
+          {% for name in model_view._details_prop_names %}
+          {% if name != 'user_orders' %}
+          {% set value, formatted = model_view.get_detail_value(model, name) %}
+          <tr>
+            <td class="w-25 text-muted">{{ model_view._column_labels.get(name, name) }}</td>
+            <td style="white-space: pre-wrap">{{ formatted if formatted is not none else '' }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <a href="{{ url_for('admin:list', identity=model_view.identity) }}" class="btn">{{ _('web.details.back') }}</a>
+        {% if model_view.can_edit %}
+        <a href="{{ model_view._build_url_for('admin:edit', request, model) }}" class="btn btn-primary">{{ _('web.sa.edit') }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3 class="card-title">{{ _('web.client.orders') }} ({{ orders | length }})</h3></div>
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter">
+        <thead>
+          <tr>
+            <th>#</th><th>{{ _('web.col.created_at') }}</th><th>{{ _('web.col.status') }}</th>
+            <th>{{ _('web.col.payment_method') }}</th><th>{{ _('web.col.fulfillment') }}</th><th class="text-end">{{ _('web.col.total') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+          <tr>
+            <td><a href="{{ url_for('admin:details', identity='orders', pk=o.id) }}">{{ o.id }}</a></td>
+            <td>{{ o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '' }}</td>
+            <td>{{ _('order.status.' ~ o.status) }}</td>
+            <td>{{ _('order.method.' ~ ('cod_pickup' if o.payment_method == 'cod' and o.fulfillment == 'pickup' else ('cod_delivery' if o.payment_method == 'cod' else o.payment_method))) }}</td>
+            <td>{{ _('order.fulfillment.' ~ o.fulfillment) }}</td>
+            <td class="text-end">{{ o.total }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-muted">{{ _('web.client.no_orders') }}</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if orders %}
+        <tfoot>
+          <tr><td colspan="5" class="text-end fw-bold">{{ _('web.client.orders_sum') }}</td>
+            <td class="text-end fw-bold">{{ (orders | rejectattr('status', 'equalto', 'cancelled') | sum(attribute='total')) }}</td></tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

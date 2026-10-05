@@ -300,6 +300,11 @@ async def create_order_transaction(
                 s.add(order)
                 await s.flush()
 
+                # The client's profile keeps the contact details of their latest order.
+                user.phone = order.phone
+                if fulfillment == Fulfillment.DELIVERY and order.address:
+                    user.address = order.address
+
                 for p in purchases:
                     p['goods'].stock -= p['qty']
                     s.add(OrderItems(
