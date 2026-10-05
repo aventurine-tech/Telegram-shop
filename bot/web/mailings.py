@@ -25,7 +25,7 @@ from bot.misc.images import ImageError, validate_image
 from bot.misc.mailing_text import (
     CAPTION_LIMIT, MESSAGE_LIMIT, PLACEHOLDERS, personalize, sanitize_mailing_html, visible_length,
 )
-from bot.web.admin import AuditModelView, _client_ip, _picture_error
+from bot.web.admin import AuditModelView, LocalizedForm, _client_ip, _picture_error
 from bot.web.language import LazyText, Localized
 from bot.web.session import current_web_user, session_is_admin
 
@@ -334,7 +334,7 @@ class MailingAdmin(AuditModelView, model=Mailings):
         modes = [(m, localize(f"web.mailing.mode.{m}")) for m in MODES]
         now = _now().strftime("%Y-%m-%d %H:%M")
 
-        class MailingForm(Form):
+        class MailingForm(LocalizedForm):
             title = StringField(localize("web.col.title"), description=localize("web.mailing.title_hint"),
                                 render_kw={"maxlength": 200})
             segment = SelectField(localize("web.col.segment"), choices=segments,

@@ -204,7 +204,31 @@ def set_notifier_bot(bot: Any) -> None:
     _notifier_bot = bot
 
 
+class LocalizedForm(Form):
+    """Base of every panel form: WTForms' own messages ("This field is required." …) follow the panel language."""
+
+    class Meta:
+        def get_translations(self, form):
+            from wtforms.i18n import DummyTranslations, get_translations
+            lang = current_language()
+            if lang in ("ru", "ro"):
+                try:
+                    return get_translations([lang])
+                except OSError:                  # a stripped WTForms install without that language: English
+                    pass
+            return DummyTranslations()
+
+
 class LocalizedModelView(ModelView):
+    form_base_class = LocalizedForm
+
+    async def scaffold_form(self, *args, **kwargs):
+        form = await super().scaffold_form(*args, **kwargs)
+        for field in vars(form).values():           # yes/no selects SQLAdmin builds for nullable booleans
+            if getattr(field, "kwargs", {}).get("choices") == [(True, "True"), (False, "False")]:
+                field.kwargs["choices"] = [(True, localize("web.sa.yes")), (False, localize("web.sa.no"))]
+        return form
+
     """ModelView whose column labels follow the request language.
 
     SQLAdmin builds ``_column_labels`` once; here it is computed per access: the ``web.col.<column>``
@@ -779,7 +803,7 @@ _OPTIONS_SCRIPT = r"""
 """
 
 
-class GoodsForm(Form):
+class GoodsForm(LocalizedForm):
     """Picture controls added to the generated product form (SQLAdmin has no extra-fields hook)."""
     picture = FileField(
         "Picture",
