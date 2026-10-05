@@ -32,6 +32,17 @@ def fmt_dt(value) -> str:
         return str(value or "")
 
 
+def delivery_lines(order: dict, cur: str) -> list[str]:
+    """The delivery price line of an order that used a shipping method (nothing for pickup / unpriced delivery)."""
+    name = order.get("shipping_name")
+    if not name:
+        return []
+    fee = Decimal(str(order.get("delivery_fee") or 0))
+    if fee > 0:
+        return [localize("order.line.delivery", name=esc(name), fee=fee, currency=cur)]
+    return [localize("order.line.delivery_free", name=esc(name))]
+
+
 def format_order(order: dict, *, admin: bool = False) -> str:
     """The order card. ``order`` is the dict from ``orders.get_order`` / the transaction result."""
     cur = EnvKeys.PAY_CURRENCY
@@ -45,6 +56,7 @@ def format_order(order: dict, *, admin: bool = False) -> str:
             total=Decimal(str(it["line_total"])), currency=cur,
         ))
     lines.append("")
+    lines.extend(delivery_lines(order, cur))
     lines.append(localize("order.line.total", total=Decimal(str(order["total"])), currency=cur))
     balance_used = Decimal(str(order["balance_used"]))
     if balance_used > 0:

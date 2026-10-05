@@ -69,7 +69,7 @@ class TestSidebar:
             r'id="menu-group-(\w+)">(.*?)</div>\s*</div>\s*</li>', html, re.S)}
         assert groups["clients"] == ["Customers", "Referral Earnings", "Cart Items"]
         assert groups["payments"] == ["Payments to verify", "Balance operations"]
-        assert groups["catalog"] == ["Products", "Categories"]
+        assert groups["catalog"] == ["Products", "Categories", "Shipping"]
         assert groups["marketing"][:2] == ["Mailings", "Promo Codes"]
         assert groups["settings"] == ["Web Accounts", "Roles", "Audit Logs", "My account"]
         assert "Order Lines" not in titles(html)           # reached from an order, not from the menu

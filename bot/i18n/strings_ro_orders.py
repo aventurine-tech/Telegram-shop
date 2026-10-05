@@ -22,6 +22,8 @@ TRANSLATIONS = {"ro": {
         "order.title": "📦 <b>Comanda #{id}</b> — {status}",
         "order.line.item": "• {name} × {qty} — {total} {currency}",
         "order.line.total": "💰 <b>Total:</b> {total} {currency}",
+        "order.line.delivery": "🚚 Livrare ({name}): {fee} {currency}",
+        "order.line.delivery_free": "🚚 Livrare ({name}): gratuită",
         "order.line.balance_used": "💳 Achitat din sold: {amount} {currency}",
         "order.line.due": "💵 <b>Suma de plată:</b> {amount} {currency}",
         "order.line.payment": "💳 Plata: {method} — {status}",

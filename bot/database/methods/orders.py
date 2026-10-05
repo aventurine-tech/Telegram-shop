@@ -19,6 +19,7 @@ from bot.database import Database
 from bot.database.methods.audit import log_audit
 from bot.database.methods.cache_utils import safe_create_task
 from bot.database.methods.pricing import effective_price, apply_promo_discount
+from bot.database.methods.shipping import delivery_fee
 from bot.database.methods.read import (
     invalidate_user_cache, invalidate_stats_cache, invalidate_item_cache,
     promo_rule_error,
@@ -26,7 +27,7 @@ from bot.database.methods.read import (
 from bot.database.models import User, Goods, Role
 from bot.database.models.main import (
     CartItems, PromoCodes, PromoCodeUsages, ReferralEarnings,
-    Orders, OrderItems, OrderStatus, PaymentMethod, PaymentStatus, Fulfillment, Permission,
+    Orders, OrderItems, OrderStatus, PaymentMethod, PaymentStatus, Fulfillment, Permission, ShippingMethods,
 )
 from bot.misc import EnvKeys
 
@@ -92,6 +93,8 @@ def order_to_dict(order: Orders, items: list[OrderItems] | None = None) -> dict:
         "total": order.total,
         "balance_used": order.balance_used,
         "due": order.total - order.balance_used,
+        "shipping_name": order.shipping_name,
+        "delivery_fee": order.delivery_fee,
         "payment_proof": order.payment_proof,
         "pay_by": order.pay_by,
         "created_at": order.created_at,
@@ -143,6 +146,7 @@ async def create_order_transaction(
         payment_method: str,
         use_balance: bool = False,
         expected_total: Decimal | None = None,
+        shipping_method_id: int | None = None,
 ) -> tuple[bool, str, dict | None]:
     """Turn the user's cart into an order, reserving stock.
 
@@ -153,12 +157,16 @@ async def create_order_transaction(
     ``expected_total`` is the total the customer confirmed. If a price or sale moved in
     between, the order is refused with ``price_changed`` rather than silently charged.
 
+    For a delivery, when the shop has active shipping methods one of them must be chosen
+    (``shipping_method_id``); its price (free above its threshold) is added to the total and
+    kept on the order as ``delivery_fee``. Without active methods delivery is free.
+
     ``use_balance`` spends as much store balance as covers the total. If that covers all of
     it, nothing is due and the order is recorded with ``payment_method='balance'``.
 
     Failure codes: user_not_found, cart_empty, cart_items_unavailable, out_of_stock
     (data: ``item_name``, ``available``), price_changed, invalid_payment_method,
-    invalid_fulfillment, address_required, transaction_error.
+    invalid_fulfillment, address_required, shipping_required, invalid_shipping, transaction_error.
     """
     if payment_method not in PaymentMethod.CHOICES:
         return False, "invalid_payment_method", None
@@ -255,7 +263,20 @@ async def create_order_transaction(
                     await s.commit()
                     raise _Abort("cart_items_unavailable")
 
-                total = sum((p['line_price'] for p in purchases), Decimal(0))
+                goods_total = sum((p['line_price'] for p in purchases), Decimal(0))
+                shipping = None
+                fee = Decimal("0.00")
+                if fulfillment == Fulfillment.DELIVERY:
+                    offered = (await s.execute(
+                        select(ShippingMethods).where(ShippingMethods.is_active.is_(True)))).scalars().all()
+                    if offered:
+                        if shipping_method_id is None:
+                            raise _Abort("shipping_required")
+                        shipping = next((m for m in offered if m.id == shipping_method_id), None)
+                        if shipping is None:
+                            raise _Abort("invalid_shipping")
+                        fee = delivery_fee(shipping, goods_total)
+                total = goods_total + fee
                 if expected_total is not None and total != expected_total:
                     raise _Abort("price_changed")
 
@@ -292,6 +313,8 @@ async def create_order_transaction(
                     phone=phone.strip()[:32],
                     address=(address or "").strip() or None,
                     comment=(comment or "").strip() or None,
+                    shipping_name=shipping.name if shipping else None,
+                    delivery_fee=fee,
                     total=total,
                     balance_used=balance_used,
                     pay_by=pay_by,

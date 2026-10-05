@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Integer, String, BigInteger, ForeignKey, Text, Boolean,
-    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, LargeBinary, func, select
+    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, LargeBinary, func, select, true as sa_true
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from bot.database.main import Database
@@ -189,6 +189,31 @@ class Categories(Database.BASE):
         return pick(self, "name") or ""
 
 
+class ShippingMethods(Database.BASE):
+    """A way to deliver an order (courier, post …) with its price. Shown to the customer when they choose delivery;
+    none active = delivery stays free and unpriced. ``name`` is canonical (main language), see Categories."""
+    __tablename__ = 'shipping_methods'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name_en: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default='0')
+    # Delivery is free when the goods come to at least this much (NULL = never free).
+    free_from: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=sa_true())
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+
+    __table_args__ = (
+        CheckConstraint('price >= 0', name='ck_shipping_price_nonneg'),
+        CheckConstraint('free_from IS NULL OR free_from >= 0', name='ck_shipping_free_from_nonneg'),
+    )
+
+    def __str__(self):
+        from bot.misc.localized import pick
+        return pick(self, "name") or ""
+
+
 class Goods(Database.BASE):
     __tablename__ = 'goods'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -300,6 +325,9 @@ class Orders(Database.BASE):
     balance_used: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default='0')
     # Telegram file_id of the MIA payment screenshot, if the customer sent one.
     payment_proof: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    # Delivery: the chosen shipping method's name (as it was) and its price, already part of `total`.
+    shipping_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    delivery_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default='0')
     # Unpaid MIA orders are cancelled (and their stock released) after this moment.
     pay_by: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
