@@ -3,8 +3,9 @@ from html import escape as html_escape
 from aiogram import Bot
 
 from bot.database.methods.delete import pop_stock_subscribers
-from bot.database.methods.read import get_user_languages
+from bot.database.methods.read import get_user_languages, get_item_info
 from bot.i18n import localize, use_language
+from bot.misc.localized import pick
 from bot.keyboards.inline import close
 from bot.logger_mesh import logger
 from bot.misc.services.broadcast_system import BroadcastManager
@@ -25,11 +26,13 @@ async def notify_restock(bot: Bot, item_name: str) -> int:
     for uid in user_ids:
         groups.setdefault(languages.get(uid), []).append(uid)
 
+    item = await get_item_info(item_name)           # one lookup; the name is picked per language group
     manager = BroadcastManager(bot)
     sent = failed = 0
     for lang, ids in groups.items():
         with use_language(lang):
-            text = localize("stock.back_in_stock", name=html_escape(item_name, quote=False))
+            shown = pick(item, "name") if item else item_name
+            text = localize("stock.back_in_stock", name=html_escape(shown, quote=False))
         stats = await manager.broadcast(
             user_ids=ids,
             text=text,

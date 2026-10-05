@@ -66,6 +66,12 @@ TRANSLATIONS = {
         "web.col.sale_percent": "Reducere, %",
         "web.col.sale_until": "Reducere până la",
         "web.col.description": "Descriere",
+        "web.col.name_en": "Denumire (engleză)",
+        "web.col.name_ru": "Denumire (rusă)",
+        "web.col.name_ro": "Denumire (română)",
+        "web.col.description_en": "Descriere (engleză)",
+        "web.col.description_ru": "Descriere (rusă)",
+        "web.col.description_ro": "Descriere (română)",
         "web.col.category_id": "Categorie",
         "web.col.category": "Categorie",
         "web.col.picture": "Poză",
@@ -140,6 +146,13 @@ TRANSLATIONS = {
         "web.form.permissions_hint": ("Mască de biți — adunați indicatorii necesari: USE=1, BROADCAST=2, SETTINGS=4, "
                                       "USERS=8, CATALOG=16, ADMINS=32, OWNER=64, STATS=128, BALANCE=256, "
                                       "PROMOS=512, ORDERS=1024. Exemplu: 1951 = Administrator complet, 2047 = tot (Proprietar)."),
+        "web.form.name_tr_hint": "Afișată clienților a căror limbă este {language}. Lăsați gol pentru a folosi denumirea în limba principală.",
+        "web.form.description_tr_hint": "Afișată clienților a căror limbă este {language}. Lăsați gol pentru a folosi descrierea în limba principală.",
+        "web.form.tr_too_long_name": "Denumirea ({language}) este prea lungă (maximum {limit} de caractere).",
+        "web.form.tr_too_long_description": "Descrierea ({language}) este prea lungă (maximum {limit} de caractere).",
+        "web.form.lang.en": "engleză",
+        "web.form.lang.ru": "rusă",
+        "web.form.lang.ro": "română",
         "web.picture.err.too_large": "Poza este prea mare (maximum 10 MB).",
         "web.picture.err.invalid_image": "Fișierul nu a putut fi citit ca imagine.",
         "web.picture.err.unsupported_format": "Sunt acceptate doar poze JPEG, PNG și WEBP.",
@@ -280,6 +293,13 @@ TRANSLATIONS = {
             "sau <code>balance</code>.</li>"
             "<li>Majoritatea sarcinilor zilnice sunt disponibile și în meniul de administrare din bot, "
             "care este adesea mai rapid pentru modificările de catalog și de roluri.</li>"),
+        "web.help.i18n.title": "🌐 Traduceri",
+        "web.help.i18n.body": (
+            "<p>Denumirile categoriilor și denumirile și descrierile produselor pot fi traduse în <b>engleză, rusă și română</b>. "
+            "Completați câmpurile <i>Denumire (…)</i> și <i>Descriere (…)</i> din formularul de creare sau editare; clienții văd textul în limba lor.</p>"
+            "<p class=\"mb-0\">Câmpurile simple <b>Denumire</b> și <b>Descriere</b> reprezintă textul în limba principală, după care magazinul identifică articolele. "
+            "O traducere lăsată goală este înlocuită cu textul în limba principală, așa că clientul nu vede niciodată un câmp gol.</p>"
+        ),
         "web.help.accounts.title": "👥 Conturi de panou",
         "web.help.accounts.body": (
             "<p>Fiecare persoană se autentifică cu propriul cont. <b>Administratorul</b> poate face orice și este "

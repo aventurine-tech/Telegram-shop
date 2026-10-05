@@ -25,6 +25,8 @@ from bot.misc import (
 from bot.misc.metrics import get_metrics
 from bot.misc.services.order_view import format_order, method_label, notify_new_order, notify_mia_claim, fmt_dt
 from bot.i18n import localize, esc
+from bot.misc.localized import pick
+from bot.database.methods.translations import item_labels
 from bot.states import CheckoutFSM
 
 router = Router()
@@ -174,7 +176,7 @@ async def _ask_summary(msg: Message, state: FSMContext, user_id: int, edit: bool
         if ld is None:
             continue
         lines.append(localize(
-            "order.line.item", name=esc(item["item_name"]), qty=item["quantity"],
+            "order.line.item", name=esc(pick(item, "name")), qty=item["quantity"],
             total=ld["line_total"], currency=cur,
         ))
     lines.append("")
@@ -394,10 +396,12 @@ async def back_to_payment_handler(call: CallbackQuery, state: FSMContext):
     await _ask_payment(call.message, state, call.from_user.id)
 
 
-def _fail_text(code: str, data: dict | None) -> str:
+async def _fail_text(code: str, data: dict | None) -> str:
     if code == "out_of_stock":
         data = data or {}
-        return localize("checkout.fail.out_of_stock", name=esc(data.get("item_name", "")), available=data.get("available", 0))
+        raw = data.get("item_name", "")
+        shown = (await item_labels([raw])).get(raw, raw) if raw else raw   # in the buyer's language
+        return localize("checkout.fail.out_of_stock", name=esc(shown), available=data.get("available", 0))
     known = {
         "cart_empty": "cart.empty",
         "cart_items_unavailable": "cart.items_unavailable",
@@ -438,7 +442,7 @@ async def confirm_order_handler(call: CallbackQuery, state: FSMContext):
     if not success:
         await state.clear()
         await call.message.edit_text(
-            localize("checkout.fail", reason=_fail_text(code, order)), reply_markup=back("cart"),
+            localize("checkout.fail", reason=await _fail_text(code, order)), reply_markup=back("cart"),
         )
         return
 

@@ -4,6 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.i18n import localize, LANGUAGES
 from bot.database.models import Permission
+from bot.misc.localized import pick
 from bot.misc import LazyPaginator, EnvKeys # noqa: F401
 
 
@@ -205,7 +206,7 @@ def cart_keyboard(items: list[dict]) -> InlineKeyboardMarkup:
         kb.row(
             InlineKeyboardButton(text="➖", callback_data=f"cart_qty:{item['id']}:-1"),
             InlineKeyboardButton(
-                text=f"{item['item_name']} ×{item['quantity']}",
+                text=f"{pick(item, 'name')} ×{item['quantity']}",
                 callback_data="dummy_button",
             ),
             InlineKeyboardButton(text="➕", callback_data=f"cart_qty:{item['id']}:1"),
@@ -216,7 +217,7 @@ def cart_keyboard(items: list[dict]) -> InlineKeyboardMarkup:
                 callback_data=f"cart_unpromo:{item['id']}",
             ))
         kb.row(InlineKeyboardButton(
-            text=localize("btn.cart_remove_item", name=item['item_name']),
+            text=localize("btn.cart_remove_item", name=pick(item, 'name')),
             callback_data=f"cart_remove:{item['id']}",
         ))
     kb.row(InlineKeyboardButton(text=localize("btn.cart_checkout"), callback_data="cart_checkout"))

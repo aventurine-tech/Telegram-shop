@@ -13,6 +13,8 @@ from bot.keyboards.inline import back, cart_keyboard
 from bot.database.methods.pricing import apply_promo_discount
 from bot.misc import EnvKeys
 from bot.i18n import localize, esc
+from bot.misc.localized import pick
+from bot.database.methods.translations import item_labels
 from bot.handlers.user._screen import edit_screen
 
 router = Router()
@@ -94,7 +96,7 @@ async def _show_cart(call: CallbackQuery):
 
     for item in items:
         qty = item['quantity']
-        name = esc(item['item_name'])
+        name = esc(pick(item, 'name'))
         code = esc(item.get('promo_code'))
         ld = line_data.get(item['id'])
         if ld is None:
@@ -157,6 +159,11 @@ async def _show_cart(call: CallbackQuery):
             raise
 
 
+async def _display_name(item_name: str) -> str:
+    """The product's name in the viewer's language (canonical if untranslated)."""
+    return (await item_labels([item_name])).get(item_name, item_name)
+
+
 async def _add_selected_item(call: CallbackQuery, state: FSMContext) -> bool:
     """Put the item on screen into the cart, never beyond what is in stock.
 
@@ -170,7 +177,7 @@ async def _add_selected_item(call: CallbackQuery, state: FSMContext) -> bool:
 
     stock = await select_item_stock(item_name)
     if stock <= 0:
-        await call.answer(localize("cart.item_out_of_stock", name=item_name), show_alert=True)
+        await call.answer(localize("cart.item_out_of_stock", name=await _display_name(item_name)), show_alert=True)
         return False
 
     in_cart = next(
@@ -197,7 +204,7 @@ async def _add_selected_item(call: CallbackQuery, state: FSMContext) -> bool:
 async def add_to_cart_handler(call: CallbackQuery, state: FSMContext):
     if await _add_selected_item(call, state):
         item_name = (await state.get_data()).get('csrf_item')
-        await call.answer(localize("cart.added", name=item_name))
+        await call.answer(localize("cart.added", name=await _display_name(item_name)))
 
 
 @router.callback_query(F.data == "buy_item")

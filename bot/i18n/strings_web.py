@@ -98,6 +98,12 @@ TRANSLATIONS = {
         "web.col.sale_percent": "Sale %",
         "web.col.sale_until": "Sale until",
         "web.col.description": "Description",
+        "web.col.name_en": "Name (English)",
+        "web.col.name_ru": "Name (Russian)",
+        "web.col.name_ro": "Name (Romanian)",
+        "web.col.description_en": "Description (English)",
+        "web.col.description_ru": "Description (Russian)",
+        "web.col.description_ro": "Description (Romanian)",
         "web.col.category_id": "Category",
         "web.col.category": "Category",
         "web.col.picture": "Picture",
@@ -173,6 +179,13 @@ TRANSLATIONS = {
         "web.form.permissions_hint": ("Bitmask value — sum the flags you need: USE=1, BROADCAST=2, SETTINGS=4, "
                                       "USERS=8, CATALOG=16, ADMINS=32, OWNER=64, STATS=128, BALANCE=256, "
                                       "PROMOS=512, ORDERS=1024. Example: 1951 = full Admin, 2047 = all (Owner)."),
+        "web.form.name_tr_hint": "Shown to customers whose language is {language}. Leave empty to use the main-language name.",
+        "web.form.description_tr_hint": "Shown to customers whose language is {language}. Leave empty to use the main-language description.",
+        "web.form.tr_too_long_name": "The {language} name is too long (at most {limit} characters).",
+        "web.form.tr_too_long_description": "The {language} description is too long (at most {limit} characters).",
+        "web.form.lang.en": "English",
+        "web.form.lang.ru": "Russian",
+        "web.form.lang.ro": "Romanian",
         "web.picture.err.too_large": "The picture is too large (10 MB at most).",
         "web.picture.err.invalid_image": "The picture could not be read as an image.",
         "web.picture.err.unsupported_format": "Only JPEG, PNG and WEBP pictures are supported.",
@@ -318,6 +331,13 @@ TRANSLATIONS = {
             "or <code>balance</code>.</li>"
             "<li>Most day-to-day tasks are also available in the bot's in-chat admin menu, "
             "which is often quicker for catalog and role edits.</li>"),
+        "web.help.i18n.title": "🌐 Translations",
+        "web.help.i18n.body": (
+            "<p>Category names and product names/descriptions can be translated into <b>English, Russian and Romanian</b>. "
+            "Fill the <i>Name (…)</i> and <i>Description (…)</i> fields on the create/edit form; customers see the text in their own language.</p>"
+            "<p class=\"mb-0\">The plain <b>Name</b> and <b>Description</b> are the main-language text and are what the shop identifies items by. "
+            "Any translation left empty falls back to that main-language text, so nothing is ever blank for the customer.</p>"
+        ),
         "web.help.accounts.title": "👥 Web accounts",
         "web.help.accounts.body": (
             "<p>Everyone signs in with their own account. <b>Admin</b> can do everything and is the only "
@@ -391,6 +411,12 @@ TRANSLATIONS = {
         "web.col.sale_percent": "Скидка, %",
         "web.col.sale_until": "Скидка до",
         "web.col.description": "Описание",
+        "web.col.name_en": "Название (английский)",
+        "web.col.name_ru": "Название (русский)",
+        "web.col.name_ro": "Название (румынский)",
+        "web.col.description_en": "Описание (английский)",
+        "web.col.description_ru": "Описание (русский)",
+        "web.col.description_ro": "Описание (румынский)",
         "web.col.category_id": "Категория",
         "web.col.category": "Категория",
         "web.col.picture": "Фото",
@@ -465,6 +491,13 @@ TRANSLATIONS = {
         "web.form.permissions_hint": ("Битовая маска — сложите нужные флаги: USE=1, BROADCAST=2, SETTINGS=4, "
                                       "USERS=8, CATALOG=16, ADMINS=32, OWNER=64, STATS=128, BALANCE=256, "
                                       "PROMOS=512, ORDERS=1024. Например: 1951 = полный Админ, 2047 = всё (Владелец)."),
+        "web.form.name_tr_hint": "Показывается клиентам с языком «{language}». Оставьте пустым, чтобы использовать название на основном языке.",
+        "web.form.description_tr_hint": "Показывается клиентам с языком «{language}». Оставьте пустым, чтобы использовать описание на основном языке.",
+        "web.form.tr_too_long_name": "Название ({language}) слишком длинное (не более {limit} символов).",
+        "web.form.tr_too_long_description": "Описание ({language}) слишком длинное (не более {limit} символов).",
+        "web.form.lang.en": "английский",
+        "web.form.lang.ru": "русский",
+        "web.form.lang.ro": "румынский",
         "web.picture.err.too_large": "Фото слишком большое (не более 10 МБ).",
         "web.picture.err.invalid_image": "Не удалось прочитать файл как изображение.",
         "web.picture.err.unsupported_format": "Поддерживаются только фото JPEG, PNG и WEBP.",
@@ -605,6 +638,13 @@ TRANSLATIONS = {
             "или <code>balance</code>.</li>"
             "<li>Большинство повседневных задач доступно и в админ-меню бота в чате, "
             "где правки каталога и ролей часто делаются быстрее.</li>"),
+        "web.help.i18n.title": "🌐 Переводы",
+        "web.help.i18n.body": (
+            "<p>Названия категорий и названия и описания товаров можно перевести на <b>английский, русский и румынский</b>. "
+            "Заполните поля <i>Название (…)</i> и <i>Описание (…)</i> в форме создания или изменения; клиенты увидят текст на своём языке.</p>"
+            "<p class=\"mb-0\">Обычные <b>Название</b> и <b>Описание</b> — это текст на основном языке, по нему магазин и находит позиции. "
+            "Если перевод не заполнен, показывается текст на основном языке, поэтому у клиента ничего не бывает пустым.</p>"
+        ),
         "web.help.accounts.title": "👥 Аккаунты панели",
         "web.help.accounts.body": (
             "<p>Каждый входит под своим аккаунтом. <b>Администратор</b> может всё и только он может "

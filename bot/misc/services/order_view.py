@@ -10,6 +10,7 @@ from bot.database.methods.read import get_user_languages
 from bot.database.models.main import Fulfillment, PaymentMethod, PaymentStatus
 from bot.i18n import localize, esc, use_language
 from bot.misc import EnvKeys
+from bot.misc.localized import pick
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def format_order(order: dict, *, admin: bool = False) -> str:
     ]
     for it in order.get("items", []):
         lines.append(localize(
-            "order.line.item", name=esc(it["item_name"]), qty=it["quantity"],
+            "order.line.item", name=esc(pick(it, "name")), qty=it["quantity"],
             total=Decimal(str(it["line_total"])), currency=cur,
         ))
     lines.append("")

@@ -96,6 +96,7 @@ def _stock_card_markup(has_photo: bool = False):
         InlineKeyboardButton(text=localize('admin.goods.stock.btn.sub'), callback_data='stock_sub'),
     )
     kb.row(InlineKeyboardButton(text=localize('admin.goods.photo.btn.change'), callback_data='stock_photo'))
+    kb.row(InlineKeyboardButton(text=localize('admin.translations.btn.open'), callback_data='tr:item'))
     if has_photo:
         kb.row(InlineKeyboardButton(text=localize('admin.goods.photo.btn.remove'), callback_data='stock_photo_rm'))
     kb.row(InlineKeyboardButton(text=localize('btn.back'), callback_data='goods_management'))

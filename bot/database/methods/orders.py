@@ -101,6 +101,10 @@ def order_to_dict(order: Orders, items: list[OrderItems] | None = None) -> dict:
             {
                 "item_id": i.item_id,
                 "item_name": i.item_name,
+                "name": i.item_name,          # canonical key `pick(line, "name")` falls back to
+                "name_en": i.name_en,
+                "name_ru": i.name_ru,
+                "name_ro": i.name_ro,
                 "quantity": i.quantity,
                 "unit_price": i.unit_price,
                 "line_total": i.line_total,
@@ -302,6 +306,9 @@ async def create_order_transaction(
                         order_id=order.id,
                         item_id=p['goods'].id,
                         item_name=p['goods'].name,
+                        name_en=p['goods'].name_en,
+                        name_ru=p['goods'].name_ru,
+                        name_ro=p['goods'].name_ro,
                         quantity=p['qty'],
                         unit_price=p['unit_price'],
                         line_total=p['line_price'],

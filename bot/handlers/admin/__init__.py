@@ -10,6 +10,7 @@ from .role_management import router as role_management_router
 from .promo_management import router as promo_management_router
 from .sale_management import router as sale_management_router
 from .orders_management import router as orders_management_router
+from .translations import router as translations_router
 
 from aiogram import Router
 
@@ -26,3 +27,4 @@ router.include_router(role_management_router)
 router.include_router(promo_management_router)
 router.include_router(sale_management_router)
 router.include_router(orders_management_router)
+router.include_router(translations_router)

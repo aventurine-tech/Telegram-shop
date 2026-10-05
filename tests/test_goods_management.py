@@ -122,7 +122,7 @@ class TestStockCard:
         text = msg.answer.call_args[0][0]
         assert "admin.goods.stock.card" in text and "'stock': 9" in text
         assert _callbacks(msg.answer.call_args) == [
-            "stock_set", "stock_add", "stock_sub", "stock_photo", "goods_management",
+            "stock_set", "stock_add", "stock_sub", "stock_photo", "tr:item", "goods_management",
         ]
         assert await fsm_context.get_state() == StockFSM.card
         assert (await fsm_context.get_data())["stock_item_name"] == "Kettle"
@@ -348,7 +348,7 @@ class TestPhotoOnTheCard:
 
         assert "photo.status.yes" in msg.answer.call_args[0][0]
         assert _callbacks(msg.answer.call_args) == [
-            "stock_set", "stock_add", "stock_sub", "stock_photo", "stock_photo_rm", "goods_management",
+            "stock_set", "stock_add", "stock_sub", "stock_photo", "tr:item", "stock_photo_rm", "goods_management",
         ]
 
     async def test_change_button_asks_for_a_photo(self, make_message, make_callback_query,

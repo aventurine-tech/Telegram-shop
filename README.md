@@ -40,6 +40,13 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   as uploaded (JPEG, PNG or WEBP, up to 10 MB). Admins add it in the bot (an optional photo step when
   creating a product, or **Change photo / Remove photo** on the product's stock screen) or in the web panel
   (an upload field on the product form). Send the picture as a *file* to keep the original quality.
+- **Translated catalog** — category names, product names and product descriptions can each be entered in
+  English, Russian and Romanian, and every customer sees them in their own language. The text you type
+  first is the **main language** (set by `BOT_LOCALE`) and the fallback: a missing translation shows the
+  main-language text, so nothing is ever blank. In the bot, the add-category / add-product wizards ask for
+  the other two languages with a **Skip** button, and **🌐 Translations** (on the product's stock screen and
+  in the Categories menu) edits or clears them later; in the web panel every language has its own field.
+  Search finds a product by a word in any language.
 - **Search** — find a product by name or description; results are paginated and open the
   normal product page. Backed by trigram (GIN) indexes on PostgreSQL, with a graceful fallback
   when `pg_trgm` isn't available.
@@ -272,6 +279,9 @@ The data model, in plain terms:
   fulfilment, contact details, total, the part paid from balance, the MIA screenshot, and the
   MIA pay-by deadline. Each line keeps the product **name and price as a snapshot** (the
   product link is `ON DELETE SET NULL`), so history survives a product being renamed or removed.
+- **Translations** — `categories` and `goods` carry optional `name_en/ru/ro` (and `goods.description_en/ru/ro`);
+  `order_items` snapshots the translated names at order time. The canonical `name` / `description` stay the
+  unique lookup keys.
 - **product_images** — a product's optional picture (the uploaded bytes, plus Telegram's cached
   `file_id`), kept apart from `goods` so the bytes never ride along in item lookups or the Redis cache.
 - **cart_items** / **reviews** — reference their product by foreign key; a cart holds one row

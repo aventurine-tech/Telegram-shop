@@ -9,15 +9,17 @@ class GoodsFSM(StatesGroup):
 class AddItemFSM(StatesGroup):
     """
     FSM for step-by-step creation of a product:
-    1) name,
-    2) description,
+    1) name (main language), then the name in the other two languages (each skippable),
+    2) description (main language), then the description in the other two languages (each skippable),
     3) price,
     4) category,
     5) stock quantity (units on hand),
     6) optional picture (a photo / image file, or Skip).
     """
     waiting_item_name = State()
+    waiting_item_name_translation = State()
     waiting_item_description = State()
+    waiting_item_description_translation = State()
     waiting_item_price = State()
     waiting_category = State()
     waiting_stock = State()
