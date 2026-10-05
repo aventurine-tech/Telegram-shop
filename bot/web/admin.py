@@ -18,7 +18,7 @@ from starlette.routing import Route
 from sqlalchemy import text
 
 from markupsafe import Markup, escape
-from wtforms import BooleanField, FileField, Form, SelectField, StringField, TextAreaField
+from wtforms import BooleanField, Field, FileField, Form, SelectField, StringField, TextAreaField
 from wtforms.validators import Optional as WtfOptional, StopValidation
 from sqlalchemy import select as sa_select, update as sa_update, func as sa_func
 
@@ -89,7 +89,7 @@ from bot.database.main import Database
 from bot.database.models.main import (
     User, Role, Categories, Goods, Orders, OrderItems, Operations, ReferralEarnings,
     AuditLog, PromoCodes, CartItems, Reviews, promo_scope_for,
-    OrderStatus, WebRole,
+    OrderStatus, PaymentMethod, PaymentStatus, WebRole,
 )
 from bot.misc.images import ImageError, validate_image
 from bot.misc.localized import (
@@ -301,19 +301,53 @@ _PERM_FLAGS = [
 ]
 
 
+def _perm_label(flag: str) -> str:
+    return localize(f"web.perm.{flag}")
+
+
+class PermissionsWidget:
+    """One toggle tag per permission; the saved number is just the sum of the ticked tags."""
+
+    def __call__(self, field, **kwargs):
+        current = int(field.data or 0)
+        tags = []
+        for bit, flag in _PERM_FLAGS:
+            checked = " checked" if current & bit else ""
+            tags.append(
+                f'<label class="form-selectgroup-item"><input type="checkbox" name="{escape(field.name)}" '
+                f'value="{bit}" class="form-selectgroup-input"{checked}>'
+                f'<span class="form-selectgroup-label">{escape(_perm_label(flag))}</span></label>')
+        # A hidden 0 keeps the field present in the post when no tag is ticked.
+        return Markup(f'<input type="hidden" name="{escape(field.name)}" value="0">'
+                      f'<div class="form-selectgroup">{"".join(tags)}</div>')
+
+
+class PermissionsField(Field):
+    widget = PermissionsWidget()
+
+    def process_formdata(self, valuelist):
+        total = 0
+        for value in valuelist:
+            if str(value).isdigit():
+                total |= int(value)
+        self.data = total
+
+    def _value(self):
+        return str(self.data or 0)
+
+
 def _format_perms_html(model, name):
     perms = getattr(model, name, 0) or 0
     if not perms:
         return Markup('<span style="color:#999">\u2014</span>')
     badges = []
-    for bit, label in _PERM_FLAGS:
+    for bit, flag in _PERM_FLAGS:
         if perms & bit:
             badges.append(
                 f'<span style="display:inline-block;background:#e2e8f0;padding:1px 6px;'
-                f'border-radius:4px;margin:1px;font-size:12px">{label}</span>'
+                f'border-radius:4px;margin:1px;font-size:12px">{escape(_perm_label(flag))}</span>'
             )
-    raw = f'<span style="color:#999;font-size:11px;margin-left:4px">({perms})</span>'
-    return Markup(" ".join(badges) + raw)
+    return Markup(" ".join(badges))
 
 
 class RoleAdmin(AuditModelView, model=Role):
@@ -326,9 +360,17 @@ class RoleAdmin(AuditModelView, model=Role):
     icon = "fa-solid fa-shield-halved"
     column_formatters = {"permissions": _format_perms_html}
     column_formatters_detail = {"permissions": _format_perms_html}
-    @property
-    def form_args(self) -> dict:
-        return {"permissions": {"description": localize("web.form.permissions_hint")}}
+    async def scaffold_form(self, *args, **kwargs):
+        """Permissions as toggle tags instead of a bitmask number."""
+        Base = await super().scaffold_form(*args, **kwargs)
+        field = PermissionsField(localize("web.col.permissions"), description=localize("web.form.permissions_hint"))
+        if hasattr(Base, "permissions"):
+            field.creation_counter = Base.permissions.creation_counter
+
+        class RoleForm(Base):
+            permissions = field
+
+        return RoleForm
 
     @staticmethod
     async def _flush_role_caches() -> None:
@@ -1114,9 +1156,30 @@ class OrderAdmin(LocalizedModelView, model=Orders):
     can_create = False
     can_edit = False
     can_delete = False
+    details_template = "order_details.html"
     name = Localized("web.model.order.one")
     name_plural = Localized("web.model.order.many")
     icon = "fa-solid fa-box-open"
+
+    @staticmethod
+    def available_actions(order) -> list[str]:
+        """The actions that make sense for this order right now (the details page shows only these)."""
+        status = getattr(order, "status", None)
+        if status not in OrderStatus.ACTIVE:
+            return []
+        actions = []
+        if status == OrderStatus.NEW:
+            if order.payment_method == PaymentMethod.MIA and order.payment_status in (
+                    PaymentStatus.AWAITING_PAYMENT, PaymentStatus.AWAITING_CONFIRMATION):
+                actions.append("confirm-payment")   # SQLAdmin turns "_" into "-" in action names
+            else:
+                actions.append("confirm")
+        elif status == OrderStatus.CONFIRMED:
+            actions += ["ship", "complete"]
+        elif status == OrderStatus.SHIPPED:
+            actions.append("complete")
+        actions.append("cancel")
+        return actions
 
     async def _run(self, request: Request, action_name: str) -> RedirectResponse:
         pks = [int(p) for p in request.query_params.get("pks", "").split(",") if p.strip().isdigit()]
