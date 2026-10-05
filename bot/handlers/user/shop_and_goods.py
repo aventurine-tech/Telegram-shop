@@ -16,6 +16,7 @@ from bot.database.methods.read import (
     get_category_by_id, category_children_count, check_category_cached,
     get_item_avg_rating, has_purchased_item, validate_promo_for_item,
     get_user_review, invalidate_rating_cache, is_subscribed_to_stock,
+    get_item_family, get_option_by_id, get_head_name,
 )
 from bot.database.methods.orders import get_order, cancel_order_transaction
 from bot.database.methods.pricing import apply_promo_discount
@@ -94,14 +95,24 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
     if required_state is not None:
         await state.set_state(required_state)
 
+    # Weight options: reviews and the fallback picture/description live on the head; a head that has
+    # options is only a gateway to them (nothing to buy on its own card).
+    family = await get_item_family(item_name)
+    head = family["head"] if family else item_info_data
+    family_options = family["options"] if family else []
+    is_option = item_info_data.get("variant_of") is not None
+    gateway = bool(family_options) and not is_option
+    selector = [(o["id"], o["variant_label"], o["id"] == item_info_data["id"]) for o in family_options]
+    review_name = head["name"]
+
     reviews_enabled = EnvKeys.REVIEWS_ENABLED == "1"
 
     reads = [select_item_stock_cached(item_name)]
     if reviews_enabled:
-        reads.append(get_item_avg_rating(item_name))
-        reads.append(query_item_reviews(item_name, count_only=True))
+        reads.append(get_item_avg_rating(review_name))
+        reads.append(query_item_reviews(review_name, count_only=True))
         if user_id:
-            reads.append(has_purchased_item(user_id, item_name))
+            reads.append(has_purchased_item(user_id, review_name))
     results = await asyncio.gather(*reads)
 
     stock = results[0]
@@ -153,26 +164,35 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
         has_purchased=purchased, applied_promo=applied_promo,
         reviews_enabled=reviews_enabled,
         out_of_stock=out_of_stock, subscribed=subscribed,
+        options=selector, gateway=gateway,
     )
 
     # Shown in the viewer's language; every lookup below keeps using the canonical `item_name`.
     display_name = pick(item_info_data, "name")
     description = pick(item_info_data, "description")
+    if not description.strip() and head is not item_info_data:
+        description = pick(head, "description")     # an option without its own text shows the head's
 
     def build_text(desc: str) -> str:
         lines = [
             localize("shop.item.title", name=esc(display_name)),
             localize("shop.item.description", description=esc(desc)),
-            price_line,
-            quantity_line,
         ]
+        if gateway:
+            lines.append(localize("shop.item.choose_option"))
+        else:
+            lines += [price_line, quantity_line]
         if reviews_enabled and avg_rating is not None:
             lines.append(localize("review.avg_rating", rating=avg_rating, count=review_count_val))
         return "\n".join(lines)
 
     text = build_text(description)
 
+    image_name = item_name
     image_ref = await get_item_image_ref(item_name)
+    if image_ref is None and head is not item_info_data:
+        image_name = head["name"]                   # an option without its own picture shows the head's
+        image_ref = await get_item_image_ref(image_name)
     message = target.message if hasattr(target, 'message') else None
     on_photo = is_photo_message(message)
 
@@ -183,7 +203,7 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
                 # Same card, same picture: only the caption and keyboard change.
                 await message.edit_caption(caption=caption, reply_markup=markup)
                 return
-            sent = await _send_card_photo(message or target, item_name, image_ref, caption, markup)
+            sent = await _send_card_photo(message or target, image_name, image_ref, caption, markup)
         except TelegramBadRequest as e:
             if "message is not modified" in str(e):
                 return
@@ -516,11 +536,22 @@ async def _page_item_from_state(state: FSMContext, list_key: str, page_key: str,
     return items[idx]
 
 
+async def _preselect_option(item_name: str) -> str:
+    """A head with weight options opens on its first option that is in stock (else the first)."""
+    family = await get_item_family(item_name)
+    if not family or not family["options"] or family["current"]["variant_of"] is not None:
+        return item_name
+    options = family["options"]
+    return next((o for o in options if (o["stock"] or 0) > 0), options[0])["name"]
+
+
 async def _open_item(call: CallbackQuery, state: FSMContext, item_name: str, back_data: str):
     """Open an item card and record it for the on-screen (csrf) item context."""
     metrics = get_metrics()
     if metrics:
         metrics.track_conversion("purchase_funnel", "view_item", call.from_user.id)
+
+    item_name = await _preselect_option(item_name)
 
     # Save item name and back_data in state
     updates = {"csrf_item": item_name, "item_back_data": back_data}
@@ -555,6 +586,27 @@ async def item_info_callback_handler(call: CallbackQuery, state: FSMContext):
         await call.answer(localize("shop.item.not_found"), show_alert=True)
         return
     await _open_item(call, state, item_name, f"gp_{goods_page}")
+
+
+@router.callback_query(F.data.startswith('opt:'))
+async def option_callback_handler(call: CallbackQuery, state: FSMContext):
+    """
+    Switch the card to another weight option of the same product.
+    Format: opt:{goods_id}. Back keeps going where the head's card went (the list it was opened from).
+    """
+    try:
+        goods_id = int(call.data.split(':')[1])
+    except (ValueError, IndexError):
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+
+    option = await get_option_by_id(goods_id)
+    data = await state.get_data()
+    family = await get_item_family(data['csrf_item']) if data.get('csrf_item') else None
+    if not option or not family or option["variant_of"] != family["head"]["id"]:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    await _open_item(call, state, option["name"], data.get('item_back_data', 'gp_0'))
 
 
 # --- Catalog search ---
@@ -805,7 +857,7 @@ async def start_review_handler(call: CallbackQuery, state: FSMContext):
         return
 
     # Check if user purchased the item
-    purchased = await has_purchased_item(call.from_user.id, item_name)
+    purchased = await has_purchased_item(call.from_user.id, await get_head_name(item_name))
     if not purchased:
         await call.answer(localize("review.not_purchased"), show_alert=True)
         return
@@ -819,7 +871,7 @@ async def start_review_handler(call: CallbackQuery, state: FSMContext):
     await state.update_data(review_item_name=item_name)
     await edit_screen(
         call,
-        localize("review.prompt_rating", name=esc(await _display_name(item_name))),
+        localize("review.prompt_rating", name=esc(await _display_name(await get_head_name(item_name)))),
         reply_markup=rating_keyboard(),
     )
     await state.set_state(ReviewFSM.waiting_rating)

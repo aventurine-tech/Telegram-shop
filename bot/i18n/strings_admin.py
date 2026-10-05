@@ -77,6 +77,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.goods.delete.prompt.name": "Введите название товара",
         "admin.goods.delete.position.not_found": "❌ Товар не удалён (такого товара не существует)",
         "admin.goods.delete.position.success": "✅ Товар удалён",
+        # === Admin: Weight options ===
+        "admin.goods.add_option": "➕ Добавить вариант (вес)",
+        "admin.goods.option.prompt.head": "Введите название основного товара, для которого добавляется вариант (например, «50 г»):",
+        "admin.goods.option.head_not_found": "❌ Такого товара не существует",
+        "admin.goods.option.head_is_option": "❌ Это уже вариант товара. Введите название основного товара.",
+        "admin.goods.option.prompt.label": "Введите название варианта (например, «50 г»):",
+        "admin.goods.option.label.invalid": "⚠️ Недопустимое название варианта (1–32 символа, без символа «·»).",
+        "admin.goods.option.exists": "❌ Такой вариант у этого товара уже есть",
+        "admin.goods.option.result.created": "✅ Вариант «{name}» создан. На складе: <b>{qty}</b> шт.",
+        "admin.goods.options.title": "🧩 Варианты:",
+        "admin.goods.options.line": "• {label} — {price} {currency}, на складе: {stock} шт.",
+        "admin.goods.delete.position.success_options": "✅ Товар удалён вместе с вариантами: {count}",
 
         # === Admin: Statistics ===
         "admin.shop.stats.template": (
@@ -270,6 +282,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.goods.delete.prompt.name": "Enter the product name",
         "admin.goods.delete.position.not_found": "❌ Product not deleted (it doesn't exist)",
         "admin.goods.delete.position.success": "✅ Product deleted",
+        # === Admin: Weight options ===
+        "admin.goods.add_option": "➕ Add option (weight)",
+        "admin.goods.option.prompt.head": "Enter the name of the main product to add an option to (the option label comes next, e.g. “50 g”):",
+        "admin.goods.option.head_not_found": "❌ No such product",
+        "admin.goods.option.head_is_option": "❌ That is already an option. Enter the name of the main product.",
+        "admin.goods.option.prompt.label": "Enter the option label (e.g. “50 g”):",
+        "admin.goods.option.label.invalid": "⚠️ Invalid option label (1–32 characters, no “·” character).",
+        "admin.goods.option.exists": "❌ This product already has such an option",
+        "admin.goods.option.result.created": "✅ Option “{name}” created. In stock: <b>{qty}</b> pcs.",
+        "admin.goods.options.title": "🧩 Options:",
+        "admin.goods.options.line": "• {label} — {price} {currency}, in stock: {stock} pcs.",
+        "admin.goods.delete.position.success_options": "✅ Product deleted together with its options: {count}",
 
         # === Admin: Statistics ===
         "admin.shop.stats.template": (

@@ -26,6 +26,17 @@ class AddItemFSM(StatesGroup):
     waiting_photo = State()
 
 
+class AddOptionFSM(StatesGroup):
+    """
+    FSM for adding a weight option to a product:
+    1) the head product's name (any language), 2) the option label (e.g. "50 g"), 3) price, 4) stock.
+    """
+    waiting_head = State()
+    waiting_label = State()
+    waiting_price = State()
+    waiting_stock = State()
+
+
 class StockFSM(StatesGroup):
     """
     FSM for the stock screen of a product:

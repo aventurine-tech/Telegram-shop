@@ -253,6 +253,11 @@ async def get_item_family(item_name: str) -> dict | None:
                 "current": _obj_to_dict(cur, Goods)}
 
 
+async def get_option_by_id(goods_id: int) -> dict | None:
+    """A weight option's row by id; None for a head, a standalone product or an unknown id."""
+    return await _fetch_one_dict(Goods, Goods.id == goods_id, Goods.variant_of.is_not(None))
+
+
 async def resolve_item_name(text: str) -> str | None:
     """Canonical product name for something an admin typed: the canonical name itself, else a
     translated name in any language (case-insensitive). None if nothing matches."""

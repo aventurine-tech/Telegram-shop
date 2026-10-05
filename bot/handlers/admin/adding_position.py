@@ -5,6 +5,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.database.models import Permission
 from bot.database.methods import get_item_info, create_item
+from bot.database.methods.create import create_item_option
 from bot.database.methods.read import category_accepts_items, resolve_category_name, resolve_item_name
 from bot.database.methods.product_images import set_item_image
 from bot.handlers.other import is_safe_item_name
@@ -21,7 +22,8 @@ from bot.misc import EnvKeys
 from bot.misc.images import ImageError, validate_image
 from bot.misc.localized import MAX_DESCRIPTION_LEN, derive_canonical
 from bot.i18n import localize, esc
-from bot.states import AddItemFSM
+from bot.misc.localized import clean_name
+from bot.states import AddItemFSM, AddOptionFSM
 
 router = Router()
 
@@ -322,3 +324,106 @@ async def add_item_photo_reprompt(message: Message):
     Anything but a photo / image file at the photo step: ask again.
     """
     await message.answer(localize('admin.goods.photo.reprompt'), reply_markup=_photo_prompt_markup())
+
+
+# === Weight options: "50 g" / "200 g" of one product, each with its own price and stock ===
+
+_OPTION_ERRORS = {
+    "head_not_found": "admin.goods.option.head_not_found",
+    "head_is_option": "admin.goods.option.head_is_option",
+    "bad_label": "admin.goods.option.label.invalid",
+    "exists": "admin.goods.option.exists",
+}
+
+
+@router.callback_query(F.data == 'add_option', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_option_callback_handler(call: CallbackQuery, state):
+    """
+    Ask for the name of the product the option is added to.
+    """
+    await call.message.edit_text(localize('admin.goods.option.prompt.head'), reply_markup=back("goods_management"))
+    await state.set_state(AddOptionFSM.waiting_head)
+
+
+@router.message(AddOptionFSM.waiting_head, F.text, HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_option_head(message: Message, state):
+    """
+    The head product (typed in any language) must exist and must not be an option itself.
+    """
+    head_name = await resolve_item_name(message.text)
+    head = await get_item_info(head_name) if head_name else None
+    if not head:
+        await message.answer(localize('admin.goods.option.head_not_found'), reply_markup=back('goods_management'))
+        return
+    if head.get('variant_of') is not None:
+        await message.answer(localize('admin.goods.option.head_is_option'), reply_markup=back('goods_management'))
+        return
+
+    await state.update_data(option_head=head_name)
+    await message.answer(localize('admin.goods.option.prompt.label'), reply_markup=back('goods_management'))
+    await state.set_state(AddOptionFSM.waiting_label)
+
+
+@router.message(AddOptionFSM.waiting_label, F.text, HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_option_label(message: Message, state):
+    """
+    The option label: 1-32 characters, without the "·" that joins it to the product name.
+    """
+    label = clean_name(message.text)
+    if not label or len(label) > 32 or "\u00b7" in label:
+        await message.answer(localize('admin.goods.option.label.invalid'), reply_markup=back('goods_management'))
+        return
+
+    await state.update_data(option_label=label)
+    await message.answer(localize('admin.goods.add.prompt.price', currency=EnvKeys.PAY_CURRENCY),
+                         reply_markup=back('goods_management'))
+    await state.set_state(AddOptionFSM.waiting_price)
+
+
+@router.message(AddOptionFSM.waiting_price, F.text, HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_option_price(message: Message, state):
+    """
+    Validate the option's price and ask for its stock.
+    """
+    price = parse_price(message.text)
+    if price is None:
+        await message.answer(localize('admin.goods.add.price.invalid'), reply_markup=back('goods_management'))
+        return
+
+    await state.update_data(option_price=price)
+    await message.answer(localize('admin.goods.add.prompt.stock'), reply_markup=back('goods_management'))
+    await state.set_state(AddOptionFSM.waiting_stock)
+
+
+@router.message(AddOptionFSM.waiting_stock, F.text, HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_option_stock(message: Message, state):
+    """
+    Validate the stock and create the option; announce it if it is in stock.
+    """
+    stock = parse_quantity(message.text)
+    if stock is None:
+        await message.answer(localize('admin.goods.stock.invalid'), reply_markup=back('goods_management'))
+        return
+
+    data = await state.get_data()
+    head_name, label = data.get('option_head'), data.get('option_label')
+    ok, code = await create_item_option(head_name, label, data.get('option_price'), stock)
+    if not ok:
+        await message.answer(localize(_OPTION_ERRORS.get(code, 'errors.something_wrong')),
+                             reply_markup=back('goods_management'))
+        await state.clear()
+        return
+
+    name = f"{head_name} \u00b7 {label}"
+    await message.answer(localize('admin.goods.option.result.created', name=esc(name), qty=stock),
+                         parse_mode='HTML', reply_markup=back('goods_management'))
+    if stock > 0:
+        await _notify_restock_safe(message.bot, name)
+        await announce_arrival(message.bot, name, stock)
+
+    user = message.from_user
+    admin_name = user.first_name or str(user.id)
+    await log_audit("create_item_option", user_id=user.id, resource_type="Item", resource_id=name,
+                    details=f"admin={admin_name}, head={head_name}, label={label}, "
+                            f"price={data.get('option_price')}, stock={stock}")
+    await state.clear()

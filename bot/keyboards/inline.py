@@ -183,18 +183,27 @@ def item_info(
         review_count: int = 0, has_purchased: bool = False,
         applied_promo: str = None, reviews_enabled: bool = True,
         out_of_stock: bool = False, subscribed: bool = False,
+        options: list[tuple[int, str, bool]] | None = None, gateway: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Product card with order, cart, promo, review buttons.
 
     When `out_of_stock`, offers a restock notification toggle instead of
     the order buttons, so the user is not left at a dead end.
+
+    `options` — (goods_id, label, is_current) weight options, shown as a selector row on top
+    (``opt:{goods_id}``). `gateway` — a head product with options: only the selector, reviews and
+    Back are offered, never anything to buy.
     """
     kb = InlineKeyboardBuilder()
-    if not out_of_stock:
+    if gateway:
+        out_of_stock = False
+    elif not out_of_stock:
         kb.button(text=localize("btn.buy"), callback_data="buy_item")
         kb.button(text=localize("btn.add_to_cart"), callback_data="add_to_cart")
-    if applied_promo:
+    if gateway:
+        pass
+    elif applied_promo:
         kb.button(text=localize("btn.remove_promo"), callback_data="remove_promo")
     else:
         kb.button(text=localize("btn.apply_promo"), callback_data="apply_promo")
@@ -210,7 +219,15 @@ def item_info(
             kb.button(text=localize("btn.notify_stock"), callback_data="sub_stock")
     kb.button(text=localize("btn.back"), callback_data=back_data)
     kb.adjust(2)
-    return kb.as_markup()
+    markup = kb.as_markup()
+    if options:
+        buttons = [
+            InlineKeyboardButton(text=f"✅ {label}" if current else label, callback_data=f"opt:{goods_id}")
+            for goods_id, label, current in options
+        ]
+        rows = [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
+        markup = InlineKeyboardMarkup(inline_keyboard=rows + markup.inline_keyboard)
+    return markup
 
 
 def cart_keyboard(items: list[dict]) -> InlineKeyboardMarkup:

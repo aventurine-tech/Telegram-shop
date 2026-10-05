@@ -201,6 +201,21 @@ TRANSLATIONS = {
         "web.form.parent_has_items": "The chosen parent already holds products, so it cannot have subcategories. Move its products first.",
         "web.category.delete_has_children": "This category has subcategories. Delete or move them first.",
         "web.form.name_taken": "An item named \u201c{name}\u201d already exists. Choose a different name.",
+        "web.col.variant_of": "Option of",
+        "web.col.variant_label": "Option label",
+        "web.form.variant_of_none": "— none (standalone or main product) —",
+        "web.form.variant_of_hint": "Choose a main product to make this one its option (e.g. “50 g”). Leave empty for a standalone or main product. An option has its own price, stock and sale; its name is built as “product · label”, its category is taken from the main product, and the main product's description is shown.",
+        "web.form.variant_label_hint": "Option label, e.g. “50 g” (up to 32 characters, no “·” character, unique within the product). Fill it in only together with the main product.",
+        "web.form.variant_label_no_head": "An option label can only be set together with a main product.",
+        "web.form.variant_head_unknown": "The chosen main product does not exist.",
+        "web.form.variant_head_self": "A product cannot be an option of itself.",
+        "web.form.variant_head_is_option": "The main product cannot itself be an option. Choose a main product.",
+        "web.form.variant_has_options": "This product has options, so it cannot become an option itself.",
+        "web.form.variant_label_required": "Enter the option label.",
+        "web.form.variant_label_bad": "The option label must not contain the “·” character.",
+        "web.form.variant_label_too_long": "The option label is too long (32 characters at most).",
+        "web.form.variant_label_taken": "The main product already has an option “{label}”.",
+        "web.form.variant_name_too_long": "The “product · label” name is too long ({limit} characters at most).",
         "web.form.lang.en": "English",
         "web.form.lang.ru": "Russian",
         "web.form.lang.ro": "Romanian",
@@ -303,6 +318,8 @@ TRANSLATIONS = {
             "shown on the product card in the bot. Tick <i>Remove picture</i> on the edit page to delete it; "
             "the <i>Picture</i> column in the list shows which products have one.</li>"
             "<li>Change <code>stock</code> whenever goods arrive or are written off.</li>"
+            "<li><b>Weight options</b> (e.g. 50&nbsp;g / 200&nbsp;g): create a product, pick the main product in <i>Option of</i> and give an <i>Option label</i>. "
+            "Each option has its own price, stock and sale, is named “product · label”, takes the main product's category and is shown under it in the bot; deleting the main product deletes its options.</li>"
             "</ol>"
             "<p class=\"mb-2\"><code>stock</code> is reserved when a customer places an order and returned "
             "when the order is cancelled. A product at <code>0</code> cannot be ordered; customers who "
@@ -531,6 +548,21 @@ TRANSLATIONS = {
         "web.form.parent_has_items": "В выбранной родительской категории уже есть товары, поэтому в ней нельзя создавать подкатегории. Сначала перенесите товары.",
         "web.category.delete_has_children": "В этой категории есть подкатегории. Сначала удалите их или перенесите.",
         "web.form.name_taken": "Позиция с названием «{name}» уже существует. Выберите другое название.",
+        "web.col.variant_of": "Вариант товара",
+        "web.col.variant_label": "Вариант (вес)",
+        "web.form.variant_of_none": "— нет (обычный или основной товар) —",
+        "web.form.variant_of_hint": "Выберите основной товар, чтобы сделать этот товар его вариантом (например, «50 г»). Оставьте пустым для обычного или основного товара. У варианта своя цена, остаток и скидка; название формируется как «товар · вариант», категория берётся у основного товара, а показывается описание основного товара.",
+        "web.form.variant_label_hint": "Название варианта, например «50 г» (до 32 символов, без символа «·», уникально для товара). Заполняется только вместе с основным товаром.",
+        "web.form.variant_label_no_head": "Название варианта указывается только вместе с основным товаром.",
+        "web.form.variant_head_unknown": "Выбранного основного товара не существует.",
+        "web.form.variant_head_self": "Товар не может быть вариантом самого себя.",
+        "web.form.variant_head_is_option": "Основным товаром не может быть другой вариант. Выберите основной товар.",
+        "web.form.variant_has_options": "У этого товара есть варианты, поэтому он сам не может стать вариантом.",
+        "web.form.variant_label_required": "Укажите название варианта.",
+        "web.form.variant_label_bad": "Название варианта не должно содержать символ «·».",
+        "web.form.variant_label_too_long": "Название варианта слишком длинное (максимум 32 символа).",
+        "web.form.variant_label_taken": "У основного товара уже есть вариант «{label}».",
+        "web.form.variant_name_too_long": "Название «товар · вариант» слишком длинное (максимум {limit} символов).",
         "web.form.lang.en": "английский",
         "web.form.lang.ru": "русский",
         "web.form.lang.ro": "румынский",
@@ -628,6 +660,8 @@ TRANSLATIONS = {
             "показывается в карточке товара в боте. Отметьте <i>Удалить фото</i> на странице редактирования, чтобы "
             "убрать его; колонка <i>Фото</i> в списке показывает, у каких товаров оно есть.</li>"
             "<li>Меняйте <code>stock</code>, когда товар поступает или списывается.</li>"
+            "<li><b>Варианты по весу</b> (например, 50&nbsp;г / 200&nbsp;г): создайте товар, выберите основной товар в поле <i>Вариант товара</i> и укажите <i>Вариант (вес)</i>. "
+            "У каждого варианта своя цена, остаток и скидка, название формируется как «товар · вариант», категория берётся у основного товара, а в боте вариант показывается под ним; при удалении основного товара его варианты удаляются.</li>"
             "</ol>"
             "<p class=\"mb-2\"><code>stock</code> резервируется, когда клиент оформляет заказ, и возвращается, "
             "когда заказ отменён. Товар с остатком <code>0</code> заказать нельзя; клиенты, которые просили "

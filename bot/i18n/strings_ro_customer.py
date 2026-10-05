@@ -2,6 +2,8 @@ TRANSLATIONS = {"ro": {
         # === Product card / stock ===
         "shop.item.in_stock": "În stoc: {count}",
         "shop.item.out_of_stock": "❌ Stoc epuizat",
+        "shop.item.choose_option": "👇 Alegeți greutatea",
+        "cart.choose_option": "Alegeți mai întâi greutatea produsului.",
         "cart.item_out_of_stock": "❌ „{name}” nu mai este în stoc.",
         "cart.stock_limit": "❌ În stoc sunt doar {available}.",
         "cart.low_stock": "    ⚠️ În stoc sunt doar {available} — vă rugăm să reduceți cantitatea",

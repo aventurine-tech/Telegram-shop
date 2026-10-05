@@ -55,7 +55,7 @@ class TestGoodsMenu:
         await goods_management_callback_handler(call, fsm_context)
 
         assert _callbacks(call.message.edit_text.call_args) == [
-            "add_item", "item_stock", "update_item", "manage_sale", "delete_item", "console",
+            "add_item", "add_option", "item_stock", "update_item", "manage_sale", "delete_item", "console",
         ]
         # Opening the menu drops any half-finished flow.
         assert await fsm_context.get_state() is None

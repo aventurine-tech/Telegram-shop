@@ -12,7 +12,7 @@ from bot.handlers.admin._common import (
 from bot.i18n import localize, esc
 from bot.database.models import Permission
 from bot.database.methods import get_item_info, delete_item
-from bot.database.methods.read import resolve_item_name
+from bot.database.methods.read import resolve_item_name, get_item_family
 from bot.database.methods.product_images import has_item_image, remove_item_image, set_item_image
 from bot.database.methods.update import set_item_stock, adjust_item_stock
 from bot.keyboards.inline import back, simple_buttons
@@ -36,6 +36,7 @@ async def goods_management_callback_handler(call: CallbackQuery, state):
     """
     actions = [
         (localize("admin.goods.add_position"), "add_item"),
+        (localize("admin.goods.add_option"), "add_option"),
         (localize("admin.goods.stock_manage"), "item_stock"),
         (localize("admin.goods.update_position"), "update_item"),
         (localize("admin.goods.sale_manage"), "manage_sale"),
@@ -68,24 +69,33 @@ async def delete_str_item(message: Message, state):
             reply_markup=back('goods_management')
         )
     else:
+        # A head takes its weight options with it: count them for the reply and the audit trail.
+        family = await get_item_family(item_name)
+        options = len(family['options']) if family and family['head']['name'] == item_name else 0
         await delete_item(item_name)
         await message.answer(
-            localize('admin.goods.delete.position.success'),
+            localize('admin.goods.delete.position.success_options', count=options) if options
+            else localize('admin.goods.delete.position.success'),
             reply_markup=back('goods_management')
         )
         admin_name = caller_name(message)
         await log_audit("delete_item", user_id=message.from_user.id, resource_type="Item", resource_id=item_name,
-                        details=f"admin={admin_name}")
+                        details=f"admin={admin_name}" + (f", options={options}" if options else ""))
     await state.clear()
 
 
-def _stock_card(item: dict, has_photo: bool = False) -> str:
-    """Product name, price, units on hand and whether it has a picture."""
+def _stock_card(item: dict, has_photo: bool = False, options: list[dict] | None = None) -> str:
+    """Product name, price, units on hand, whether it has a picture and, for a head, its weight options."""
     card = localize(
         'admin.goods.stock.card',
         name=esc(item['name']), price=item['price'], currency=EnvKeys.PAY_CURRENCY, stock=item['stock'],
     )
-    return f"{card}\n{localize('admin.goods.photo.status.yes' if has_photo else 'admin.goods.photo.status.no')}"
+    card = f"{card}\n{localize('admin.goods.photo.status.yes' if has_photo else 'admin.goods.photo.status.no')}"
+    if options:
+        lines = [localize('admin.goods.options.line', label=esc(o['variant_label']), price=o['price'],
+                          currency=EnvKeys.PAY_CURRENCY, stock=o['stock']) for o in options]
+        card = f"{card}\n\n{localize('admin.goods.options.title')}\n" + "\n".join(lines)
+    return card
 
 
 def _stock_card_markup(has_photo: bool = False):
@@ -106,7 +116,8 @@ def _stock_card_markup(has_photo: bool = False):
 async def _render_card(item: dict) -> tuple[str, object]:
     """Card text and keyboard for a product, with its current picture status."""
     has_photo = await has_item_image(item['name'])
-    return _stock_card(item, has_photo), _stock_card_markup(has_photo)
+    family = await get_item_family(item['name']) if item.get('variant_of') is None else None
+    return _stock_card(item, has_photo, family['options'] if family else None), _stock_card_markup(has_photo)
 
 
 @router.callback_query(F.data == 'item_stock', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))

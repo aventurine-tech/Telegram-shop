@@ -5,6 +5,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # === Product card / stock ===
         "shop.item.in_stock": "В наличии — {count} шт.",
         "shop.item.out_of_stock": "❌ Нет в наличии",
+        "shop.item.choose_option": "👇 Выберите вес",
+        "cart.choose_option": "Сначала выберите вес товара.",
         "cart.item_out_of_stock": "❌ «{name}» нет в наличии.",
         "cart.stock_limit": "❌ В наличии только {available} шт.",
         "cart.low_stock": "    ⚠️ В наличии только {available} шт. — уменьшите количество",
@@ -104,6 +106,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # === Product card / stock ===
         "shop.item.in_stock": "In stock: {count}",
         "shop.item.out_of_stock": "❌ Out of stock",
+        "shop.item.choose_option": "👇 Choose a weight",
+        "cart.choose_option": "Please choose a weight first.",
         "cart.item_out_of_stock": "❌ “{name}” is out of stock.",
         "cart.stock_limit": "❌ Only {available} in stock.",
         "cart.low_stock": "    ⚠️ Only {available} in stock — please reduce the quantity",

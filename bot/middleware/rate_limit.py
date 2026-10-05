@@ -367,6 +367,7 @@ class RateLimitMiddleware(BaseMiddleware):
             'subcat-page_': 'shop_view',
             'itm:': 'shop_view',
             'sitm:': 'shop_view',
+            'opt:': 'shop_view',
             'categories-page_': 'shop_view',
             'gp_': 'shop_view',
             'sp_': 'shop_view',
