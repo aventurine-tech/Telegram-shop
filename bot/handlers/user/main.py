@@ -164,21 +164,20 @@ async def open_main_menu(message: Message, user_id: int, role_data: int) -> None
     await message.answer(localize("menu.title"), reply_markup=markup)
 
 
-# Telegram needs a message to hold the keyboard and rejects text that is empty after trimming (spaces, zero-width
-# and Braille-blank characters all count as empty). This message must stay in the chat (Telegram drops the
-# keyboard when the message that carries it is deleted); it is replaced, never removed.
-_KEYBOARD_CARRIER = "\u00b7"   # a middle dot: Telegram rejects whitespace, zero-width and Braille-blank text as empty
+# Telegram needs a message to hold the reply keyboard (it rejects text that is empty after trimming, and drops the
+# keyboard when that message is deleted), so the keyboard rides on a short welcome line that stays at the top of the
+# chat. A newer one replaces it, e.g. after a language change.
 
 
 async def send_bottom_nav(message: Message) -> None:
     """(Re)send the persistent Catalog / Cart / Profile keyboard in the current language.
 
-    The keyboard rides on a one-character message that is kept out of the clean-chat screen tracking (so it
+    The keyboard rides on the welcome line ("Welcome to UMBRA"), which is kept out of the clean-chat screen tracking (so it
     never replaces the screen the user is looking at). A newer carrier replaces the previous one: the old
     message is deleted only after the new keyboard is in place."""
     try:
         with outside_screen():
-            sent = await message.answer(_KEYBOARD_CARRIER, reply_markup=bottom_nav_keyboard())
+            sent = await message.answer(localize("menu.welcome"), reply_markup=bottom_nav_keyboard())
     except TelegramAPIError as e:
         # The menu matters more than the keyboard: never let a keyboard failure block /start.
         logger.warning("could not send the bottom keyboard: %s", e)
