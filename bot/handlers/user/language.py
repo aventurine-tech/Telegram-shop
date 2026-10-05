@@ -8,7 +8,7 @@ from aiogram.types import Message, CallbackQuery, TelegramObject
 from bot.database.methods.read import check_user_cached, invalidate_user_cache
 from bot.database.methods.update import set_user_language
 from bot.handlers.user.main import (
-    register_if_new, open_main_menu, show_profile, start_payload, _delete_quietly,
+    register_if_new, open_main_menu, show_profile, start_payload, _delete_quietly, send_bottom_nav,
 )
 from bot.i18n import localize, use_language, LANGUAGES, LANGUAGE_CODES
 from bot.keyboards.inline import language_keyboard
@@ -106,6 +106,8 @@ async def choose_language(call: CallbackQuery, state: FSMContext):
         if had_language and payload is None:
             # Changed from the profile: go back there, now in the new language.
             await show_profile(call)
+            # The reply keyboard keeps its old labels until a message replaces it.
+            await send_bottom_nav(call.message)
             return
         # First choice: swap the picker for the normal start flow.
         await _delete_quietly(call.message)

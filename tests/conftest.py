@@ -229,6 +229,8 @@ _LOCALIZING_MODULES = (
     'bot.handlers.user.checkout',
     'bot.handlers.user.balance_and_payment',
     'bot.handlers.user.language',
+    'bot.handlers.user.bottom_nav',
+    'bot.keyboards.reply',
     'bot.handlers.admin.user_management',
     'bot.handlers.admin.categories_management',
     'bot.handlers.admin.goods_management',
