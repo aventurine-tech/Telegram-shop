@@ -108,6 +108,15 @@ class User(Database.BASE):
     is_blocked: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, index=True)
     # Interface language the user picked (en/ru/ro). NULL = not asked yet: show the picker.
     language: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+    # The person's profile: names and @username come from Telegram (refreshed as they use the bot), the phone and
+    # the delivery address from their last order; notes are the staff's own.
+    username: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    first_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_seen_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     user_operations: Mapped[list["Operations"]] = relationship(
         "Operations", back_populates="user_telegram_id", lazy='raise')
     user_orders: Mapped[list["Orders"]] = relationship(
