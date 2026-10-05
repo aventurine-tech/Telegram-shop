@@ -1,0 +1,1179 @@
+{
+  "source": "https://umbramd.com",
+  "main_language": "ro",
+  "categories": {
+    "top": {
+      "ro": "Tutun pentru narghilea",
+      "en": "Hookah tobacco",
+      "ru": "Табак для кальяна"
+    },
+    "sub": {
+      "classic": {
+        "ro": "Classic",
+        "en": "Classic",
+        "ru": "Classic"
+      },
+      "intense": {
+        "ro": "Intense",
+        "en": "Intense",
+        "ru": "Intense"
+      }
+    }
+  },
+  "products": [
+    {
+      "name": "MIX 136",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Zmeură, grapefruit, căpșună",
+        "en": "Raspberry, grapefruit, strawberry",
+        "ru": "Малина, грейпфрут, клубника"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/a6/c9/a6c94d46-6f1a-48fd-8872-d5fb3128fa19/umbra_50_136.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/a6/c9/a6c94d46-6f1a-48fd-8872-d5fb3128fa19/umbra_50_136.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_136.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/d5/95/d595a91b-ec17-4d85-9abf-79a0ce4a2c12/136_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/d5/95/d595a91b-ec17-4d85-9abf-79a0ce4a2c12/136_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/136_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 145",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Pomușoare acre",
+        "en": "Sour berries",
+        "ru": "Кислые ягоды"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/fa/bb/fabb0507-3136-4dea-82e1-629eaaa2c286/umbra_50_145.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/fa/bb/fabb0507-3136-4dea-82e1-629eaaa2c286/umbra_50_145.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_145.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/a6/9b/a69b7ba8-58ee-4681-96d2-a19568eed40b/145_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/a6/9b/a69b7ba8-58ee-4681-96d2-a19568eed40b/145_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/145_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 235",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Cheesecake cu afine",
+        "ru": "Черничный чизкейк"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/34/a3/34a32df3-cfc9-4eaa-bfa6-b121d73c850b/235_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/34/a3/34a32df3-cfc9-4eaa-bfa6-b121d73c850b/235_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/235_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 244",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Mango, fructul pasiunii, gheață",
+        "en": "Mango, passion fruit, ice",
+        "ru": "Манго, маракуйя, лёд"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/d7/fb/d7fb39bb-2948-48ca-9983-7ac29e555896/umbra_50_244.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/d7/fb/d7fb39bb-2948-48ca-9983-7ac29e555896/umbra_50_244.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_244.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 325",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Tiramisu",
+        "en": "Tiramisu",
+        "ru": "Тирамису"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/73/f9/73f97ba7-7071-49a1-a794-26fbb59507a4/umbra_50_325.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/73/f9/73f97ba7-7071-49a1-a794-26fbb59507a4/umbra_50_325.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_325.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/0e/35/0e355094-a58a-46da-a4e5-1fcea356ffc7/200g_325.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/0e/35/0e355094-a58a-46da-a4e5-1fcea356ffc7/200g_325.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/200g_325.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 334",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Fructe de pădure",
+        "en": "Red fruits",
+        "ru": "Лесные ягоды"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/22/71/22717db5-6de7-4572-95e6-80a4959951bf/umbra_50_334.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/22/71/22717db5-6de7-4572-95e6-80a4959951bf/umbra_50_334.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_334.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/dc/03/dc034f40-5f50-47a4-843b-746fe709a9a4/334_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/dc/03/dc034f40-5f50-47a4-843b-746fe709a9a4/334_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/334_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 550",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Pepene galben, pepene verde, gheață",
+        "en": "Melon, Watermelon, Ice",
+        "ru": "Дыня, арбуз, лёд"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/a3/e7/a3e73fc7-64ac-4716-a6be-5d9db8aabedb/umbra_50_550.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/a3/e7/a3e73fc7-64ac-4716-a6be-5d9db8aabedb/umbra_50_550.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_550.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 696",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Limoncello albastru",
+        "en": "Blue Limoncello",
+        "ru": "Лимончелло Блю"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/ca/6c/ca6c57b1-17d6-4ee4-ae13-647bd6a5933e/umbra_50_696.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/ca/6c/ca6c57b1-17d6-4ee4-ae13-647bd6a5933e/umbra_50_696.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_696.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/19/d5/19d55c63-1387-45d3-b660-cb3b8f061df5/umbra_696.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/19/d5/19d55c63-1387-45d3-b660-cb3b8f061df5/umbra_696.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_696.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 712",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Ice Tea cu piersici",
+        "en": "Peach Ice Tea",
+        "ru": "Персиковый ледяной чай со льдом"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/5f/ac/5fac71fe-4495-4560-a04e-13d75af82662/umbra_50_712.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/5f/ac/5fac71fe-4495-4560-a04e-13d75af82662/umbra_50_712.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_712.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/e0/27/e0277bd3-67ba-4f51-8154-742d15097f56/712_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/e0/27/e0277bd3-67ba-4f51-8154-742d15097f56/712_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/712_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 901",
+      "kind": "mix",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Afine cu gheață",
+        "en": "Blueberry Ice",
+        "ru": "Черника со льдом"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/b1/27/b1275853-c1e5-4fc2-8e0d-6b495d90d6a7/umbra_50_901.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/b1/27/b1275853-c1e5-4fc2-8e0d-6b495d90d6a7/umbra_50_901.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_901.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/05/f8/05f858c5-f930-4397-bd22-f0711c506b1a/901_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/05/f8/05f858c5-f930-4397-bd22-f0711c506b1a/901_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/901_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 00",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Gheață",
+        "en": "Ice",
+        "ru": "Лёд"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/c6/c4/c6c4fb8e-c466-4a0d-a5a3-e062f62db58b/umbra_50_00.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/c6/c4/c6c4fb8e-c466-4a0d-a5a3-e062f62db58b/umbra_50_00.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_00.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/39/4f/394f47ff-4e60-4a86-ac06-fa3626fdb290/00_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/39/4f/394f47ff-4e60-4a86-ac06-fa3626fdb290/00_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/00_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 11",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Mangosteen",
+        "en": "Mangosteen",
+        "ru": "Мангостан"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/b2/3e/b23e4ec7-ebcf-404f-a225-24c9e58e91d9/umbra_50_11.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/b2/3e/b23e4ec7-ebcf-404f-a225-24c9e58e91d9/umbra_50_11.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_11.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/9f/4a/9f4a4b93-d24e-4327-aa73-0b003d211269/200g_11.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/9f/4a/9f4a4b93-d24e-4327-aa73-0b003d211269/200g_11.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/200g_11.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 22",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Mango",
+        "en": "Mango",
+        "ru": "Манго"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/c2/be/c2befc36-fd70-449e-989d-6cfcde23777c/umbra_50_22.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/c2/be/c2befc36-fd70-449e-989d-6cfcde23777c/umbra_50_22.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_22.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/f0/76/f0766ec5-d8ac-4eca-a3a3-9b1d0b2a5494/22_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/f0/76/f0766ec5-d8ac-4eca-a3a3-9b1d0b2a5494/22_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/22_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 235",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Cheesecake cu afine",
+        "en": "Blueberry cheesecake",
+        "ru": "Черничный чизкейк"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/b8/ad/b8adc409-028d-47ac-b0fb-3196d8495241/umbra_50_235.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/b8/ad/b8adc409-028d-47ac-b0fb-3196d8495241/umbra_50_235.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_235.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 33",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Fistic",
+        "en": "Pistachio",
+        "ru": "Фисташка"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/7e/7f/7e7f7f37-c186-4dcb-a392-d0f21b2113ea/umbra_50_33.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/7e/7f/7e7f7f37-c186-4dcb-a392-d0f21b2113ea/umbra_50_33.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_33.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/71/b5/71b50344-67ad-48f4-9e21-5b122a7ec4a6/33_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/71/b5/71b50344-67ad-48f4-9e21-5b122a7ec4a6/33_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/33_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 44",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Vișină",
+        "en": "Cherry",
+        "ru": "Вишня"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/5c/77/5c775da6-5968-40bd-afa7-bcacda44ebd2/umbra_50_44.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/5c/77/5c775da6-5968-40bd-afa7-bcacda44ebd2/umbra_50_44.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_44.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/00/43/004384bd-da78-4d70-ba65-53996a8d9c63/200g_44.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/00/43/004384bd-da78-4d70-ba65-53996a8d9c63/200g_44.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/200g_44.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 55",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Pepene verde",
+        "en": "Watermelon",
+        "ru": "Арбуз"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/b0/ef/b0ef7046-958f-4977-a0c5-06c7becdf7b8/umbra_50_55.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/b0/ef/b0ef7046-958f-4977-a0c5-06c7becdf7b8/umbra_50_55.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_55.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/e4/1d/e41da600-3de6-4557-97d1-f17a91c56afe/55_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/e4/1d/e41da600-3de6-4557-97d1-f17a91c56afe/55_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/55_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 69",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Fructul pasiunii",
+        "en": "Passion fruit",
+        "ru": "Маракуйя"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/60/d9/60d9dc37-78f1-4af4-8f6c-6f37a3986814/umbra_50_69.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/60/d9/60d9dc37-78f1-4af4-8f6c-6f37a3986814/umbra_50_69.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_69.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/7b/cb/7bcb4652-b61b-47cf-84d2-7761195ff5a4/69_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/7b/cb/7bcb4652-b61b-47cf-84d2-7761195ff5a4/69_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/69_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 77",
+      "kind": "solo",
+      "strength": "classic",
+      "flavour": {
+        "ro": "Piersic",
+        "en": "Peach",
+        "ru": "Персик"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/b9/07/b9072633-35da-4815-8dbd-6181fcc701d0/umbra_50_77.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/b9/07/b9072633-35da-4815-8dbd-6181fcc701d0/umbra_50_77.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_77.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/bf/06/bf06b7aa-e629-4d88-acea-9e09740f86b3/77_classic.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/bf/06/bf06b7aa-e629-4d88-acea-9e09740f86b3/77_classic.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/77_classic.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 136",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Zmeură, grapefruit și căpșună",
+        "en": "Raspberry, grapefruit and strawberry",
+        "ru": "Малина, грейпфрут и клубника"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/a6/c9/a6c94d46-6f1a-48fd-8872-d5fb3128fa19/umbra_50_136.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/a6/c9/a6c94d46-6f1a-48fd-8872-d5fb3128fa19/umbra_50_136.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_136.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/93/15/93152810-043b-400c-bf04-de26609ef741/136_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/93/15/93152810-043b-400c-bf04-de26609ef741/136_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/136_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 145",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Pomușoare acre"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/ec/d2/ecd28c6c-dc93-476a-a6e6-f7384d0d7bf6/145_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/ec/d2/ecd28c6c-dc93-476a-a6e6-f7384d0d7bf6/145_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/145_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 244",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Mango, fructul pasiunii și gheață",
+        "en": "Mango, fructul pasiunii și gheață",
+        "ru": "Манго, маракуйя и лёд"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/8b/a4/8ba4a036-e49d-494e-b689-9d4b3f151d1e/umbra_50_244.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/8b/a4/8ba4a036-e49d-494e-b689-9d4b3f151d1e/umbra_50_244.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_244.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 262",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Lămâie și lime",
+        "en": "Lemon and lime",
+        "ru": "Лимон и лайм"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/32/94/32948166-4a31-41b9-b891-7ce1ea88273e/umbra_262.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/32/94/32948166-4a31-41b9-b891-7ce1ea88273e/umbra_262.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_262.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 325",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Tiramisu",
+        "en": "Tiramisu",
+        "ru": "Тирамису"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/48/09/4809dae9-be3b-4c3a-aaf3-302c4869db41/200g_325.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/48/09/4809dae9-be3b-4c3a-aaf3-302c4869db41/200g_325.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/200g_325.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 334",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Fructe de pădure",
+        "en": "Red fruits",
+        "ru": "Лесные ягоды"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/4b/c9/4bc967be-f0b3-4988-bf46-6caac23560c1/334_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/4b/c9/4bc967be-f0b3-4988-bf46-6caac23560c1/334_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/334_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 343",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Fructe verzi"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/61/db/61db7ec3-34e8-4a9b-aeac-84dbdf7e8929/umbra_343.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/61/db/61db7ec3-34e8-4a9b-aeac-84dbdf7e8929/umbra_343.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_343.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 550",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Pepene galben, pepene verde și gheață",
+        "en": "Melon, watermelon, ice",
+        "ru": "Дыня, арбуз и лед"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/ac/ed/aced42f7-502d-4a9a-82ee-b826a4528144/umbra_50_550.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/ac/ed/aced42f7-502d-4a9a-82ee-b826a4528144/umbra_50_550.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_550.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 712",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Ice Tea cu piersici",
+        "en": "Peach Ice Tea",
+        "ru": "Персиковый чай со льдом"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/8c/b9/8cb9303c-5f21-4c4d-87ab-36224b96f279/umbra_50_712.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/8c/b9/8cb9303c-5f21-4c4d-87ab-36224b96f279/umbra_50_712.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_712.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/fe/94/fe94b122-0057-4e7a-aa03-cf04f206f5fe/712_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/fe/94/fe94b122-0057-4e7a-aa03-cf04f206f5fe/712_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/712_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 838",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Kiwi și Aloe",
+        "en": "Kiwi and Aloe",
+        "ru": "Киви и алоэ"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/5c/9d/5c9d6243-dfb6-4724-8a17-c80b34703177/umbra_50_838.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/5c/9d/5c9d6243-dfb6-4724-8a17-c80b34703177/umbra_50_838.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_838.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/ca/d3/cad3d88a-aa81-4f4b-9dfa-a4104f126b2f/umbra_838.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/ca/d3/cad3d88a-aa81-4f4b-9dfa-a4104f126b2f/umbra_838.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_838.png"
+        }
+      ]
+    },
+    {
+      "name": "MIX 901",
+      "kind": "mix",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Afine cu gheață",
+        "en": "Blueberries Ice",
+        "ru": "Черника со льдом"
+      },
+      "options": [
+        {
+          "label": "50 g",
+          "grams": 50,
+          "image_url": "https://umbramd.com/media/filer_public/65/f4/65f46edc-7178-4bb2-bd97-f0e8894d1ed0/umbra_50_901.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/65/f4/65f46edc-7178-4bb2-bd97-f0e8894d1ed0/umbra_50_901.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_50_901.png"
+        },
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/87/59/87599a05-6862-460c-ac46-974d7ad7f544/901_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/87/59/87599a05-6862-460c-ac46-974d7ad7f544/901_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/901_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 00",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Gheață",
+        "en": "Ice",
+        "ru": "Лёд"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/15/8e/158e5ac4-fee9-454a-a1bc-863b2fb2206c/00_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/15/8e/158e5ac4-fee9-454a-a1bc-863b2fb2206c/00_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/00_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 01",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Mentă proaspătă",
+        "en": "Ice mint",
+        "ru": "Свежая мята"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/f2/10/f2100f32-68d5-4a1d-8bb3-912226d182cc/umbra_01.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/f2/10/f2100f32-68d5-4a1d-8bb3-912226d182cc/umbra_01.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_01.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 11",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Mangosteen",
+        "en": "Mangosteen",
+        "ru": "Мангостан"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/b2/0b/b20b9111-f7b5-4808-a2b2-6b71c531ce4d/200g_11.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/b2/0b/b20b9111-f7b5-4808-a2b2-6b71c531ce4d/200g_11.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/200g_11.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 12",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Ceai negru",
+        "en": "Black tea",
+        "ru": "Черный чай"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/fd/c4/fdc44735-1494-4a2a-a9c3-690ffaafcb58/umbra_12.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/fd/c4/fdc44735-1494-4a2a-a9c3-690ffaafcb58/umbra_12.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_12.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 13",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Căpșuni suculente",
+        "en": "Juicy strawberry",
+        "ru": "Сочная клубника"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/f7/38/f738662a-8a8c-45c6-b868-05e729748bc2/umbra_13.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/f7/38/f738662a-8a8c-45c6-b868-05e729748bc2/umbra_13.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_13.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 15",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Afine, coacaze negre",
+        "en": "BlackCurrant",
+        "ru": "Чёрная смородина"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/59/bd/59bdb7e5-1218-43f7-907f-0ac81d15ee59/umbra_15_intense_kopiia.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/59/bd/59bdb7e5-1218-43f7-907f-0ac81d15ee59/umbra_15_intense_kopiia.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_15_intense_kopiia.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 16",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Zmeură sălbatică",
+        "en": "Wild raspberry",
+        "ru": "Дикая малина"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/25/73/257379fc-4693-47d9-a0fe-5831d1ecde8c/umbra_16.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/25/73/257379fc-4693-47d9-a0fe-5831d1ecde8c/umbra_16.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_16.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 21",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Jackfruit",
+        "en": "Jackfruit",
+        "ru": "Джекфрут"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/fb/a3/fba35fc6-be6e-4a90-b9e5-092615812297/umbra_21.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/fb/a3/fba35fc6-be6e-4a90-b9e5-092615812297/umbra_21.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_21.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 22",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Mango",
+        "en": "Mango",
+        "ru": "Манго"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/7f/e9/7fe916ff-a8b2-4432-8509-4b57fc311616/22_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/7f/e9/7fe916ff-a8b2-4432-8509-4b57fc311616/22_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/22_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 23",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Kiwano (Pepene cu coarne)",
+        "en": "Kiwano",
+        "ru": "Кивано (рогатая дыня)"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/09/b0/09b05a34-558c-4a4b-af76-f0544d1349e2/umbra_23.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/09/b0/09b05a34-558c-4a4b-af76-f0544d1349e2/umbra_23.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_23.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 25",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Lapte condensat",
+        "en": "Condense Milk",
+        "ru": "Сгущенное молоко"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/34/23/34239f4e-d8c9-476c-899e-a20610610f2d/umbra_25.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/34/23/34239f4e-d8c9-476c-899e-a20610610f2d/umbra_25.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_25.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 26",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Lămâie dulce",
+        "en": "Sweet lemon",
+        "ru": "Сладкий лимон"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/62/ff/62ff2599-d1f5-4de3-b4ae-945256c3c7ae/umbra_26.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/62/ff/62ff2599-d1f5-4de3-b4ae-945256c3c7ae/umbra_26.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_26.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 35",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Lulo (naranjilla)",
+        "en": "Lulo (naranjilla)",
+        "ru": "Луло (наранхилла)"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/a2/da/a2da13c3-d3f3-4d4a-90bf-2c21e00131f3/umbra_35.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/a2/da/a2da13c3-d3f3-4d4a-90bf-2c21e00131f3/umbra_35.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_35.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 36",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Tic Tac",
+        "en": "Tic tac",
+        "ru": "Тик-так"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/0b/28/0b28880d-1bbf-4f52-b345-97d618387882/umbra_36.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/0b/28/0b28880d-1bbf-4f52-b345-97d618387882/umbra_36.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_36.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 44",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Vișină",
+        "en": "Cherry",
+        "ru": "Вишня"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/e3/be/e3be4d60-c77f-49ef-b977-267c7eabce39/200g_44.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/e3/be/e3be4d60-c77f-49ef-b977-267c7eabce39/200g_44.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/200g_44.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 54",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Pepene galben",
+        "en": "Melon",
+        "ru": "Спелая дыня"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/22/65/226514c8-38ee-41ca-9ca6-a715314a0864/umbra_54.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/22/65/226514c8-38ee-41ca-9ca6-a715314a0864/umbra_54.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_54.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 55",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Pepene verde",
+        "en": "Watermelon",
+        "ru": "Арбуз"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/1d/f8/1df8acfd-2ad6-4e4e-bb40-75b2b8ac360f/55_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/1d/f8/1df8acfd-2ad6-4e4e-bb40-75b2b8ac360f/55_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/55_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 63",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Băutură Horchata",
+        "en": "Horchata",
+        "ru": "Орчата"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/0a/62/0a625a71-3959-4781-ab7a-022f5653d75a/umbra_63.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/0a/62/0a625a71-3959-4781-ab7a-022f5653d75a/umbra_63.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_63.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 66",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Ananas",
+        "en": "Pineapple",
+        "ru": "Ананас"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/8e/c8/8ec8513e-c5cf-437b-a4d5-d795c09afce5/umbra_66.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/8e/c8/8ec8513e-c5cf-437b-a4d5-d795c09afce5/umbra_66.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_66.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 67",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Nucă de cocos",
+        "en": "Coconut",
+        "ru": "Кокосовый орех"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/93/a5/93a55360-ae93-487b-bd8b-c11ddcfcf451/umbra_67.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/93/a5/93a55360-ae93-487b-bd8b-c11ddcfcf451/umbra_67.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_67.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 69",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Fructul pasiunii",
+        "en": "Passion fruit",
+        "ru": "Маракуйя"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/20/b4/20b42526-8e7c-4c5e-a7cf-d14a431a0d48/69_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/20/b4/20b42526-8e7c-4c5e-a7cf-d14a431a0d48/69_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/69_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 77",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Piersic",
+        "en": "Peach",
+        "ru": "Персик"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/b7/38/b7386064-3686-4a30-8655-b04da3dfe8f6/77_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/b7/38/b7386064-3686-4a30-8655-b04da3dfe8f6/77_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/77_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 89",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Mar verde acru",
+        "en": "Sour Green Apple",
+        "ru": "Кислое зеленое яблоко"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/39/b8/39b89826-ede7-4466-bcdd-2f4aeb1daf0f/umbra_89_intense.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/39/b8/39b89826-ede7-4466-bcdd-2f4aeb1daf0f/umbra_89_intense.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_89_intense.png"
+        }
+      ]
+    },
+    {
+      "name": "SOLO 96",
+      "kind": "solo",
+      "strength": "intense",
+      "flavour": {
+        "ro": "Cola",
+        "en": "Cola",
+        "ru": "Кола"
+      },
+      "options": [
+        {
+          "label": "200 g",
+          "grams": 200,
+          "image_url": "https://umbramd.com/media/filer_public/51/58/5158f9e1-e303-4aeb-9d92-758eb17b4476/umbra_96.png",
+          "thumbnail_url": "https://umbramd.com/media/filer_public_thumbnails/filer_public/51/58/5158f9e1-e303-4aeb-9d92-758eb17b4476/umbra_96.png__450x450_subsampling-2_upscale.png",
+          "image_file": "images/umbra_96.png"
+        }
+      ]
+    }
+  ]
+}
