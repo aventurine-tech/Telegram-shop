@@ -249,7 +249,7 @@ class TestProfileLanguage:
         # Only the small message that swaps the bottom keyboard to the new language.
         call.message.answer.assert_awaited_once()
         sent = call.message.answer.await_args
-        assert sent.args[0] == "\u2800"
+        assert sent.args[0] == "\u00b7"
         assert [b.text for b in sent.kwargs["reply_markup"].keyboard[0]] == [
             i18n.localize_in("ro", k) for k in ("btn.nav.catalog", "btn.nav.cart", "btn.nav.profile")]
 
