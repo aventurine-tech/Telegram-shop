@@ -762,7 +762,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 # A module may define extra locales; keys missing from a locale fall back to DEFAULT_LOCALE.
 def _merge_extra_translations() -> None:
     import importlib
-    for module_name in ("strings_orders", "strings_customer", "strings_admin"):
+    for module_name in (
+        "strings_orders", "strings_customer", "strings_admin",
+        "strings_ro_1", "strings_ro_2", "strings_ro_orders", "strings_ro_customer", "strings_ro_admin",
+    ):
         try:
             module = importlib.import_module(f"{__package__}.{module_name}")
         except ModuleNotFoundError as e:

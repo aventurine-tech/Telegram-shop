@@ -59,3 +59,33 @@ class TestLocalize:
             result = localize("btn.back")
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+class TestLocaleParity:
+    """Every shipped locale must define exactly the same keys with the same placeholders."""
+
+    @staticmethod
+    def _placeholders(text):
+        import string
+        return {f for _, f, _, _ in string.Formatter().parse(text) if f}
+
+    @pytest.mark.parametrize("locale", ["ru", "ro"])
+    def test_same_keys_as_english(self, locale):
+        from bot.i18n.strings import TRANSLATIONS
+        assert set(TRANSLATIONS[locale]) == set(TRANSLATIONS["en"])
+
+    @pytest.mark.parametrize("locale", ["ru", "ro"])
+    def test_same_placeholders_as_english(self, locale):
+        from bot.i18n.strings import TRANSLATIONS
+        en = TRANSLATIONS["en"]
+        bad = {
+            k: (self._placeholders(en[k]), self._placeholders(v))
+            for k, v in TRANSLATIONS[locale].items()
+            if k in en and self._placeholders(v) != self._placeholders(en[k])
+        }
+        assert not bad
+
+    def test_romanian_is_selectable(self):
+        with _with_locale("ro"):
+            assert get_locale() == "ro"
+            assert localize("btn.shop") != localize("btn.shop") + "x"

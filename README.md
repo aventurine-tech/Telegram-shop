@@ -69,7 +69,7 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   process memory, batched audit rows, cached paginator counts, single-flighted cache misses,
   invalidation by name — never by scanning the keyspace). **Optional** Redis caching and
   persistent FSM storage; the bot runs without Redis too.
-- **Localization** — Russian and English (`BOT_LOCALE`).
+- **Localization** — Romanian, Russian and English (`BOT_LOCALE=ro|ru|en`).
 
 ## 🧾 How an order works
 
@@ -313,7 +313,7 @@ Staff with the order-management permission always get order alerts in private ch
 | `CHANNEL_URL` / `CHANNEL_ID`              | Optional news channel (new-product posts, subscription check) | –                                 |
 | `HELPER_ID`                               | Support user Telegram ID                                      | –                                 |
 | `RULES`                                   | Rules text shown in the bot                                   | –                                 |
-| `BOT_LOCALE`                              | `ru` or `en`                                                  | `ru`                              |
+| `BOT_LOCALE`                              | `ru`, `ro` or `en`                                                | `ru`                              |
 | `BOT_LOGFILE` / `BOT_AUDITFILE`           | Log file paths                                                | `logs/bot.log` / `logs/audit.log` |
 | `LOG_TO_STDOUT` / `LOG_TO_FILE` / `DEBUG` | `1`/`0` toggles                                               | `1` / `1` / `0`                   |
 | `REVIEWS_ENABLED`                         | Enable product reviews (`1`/`0`)                              | `1`                               |
