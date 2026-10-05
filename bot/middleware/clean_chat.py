@@ -24,6 +24,17 @@ _MAX_TRACKED_CHATS = 50_000
 _serving_chat: contextvars.ContextVar[int | None] = contextvars.ContextVar("clean_chat_serving", default=None)
 
 
+@contextlib.contextmanager
+def outside_screen():
+    """Sends inside this block are neither tracked nor allowed to replace the current screen
+    (e.g. the throw-away message that only carries the bottom keyboard)."""
+    token = _serving_chat.set(None)
+    try:
+        yield
+    finally:
+        _serving_chat.reset(token)
+
+
 def clean_chat_enabled() -> bool:
     return os.getenv("CLEAN_CHAT", "1").strip().lower() not in ("0", "false", "no", "off")
 

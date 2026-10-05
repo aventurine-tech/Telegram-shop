@@ -96,5 +96,4 @@ TRANSLATIONS = {"ro": {
         "btn.nav.catalog": "🛍 Catalog",
         "btn.nav.cart": "🛒 Coș",
         "btn.nav.profile": "👤 Profil",
-        "menu.quick": "👇 Meniul rapid este mereu jos",
 }}
