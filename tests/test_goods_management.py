@@ -1,4 +1,5 @@
-from unittest.mock import AsyncMock, patch
+import io
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -8,7 +9,14 @@ from bot.handlers.admin.goods_management import (
     goods_management_callback_handler, delete_item_callback_handler, delete_str_item,
     item_stock_callback_handler, show_item_stock, stock_action_callback_handler,
     stock_back_to_card, apply_stock_change,
+    stock_photo_callback_handler, stock_photo_upload, stock_photo_reprompt,
+    stock_photo_remove_ask, stock_photo_remove,
 )
+from bot.database.methods.product_images import get_item_image_bytes, has_item_image, set_item_image
+from bot.database.models import Permission
+from bot.filters import HasPermissionFilter
+from bot.handlers.admin import goods_management as gm
+from bot.misc.images import MAX_IMAGE_BYTES
 from bot.states import GoodsFSM, StockFSM
 
 
@@ -114,7 +122,7 @@ class TestStockCard:
         text = msg.answer.call_args[0][0]
         assert "admin.goods.stock.card" in text and "'stock': 9" in text
         assert _callbacks(msg.answer.call_args) == [
-            "stock_set", "stock_add", "stock_sub", "goods_management",
+            "stock_set", "stock_add", "stock_sub", "stock_photo", "goods_management",
         ]
         assert await fsm_context.get_state() == StockFSM.card
         assert (await fsm_context.get_data())["stock_item_name"] == "Kettle"
@@ -285,3 +293,251 @@ class TestAnnounceArrival:
                 patch('bot.handlers.admin._common.EnvKeys') as env:
             env.CHANNEL_ID = None
             await announce_arrival(mock_bot, "Kettle", 3)
+
+
+def _png(size=(4, 4), fmt="PNG") -> bytes:
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", size, (30, 120, 200)).save(buf, fmt)
+    return buf.getvalue()
+
+
+def _photo_message(make_message, payload: bytes, *, document=False, mime="image/png", size=None, user_id=42):
+    msg = make_message(text=None, user_id=user_id)
+    msg.photo = None
+    msg.document = None
+    media = MagicMock()
+    media.file_size = size if size is not None else len(payload)
+    if document:
+        media.mime_type = mime
+        msg.document = media
+    else:
+        msg.photo = [MagicMock(file_size=1), media]
+
+    async def _download(m, destination=None, **kwargs):
+        destination.write(payload)
+
+    msg.bot.download = AsyncMock(side_effect=_download)
+    return msg, media
+
+
+@pytest.fixture
+def audit_bg():
+    with patch('bot.handlers.admin.goods_management.log_audit_bg') as audit:
+        yield audit
+
+
+class TestPhotoOnTheCard:
+
+    async def test_card_without_a_picture_shows_status_and_no_remove_button(
+            self, make_message, fsm_context, item_factory):
+        await item_factory(name="Kettle", price=250, stock=9)
+
+        msg = await _open_card(make_message, fsm_context, "Kettle")
+
+        assert "photo.status.no" in msg.answer.call_args[0][0]
+        assert "stock_photo" in _callbacks(msg.answer.call_args)
+        assert "stock_photo_rm" not in _callbacks(msg.answer.call_args)
+
+    async def test_card_with_a_picture_offers_change_and_remove(
+            self, make_message, fsm_context, item_factory):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await set_item_image("Kettle", _png())
+
+        msg = await _open_card(make_message, fsm_context, "Kettle")
+
+        assert "photo.status.yes" in msg.answer.call_args[0][0]
+        assert _callbacks(msg.answer.call_args) == [
+            "stock_set", "stock_add", "stock_sub", "stock_photo", "stock_photo_rm", "goods_management",
+        ]
+
+    async def test_change_button_asks_for_a_photo(self, make_message, make_callback_query,
+                                                  fsm_context, item_factory):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await _open_card(make_message, fsm_context, "Kettle")
+
+        call = make_callback_query(data="stock_photo", user_id=1)
+        await stock_photo_callback_handler(call, fsm_context)
+
+        assert "photo.prompt.change" in call.message.edit_text.call_args[0][0]
+        assert _callbacks(call.message.edit_text.call_args) == ["stock_card"]
+        assert await fsm_context.get_state() == StockFSM.waiting_photo
+
+    async def test_back_from_the_photo_prompt_returns_to_the_card(
+            self, make_message, make_callback_query, fsm_context, item_factory):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await _open_card(make_message, fsm_context, "Kettle")
+        await stock_photo_callback_handler(make_callback_query(data="stock_photo", user_id=1), fsm_context)
+
+        call = make_callback_query(data="stock_card", user_id=1)
+        await stock_back_to_card(call, fsm_context)
+
+        assert await fsm_context.get_state() == StockFSM.card
+
+
+class TestChangePhoto:
+
+    async def _prompt(self, make_message, make_callback_query, fsm_context, name="Kettle"):
+        await _open_card(make_message, fsm_context, name)
+        await stock_photo_callback_handler(make_callback_query(data="stock_photo", user_id=1), fsm_context)
+
+    async def test_photo_is_stored_unchanged_and_the_card_returns(
+            self, make_message, make_callback_query, fsm_context, item_factory, audit_bg):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await self._prompt(make_message, make_callback_query, fsm_context)
+        payload = _png()
+        msg, media = _photo_message(make_message, payload)
+
+        await stock_photo_upload(msg, fsm_context)
+
+        assert await get_item_image_bytes("Kettle") == payload
+        assert msg.bot.download.await_args[0][0] is media          # the largest size
+        text = msg.answer.call_args[0][0]
+        assert "photo.updated" in text and "photo.status.yes" in text
+        assert "stock_photo_rm" in _callbacks(msg.answer.call_args)
+        assert await fsm_context.get_state() == StockFSM.card
+
+    async def test_an_image_document_replaces_the_old_picture(
+            self, make_message, make_callback_query, fsm_context, item_factory, audit_bg):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await set_item_image("Kettle", _png(size=(2, 2)))
+        await self._prompt(make_message, make_callback_query, fsm_context)
+        payload = _png(size=(8, 8), fmt="JPEG")
+        msg, _ = _photo_message(make_message, payload, document=True, mime="image/jpeg")
+
+        await stock_photo_upload(msg, fsm_context)
+
+        assert await get_item_image_bytes("Kettle") == payload
+
+    async def test_change_is_audited(self, make_message, make_callback_query, fsm_context,
+                                     item_factory, audit_bg):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await self._prompt(make_message, make_callback_query, fsm_context)
+        msg, _ = _photo_message(make_message, _png(), user_id=42)
+
+        await stock_photo_upload(msg, fsm_context)
+
+        assert audit_bg.call_args[0][0] == "update_item_photo"
+        assert audit_bg.call_args[1]["user_id"] == 42
+        assert audit_bg.call_args[1]["resource_id"] == "Kettle"
+        assert "action=set" in audit_bg.call_args[1]["details"]
+
+    @pytest.mark.parametrize("payload,expected", [
+        (b"definitely not an image", "photo.invalid"),
+        (_png(fmt="GIF"), "photo.unsupported"),
+    ])
+    async def test_bad_file_changes_nothing_and_can_be_retried(
+            self, make_message, make_callback_query, fsm_context, item_factory, audit_bg, payload, expected):
+        await item_factory(name="Kettle", price=250, stock=9)
+        old = _png(size=(2, 2))
+        await set_item_image("Kettle", old)
+        await self._prompt(make_message, make_callback_query, fsm_context)
+        msg, _ = _photo_message(make_message, payload, document=True)
+
+        await stock_photo_upload(msg, fsm_context)
+
+        assert expected in msg.answer.call_args[0][0]
+        assert await get_item_image_bytes("Kettle") == old
+        assert await fsm_context.get_state() == StockFSM.waiting_photo
+        audit_bg.assert_not_called()
+
+        good = _png(size=(6, 6))
+        retry, _ = _photo_message(make_message, good)
+        await stock_photo_upload(retry, fsm_context)
+        assert await get_item_image_bytes("Kettle") == good
+
+    async def test_oversize_file_is_refused_without_downloading(
+            self, make_message, make_callback_query, fsm_context, item_factory, audit_bg):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await self._prompt(make_message, make_callback_query, fsm_context)
+        msg, _ = _photo_message(make_message, _png(), document=True, size=MAX_IMAGE_BYTES + 1)
+
+        await stock_photo_upload(msg, fsm_context)
+
+        assert "photo.too_large" in msg.answer.call_args[0][0]
+        msg.bot.download.assert_not_awaited()
+        assert not await has_item_image("Kettle")
+
+    async def test_text_reprompts(self, make_message, make_callback_query, fsm_context, item_factory):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await self._prompt(make_message, make_callback_query, fsm_context)
+
+        msg = make_message(text="a photo please", user_id=1)
+        await stock_photo_reprompt(msg)
+
+        assert "photo.reprompt" in msg.answer.call_args[0][0]
+        assert await fsm_context.get_state() == StockFSM.waiting_photo
+
+    async def test_product_deleted_meanwhile_is_reported(
+            self, make_message, make_callback_query, fsm_context, item_factory, audit_bg):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await self._prompt(make_message, make_callback_query, fsm_context)
+        from bot.database.methods.delete import delete_item
+        await delete_item("Kettle")
+        msg, _ = _photo_message(make_message, _png())
+
+        await stock_photo_upload(msg, fsm_context)
+
+        assert "position.not_found" in msg.answer.call_args[0][0]
+        assert await fsm_context.get_state() is None
+
+
+class TestRemovePhoto:
+
+    async def test_remove_asks_for_confirmation_first(self, make_message, make_callback_query,
+                                                      fsm_context, item_factory):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await set_item_image("Kettle", _png())
+        await _open_card(make_message, fsm_context, "Kettle")
+
+        call = make_callback_query(data="stock_photo_rm", user_id=1)
+        await stock_photo_remove_ask(call, fsm_context)
+
+        assert "photo.remove.confirm" in call.message.edit_text.call_args[0][0]
+        assert _callbacks(call.message.edit_text.call_args) == ["stock_photo_rmy", "stock_card"]
+        assert await has_item_image("Kettle")          # nothing removed yet
+
+    async def test_confirming_removes_the_picture(self, make_message, make_callback_query,
+                                                  fsm_context, item_factory, audit_bg):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await set_item_image("Kettle", _png())
+        await _open_card(make_message, fsm_context, "Kettle")
+
+        call = make_callback_query(data="stock_photo_rmy", user_id=42)
+        await stock_photo_remove(call, fsm_context)
+
+        assert not await has_item_image("Kettle")
+        text = call.message.edit_text.call_args[0][0]
+        assert "photo.removed" in text and "photo.status.no" in text
+        assert "stock_photo_rm" not in _callbacks(call.message.edit_text.call_args)
+        assert await fsm_context.get_state() == StockFSM.card
+        assert audit_bg.call_args[0][0] == "update_item_photo"
+        assert "action=remove" in audit_bg.call_args[1]["details"]
+
+    async def test_removing_a_missing_picture_is_harmless(self, make_message, make_callback_query,
+                                                          fsm_context, item_factory, audit_bg):
+        await item_factory(name="Kettle", price=250, stock=9)
+        await _open_card(make_message, fsm_context, "Kettle")
+
+        call = make_callback_query(data="stock_photo_rmy", user_id=42)
+        await stock_photo_remove(call, fsm_context)
+
+        assert "photo.none" in call.message.edit_text.call_args[0][0]
+        audit_bg.assert_not_called()
+
+
+class TestPhotoPermissions:
+
+    def test_every_photo_handler_needs_catalog_manage(self):
+        names = {"stock_photo_callback_handler", "stock_photo_upload", "stock_photo_reprompt",
+                 "stock_photo_remove_ask", "stock_photo_remove"}
+        handlers = [h for h in gm.router.callback_query.handlers + gm.router.message.handlers
+                    if h.callback.__name__ in names]
+        assert {h.callback.__name__ for h in handlers} == names
+        for h in handlers:
+            perms = [f.callback for f in h.filters if isinstance(f.callback, HasPermissionFilter)]
+            assert perms and perms[0].permission == Permission.CATALOG_MANAGE, h.callback.__name__
+
+    def test_callback_data_fits_telegram_limit(self):
+        for cb in ("stock_photo", "stock_photo_rm", "stock_photo_rmy", "add_item_skip_photo"):
+            assert len(cb.encode()) <= 64

@@ -230,6 +230,8 @@ _LOCALIZING_MODULES = (
     'bot.handlers.admin.user_management',
     'bot.handlers.admin.categories_management',
     'bot.handlers.admin.goods_management',
+    'bot.handlers.admin.adding_position',
+    'bot.handlers.admin._common',
     'bot.handlers.admin.sale_management',
     'bot.handlers.admin.role_management',
     'bot.handlers.admin.orders_management',

@@ -36,6 +36,10 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 - **Catalog & stock** — categories and products, each with an integer **units in stock**.
   Stock is *reserved* the moment an order is placed and *released* if the order is cancelled,
   so two customers can never buy the last unit. Optional time-limited per-product sales.
+- **Product pictures** — each product can have one picture, shown on its card in the shop and kept exactly
+  as uploaded (JPEG, PNG or WEBP, up to 10 MB). Admins add it in the bot (an optional photo step when
+  creating a product, or **Change photo / Remove photo** on the product's stock screen) or in the web panel
+  (an upload field on the product form). Send the picture as a *file* to keep the original quality.
 - **Search** — find a product by name or description; results are paginated and open the
   normal product page. Backed by trigram (GIN) indexes on PostgreSQL, with a graceful fallback
   when `pg_trgm` isn't available.
@@ -224,6 +228,7 @@ Exact columns, indexes and `CHECK` constraints live in
 ```mermaid
 erDiagram
     categories ||--o{ goods: "groups"
+    goods ||--o| product_images: "optional picture"
     goods ||--o{ order_items: "sold as (snapshot)"
     orders ||--|{ order_items: "lines"
     users ||--o{ orders: "places"
@@ -261,6 +266,8 @@ The data model, in plain terms:
   fulfilment, contact details, total, the part paid from balance, the MIA screenshot, and the
   MIA pay-by deadline. Each line keeps the product **name and price as a snapshot** (the
   product link is `ON DELETE SET NULL`), so history survives a product being renamed or removed.
+- **product_images** — a product's optional picture (the uploaded bytes, plus Telegram's cached
+  `file_id`), kept apart from `goods` so the bytes never ride along in item lookups or the Redis cache.
 - **cart_items** / **reviews** — reference their product by foreign key; a cart holds one row
   per product with a `quantity` (`CHECK (quantity > 0)`).
 - **stock_subscriptions** — who is waiting for a sold-out product; rows are *consumed* when the
@@ -434,7 +441,8 @@ also notifies the people waiting for it.
 
 ### Catalog & stock
 
-Create/edit/delete categories and products. A product's **stock** can be set to an exact number
+Create/edit/delete categories and products. When adding a product you can attach a picture (or skip).
+A product's **stock** can be set to an exact number
 or adjusted by +N / −N; stock going from `0` to something announces the restock to waiting
 customers. You can also set a **time-limited sale** (a % off with an expiry); the sale price is
 computed server-side and a promo code stacks on top of it.
@@ -502,7 +510,7 @@ Balances, referrals, promo codes, reviews and carts are kept.
 
 ## 🧪 Testing
 
-**1135 tests, 80 % line coverage** (`pytest`). The data layer runs against a real in-memory async SQLite database
+**1216 tests** (`pytest`). The data layer runs against a real in-memory async SQLite database
 (real SQL, transactions, and constraints) — only external services (Telegram Bot API, Redis)
 are mocked. What's covered:
 
