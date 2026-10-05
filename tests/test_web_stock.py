@@ -32,7 +32,7 @@ class TestWebPanelStockEdits:
         model = await self._goods(name)
         scheduled = []
         # A new product needs its name and description in the admin's language (the form has no other source).
-        data = {"stock": new_stock, **({f"{f}_{lang}": v for lang in ("en", "ru", "ro") for f, v in (("name", name), ("description", "d"))}
+        data = {"stock": new_stock, **({"name": name, **{f"description_{lang}": "d" for lang in ("en", "ru", "ro")}}
                                if is_created else {})}
         with patch('bot.web.admin.safe_create_task', side_effect=scheduled.append):
             await view.on_model_change(data, model, is_created, request)

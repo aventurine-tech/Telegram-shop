@@ -17,7 +17,7 @@ from starlette.routing import Route
 from sqlalchemy import text
 
 from markupsafe import Markup, escape
-from wtforms import BooleanField, FileField, Form, SelectField
+from wtforms import BooleanField, FileField, Form, SelectField, StringField
 from wtforms.validators import Optional as WtfOptional, StopValidation
 from sqlalchemy import select as sa_select, update as sa_update, func as sa_func
 
@@ -507,7 +507,8 @@ class CategoryAdmin(TranslatedModelView, model=Categories):
         class CategoryForm(Base):
             parent_id = SelectField(localize("web.col.parent"), choices=choices, coerce=coerce,
                                     validate_choice=False, validators=[WtfOptional()],
-                                    description=localize("web.form.parent_hint"))
+                                    description=localize("web.form.parent_hint"),
+                                    render_kw={"class": "form-select"})
 
         return CategoryForm
 
@@ -614,25 +615,53 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
     form_base_class = GoodsForm
     column_searchable_list = [Goods.name, Goods.name_en, Goods.name_ru, Goods.name_ro]
     column_sortable_list = [Goods.id, Goods.name, Goods.price, Goods.stock]
-    form_columns = _translation_fields(True) + ["price", "category", "stock", "sale_percent", "sale_until",
-                                                "variant_label"]
+    # One product name (the canonical one, same in every language); descriptions stay per language.
+    # "Option of" / "Option label" are declared in scaffold_form so they sit together at the end.
+    form_columns = ["name"] + [f"description_{lang}" for lang in LANGS] + [
+        "price", "category", "stock", "sale_percent", "sale_until"]
     name = Localized("web.model.product.one")
     name_plural = Localized("web.model.product.many")
     icon = "fa-solid fa-box"
 
+    def _bases(self) -> tuple[str, ...]:
+        return ("description",)
+
     @property
     def form_widget_args(self) -> dict:
-        return _translation_widget_args(True)
+        args = {k: v for k, v in _translation_widget_args(True).items() if not k.startswith("name_")}
+        # Not browser-"required": an option's name is composed from its head (the checks run on save).
+        args["name"] = {"placeholder": localize("web.form.product_name_hint"), "required": False}
+        for lang in LANGS:
+            args[f"description_{lang}"]["required"] = False
+        return args
 
     @property
     def form_args(self) -> dict:
+        optional_descriptions = {f"description_{lang}": {"validators": [WtfOptional()]} for lang in LANGS}
+        translation_args = {k: v for k, v in _translation_form_args(True).items() if not k.startswith("name_")}
         return {
-            **_translation_form_args(True),
+            **{k: {**v, **optional_descriptions.get(k, {})} for k, v in translation_args.items()},
+            "name": {"description": localize("web.form.product_name_hint"),
+                     "validators": [WtfOptional(), _name_length_validator(_viewer_language())]},
             "stock": {"description": localize("web.form.stock_hint")},
             "sale_percent": {"description": localize("web.form.sale_percent_hint")},
             "sale_until": {"description": localize("web.form.sale_until_hint")},
-            "variant_label": {"description": localize("web.form.variant_label_hint")},
         }
+
+    async def _apply_translations(self, data: dict, model: Any, is_created: bool) -> None:
+        """One name for every language (an option's name is composed from its head and already set)."""
+        if data.get("variant_of") is None and ("name" in data or is_created):
+            name = clean_name(data.get("name"))
+            if not name:
+                raise ValueError(localize("web.form.name_required_single"))
+            if len(name) > MAX_NAME_LEN:
+                raise ValueError(localize("web.form.tr_too_long_name", language=localize(f"web.form.lang.{_viewer_language()}"), limit=MAX_NAME_LEN))
+            await self._check_name_free(name, model)
+            data["name"] = name
+            if is_created or name != getattr(model, "name", None):
+                for lang in LANGS:            # a rename resets the per-language names to the new one
+                    data[f"name_{lang}"] = name
+        await super()._apply_translations(data, model, is_created)
 
     async def scaffold_form(self, *args, **kwargs):
         """The picture controls and the head-product select (heads only), in the request language."""
@@ -650,7 +679,12 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         class LocalizedGoodsForm(Base):
             variant_of = SelectField(localize("web.col.variant_of"), choices=choices, coerce=coerce,
                                      validate_choice=False, validators=[WtfOptional()],
-                                     description=localize("web.form.variant_of_hint"))
+                                     description=localize("web.form.variant_of_hint"),
+                                     render_kw={"class": "form-select"})
+            variant_label = StringField(localize("web.col.variant_label"), validators=[WtfOptional()],
+                                        description=localize("web.form.variant_label_hint"),
+                                        render_kw={"class": "form-control",
+                                                   "placeholder": localize("web.form.variant_label_placeholder")})
             picture = FileField(localize("web.col.picture"), description=localize("web.form.picture_hint"))
             remove_picture = BooleanField(localize("web.form.remove_picture"),
                                           description=localize("web.form.remove_picture_hint"))
@@ -665,6 +699,8 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         return pagination
 
     async def get_list_value(self, obj: Any, prop: str):
+        if prop == "name":
+            return getattr(obj, "name", None), pick(obj, "name", _viewer_language())
         if prop == "picture":
             has = bool(getattr(obj, "picture", False))
             return has, (localize("web.yes") if has else "\u2014")
