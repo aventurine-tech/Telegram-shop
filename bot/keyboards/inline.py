@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import Callable, Iterable, Tuple
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from bot.i18n import localize
+from bot.i18n import localize, LANGUAGES
 from bot.database.models import Permission
 from bot.misc import LazyPaginator, EnvKeys # noqa: F401
 
@@ -38,7 +38,24 @@ def profile_keyboard(referral_percent: int, user_orders: int = 0, cart_count: in
     kb.button(text=cart_text, callback_data="cart")
     kb.button(text=localize("btn.operation_history"), callback_data="operation_history")
     kb.button(text=localize("btn.redeem_promo"), callback_data="redeem_promo")
+    kb.button(text=localize("btn.language"), callback_data="profile_language")
     kb.button(text=localize("btn.back"), callback_data="back_to_menu")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def language_keyboard(payload: str | None = None, back_to: str | None = None) -> InlineKeyboardMarkup:
+    """Language picker: one button per language, ``lang:<code>[:<payload>]``.
+
+    `payload` is the /start referral id, carried so the choice does not lose it (callback data is
+    capped at 64 bytes, so anything that is not a short number is dropped). `back_to` adds a back button.
+    """
+    kb = InlineKeyboardBuilder()
+    suffix = f":{payload}" if payload and payload.isdigit() and len(payload) <= 20 else ""
+    for code, label in LANGUAGES:
+        kb.button(text=label, callback_data=f"lang:{code}{suffix}")
+    if back_to:
+        kb.button(text=localize("btn.back"), callback_data=back_to)
     kb.adjust(1)
     return kb.as_markup()
 

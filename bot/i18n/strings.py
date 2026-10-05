@@ -765,6 +765,7 @@ def _merge_extra_translations() -> None:
     for module_name in (
         "strings_orders", "strings_customer", "strings_admin",
         "strings_ro_1", "strings_ro_2", "strings_ro_orders", "strings_ro_customer", "strings_ro_admin",
+        "strings_web", "strings_ro_web",
     ):
         try:
             module = importlib.import_module(f"{__package__}.{module_name}")

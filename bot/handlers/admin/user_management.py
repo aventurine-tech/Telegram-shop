@@ -8,7 +8,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
-from bot.i18n import localize
+from bot.i18n import localize, use_language
+from bot.misc.services.recipients import language_of
 from bot.database.models import Permission
 from bot.database.methods import (
     check_role_name_by_id, check_user_cached, get_one_referral_earning,
@@ -518,13 +519,11 @@ async def process_replenish_user_balance(message: Message, state: FSMContext):
 
         # Notify user
         try:
-            await message.bot.send_message(
-                chat_id=user_id,
-                text=localize('admin.users.balance.topped.notify',
-                              amount=amount,
-                              currency=EnvKeys.PAY_CURRENCY),
-                reply_markup=close()
-            )
+            with use_language(await language_of(user_id)):
+                notice = localize('admin.users.balance.topped.notify',
+                                  amount=amount,
+                                  currency=EnvKeys.PAY_CURRENCY)
+            await message.bot.send_message(chat_id=user_id, text=notice, reply_markup=close())
         except (TelegramBadRequest, TelegramForbiddenError) as e:
             await log_audit("balance_topup_notify_fail", level="ERROR", user_id=user_id, details=str(e))
 
@@ -609,13 +608,11 @@ async def process_deduct_user_balance(message: Message, state: FSMContext):
 
         # Notify user
         try:
-            await message.bot.send_message(
-                chat_id=user_id,
-                text=localize('admin.users.balance.deducted.notify',
-                              amount=amount,
-                              currency=EnvKeys.PAY_CURRENCY),
-                reply_markup=close()
-            )
+            with use_language(await language_of(user_id)):
+                notice = localize('admin.users.balance.deducted.notify',
+                                  amount=amount,
+                                  currency=EnvKeys.PAY_CURRENCY)
+            await message.bot.send_message(chat_id=user_id, text=notice, reply_markup=close())
         except (TelegramBadRequest, TelegramForbiddenError) as e:
             await log_audit("balance_deduct_notify_fail", level="ERROR", user_id=user_id, details=str(e))
 

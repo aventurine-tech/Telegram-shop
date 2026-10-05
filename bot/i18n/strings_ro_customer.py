@@ -85,4 +85,8 @@ TRANSLATIONS = {"ro": {
         "mia.proof_only_photo": "Vă rugăm să trimiteți captura ca fotografie sau să apăsați „Fără captură”.",
         "mia.claim_sent": "✅ Vă mulțumim! Magazinul va verifica transferul pentru comanda #{id} și îl va confirma.",
         "mia.not_awaiting": "Această comandă nu așteaptă o plată MIA.",
+        # === Language picker ===
+        "language.picker.title": "🌐 Choose your language / Выберите язык / Alegeți limba",
+        "btn.language": "🌐 Limbă",
+        "language.changed": "✅ Limba: {language}",
 }}

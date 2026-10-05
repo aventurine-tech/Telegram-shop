@@ -88,6 +88,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mia.proof_only_photo": "Отправьте скриншот как фото или нажмите «Без скриншота».",
         "mia.claim_sent": "✅ Спасибо! Магазин проверит перевод по заказу №{id} и подтвердит заказ.",
         "mia.not_awaiting": "Этот заказ сейчас не ожидает оплаты MIA.",
+
+        # === Language picker ===
+        "language.picker.title": "🌐 Choose your language / Выберите язык / Alegeți limba",
+        "btn.language": "🌐 Язык",
+        "language.changed": "✅ Язык: {language}",
     },
     "en": {
         # === Product card / stock ===
@@ -176,5 +181,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "mia.proof_only_photo": "Please send the screenshot as a photo, or tap “No screenshot”.",
         "mia.claim_sent": "✅ Thank you! The shop will check the transfer for order #{id} and confirm it.",
         "mia.not_awaiting": "This order is not waiting for an MIA payment.",
+
+        # === Language picker ===
+        "language.picker.title": "🌐 Choose your language / Выберите язык / Alegeți limba",
+        "btn.language": "🌐 Language",
+        "language.changed": "✅ Language: {language}",
     },
 }

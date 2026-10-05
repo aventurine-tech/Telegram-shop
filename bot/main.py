@@ -20,6 +20,7 @@ from bot.handlers import register_all_handlers
 from bot.database.models import register_models
 from bot.logger_mesh import configure_logging
 from bot.middleware import setup_rate_limiting, RateLimitConfig
+from bot.middleware.language import LanguageMiddleware
 from bot.middleware.security import SecurityMiddleware, AuthenticationMiddleware, set_auth_middleware
 from bot.misc.caching import init_cache_manager, get_cache_manager
 from bot.misc.caching import CacheScheduler
@@ -67,6 +68,11 @@ def _register_middlewares(
 
     dp.message.middleware(auth_middleware)
     dp.callback_query.middleware(auth_middleware)
+
+    # After auth (a blocked user never gets this far), before security (its notices speak the user's language).
+    language_middleware = LanguageMiddleware()
+    dp.message.middleware(language_middleware)
+    dp.callback_query.middleware(language_middleware)
 
     dp.message.middleware(security_middleware)
     dp.callback_query.middleware(security_middleware)

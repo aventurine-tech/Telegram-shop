@@ -228,6 +228,7 @@ _LOCALIZING_MODULES = (
     'bot.handlers.user.cart',
     'bot.handlers.user.checkout',
     'bot.handlers.user.balance_and_payment',
+    'bot.handlers.user.language',
     'bot.handlers.admin.user_management',
     'bot.handlers.admin.categories_management',
     'bot.handlers.admin.goods_management',
@@ -277,6 +278,7 @@ def user_factory():
             balance: int = 0,
             role_id: int = 1,
             referral_id: int = None,
+            language: str = None,
     ):
         await create_user(
             telegram_id=telegram_id,
@@ -289,6 +291,9 @@ def user_factory():
                 await s.execute(
                     sa_update(User).where(User.telegram_id == telegram_id).values(balance=balance)
                 )
+        if language:
+            from bot.database.methods.update import set_user_language
+            await set_user_language(telegram_id, language)
         return await check_user(telegram_id)
 
     return _create

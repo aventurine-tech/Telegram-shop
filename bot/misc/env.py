@@ -73,7 +73,7 @@ class EnvKeys(ABC):
     HELPER_ID: Final = _get_optional("HELPER_ID", "")
     RULES: Final = _get_optional("RULES", "")
 
-    # Locale & logs
+    # Locale & logs (BOT_LOCALE = default language: for people who have not picked one and for system text)
     BOT_LOCALE: Final = _get_optional("BOT_LOCALE", "ru")
     BOT_LOGFILE: Final = _get_optional("BOT_LOGFILE", "logs/bot.log")
     BOT_AUDITFILE: Final = _get_optional("BOT_AUDITFILE", "logs/audit.log")

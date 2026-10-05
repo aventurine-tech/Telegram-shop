@@ -6,8 +6,9 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.database.methods.orders import get_order_notify_ids
+from bot.database.methods.read import get_user_languages
 from bot.database.models.main import Fulfillment, PaymentMethod, PaymentStatus
-from bot.i18n import localize, esc
+from bot.i18n import localize, esc, use_language
 from bot.misc import EnvKeys
 
 logger = logging.getLogger(__name__)
@@ -72,9 +73,22 @@ def _admin_targets(ids: list[int]) -> list[int | str]:
     return targets
 
 
-async def _send_to_staff(bot: Bot, text: str, markup: InlineKeyboardMarkup, photo: str | None = None) -> int:
+async def _send_to_staff(bot: Bot, build, photo: str | None = None) -> int:
+    """Send to every staff chat; ``build()`` returns (text, markup) and runs once per language.
+
+    Each admin gets the alert in their own language; the optional orders group chat has no profile
+    and gets the bot default.
+    """
+    ids = await get_order_notify_ids()
+    languages = await get_user_languages(ids)
+    built: dict[str | None, tuple[str, InlineKeyboardMarkup]] = {}
     sent = 0
-    for chat_id in _admin_targets(await get_order_notify_ids()):
+    for chat_id in _admin_targets(ids):
+        lang = languages.get(chat_id)
+        if lang not in built:
+            with use_language(lang):
+                built[lang] = build()
+        text, markup = built[lang]
         try:
             if photo:
                 # A caption is capped at 1024 chars; the order card fits, the proof goes first.
@@ -101,32 +115,39 @@ def admin_order_keyboard(order: dict) -> InlineKeyboardMarkup:
 
 async def notify_new_order(bot: Bot, order: dict) -> int:
     """Alert staff about a freshly placed order. Returns how many chats got it."""
-    text = localize("notify.admin.new_order") + "\n\n" + format_order(order, admin=True)
-    return await _send_to_staff(bot, text, admin_order_keyboard(order))
+    def build():
+        return (localize("notify.admin.new_order") + "\n\n" + format_order(order, admin=True),
+                admin_order_keyboard(order))
+
+    return await _send_to_staff(bot, build)
 
 
 async def notify_mia_claim(bot: Bot, order: dict) -> int:
     """The customer says they paid by MIA: ask staff to verify (with the screenshot if any)."""
     cur = EnvKeys.PAY_CURRENCY
     due = Decimal(str(order["total"])) - Decimal(str(order["balance_used"]))
-    text = localize("notify.admin.mia_claim", amount=due, currency=cur, id=order["id"]) \
-        + "\n\n" + format_order(order, admin=True)
-    return await _send_to_staff(bot, text, admin_order_keyboard(order), photo=order.get("payment_proof"))
+
+    def build():
+        text = localize("notify.admin.mia_claim", amount=due, currency=cur, id=order["id"]) \
+            + "\n\n" + format_order(order, admin=True)
+        return text, admin_order_keyboard(order)
+
+    return await _send_to_staff(bot, build, photo=order.get("payment_proof"))
 
 
 async def notify_customer(bot: Bot, order: dict, kind: str) -> bool:
-    """Tell the customer something changed. ``kind`` is one of: confirmed, shipped, completed,
-    cancelled, payment_confirmed, payment_rejected, mia_expired."""
+    """Tell the customer something changed, in their own language. ``kind`` is one of: confirmed, shipped,
+    completed, cancelled, payment_confirmed, payment_rejected, mia_expired."""
     if not order.get("user_id"):
         return False
     try:
-        await bot.send_message(
-            order["user_id"],
-            localize(f"notify.customer.{kind}", id=order["id"]),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+        lang = (await get_user_languages([order["user_id"]])).get(order["user_id"])
+        with use_language(lang):
+            text = localize(f"notify.customer.{kind}", id=order["id"])
+            markup = InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text=localize("btn.order.open"), callback_data=f"my_order:{order['id']}"),
-            ]]),
-        )
+            ]])
+        await bot.send_message(order["user_id"], text, reply_markup=markup)
         return True
     except Exception as e:
         logger.warning("customer notice %s for order %s failed: %s", kind, order.get("id"), e)
