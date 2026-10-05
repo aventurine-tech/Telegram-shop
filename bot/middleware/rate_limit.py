@@ -25,11 +25,9 @@ class RateLimitConfig:
 
     # Limits for specific actions — (requests, window_seconds).
     action_limits: dict = field(default_factory=lambda: {
-        'payment': (10, 60),  # 10 times a minute
         'shop_view': (60, 60),  # 60 times per minute — browsing and paging
         'buy_item': (5, 60),  # 5 purchases a minute
         'search': (10, 60),  # 10 new searches a minute — each is a LIKE scan
-        'top_up': (5, 300),  # 5 top-ups in 5 minutes
         'command': (20, 60),  # 20 slash commands a minute (admins bypass)
     })
 
@@ -358,7 +356,6 @@ class RateLimitMiddleware(BaseMiddleware):
         self._redis_limiter: "RedisRateLimiter | None" = None
         self.auth_middleware = auth_middleware
         self.action_mapping = {
-            'pay_': 'payment',
             'co_confirm': 'buy_item',
             'add_to_cart': 'buy_item',
             'buy_item': 'buy_item',

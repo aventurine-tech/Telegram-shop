@@ -111,10 +111,6 @@ class TestRateLimitActionMapping:
         assert self._action("sp_2") == "shop_view"
         assert self._action("sp_2") == self._action("gp_2")
 
-    def test_top_up_and_payment(self):
-        assert self._action("replenish_balance") == "top_up"
-        assert self._action("pay_stars") == "payment"
-
     def test_unknown_callback_is_default(self):
         assert self._action("something_else") == "default"
 
