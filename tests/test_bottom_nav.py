@@ -168,7 +168,7 @@ class TestSending:
         await start(msg, fsm_context)
 
         calls = msg.answer.await_args_list
-        assert [c.args[0] for c in calls] == ["\u2800", "menu.title"]
+        assert [c.args[0] for c in calls] == ["\u00b7", "menu.title"]
         assert isinstance(calls[0].kwargs["reply_markup"], ReplyKeyboardMarkup)
         # The carrier must stay: Telegram drops the keyboard when the message that carries it is deleted.
         msg.answer.return_value.delete.assert_not_awaited()
@@ -187,7 +187,7 @@ class TestSending:
         call = make_callback_query(data="lang:ru", user_id=910012)
         await lang_h.choose_language(call, fsm_context)
         sent = call.message.answer.await_args
-        assert sent.args[0] == "\u2800"
+        assert sent.args[0] == "\u00b7"
         assert isinstance(sent.kwargs["reply_markup"], ReplyKeyboardMarkup)
 
 
@@ -219,3 +219,28 @@ class TestCarrierReplacement:
         await send_bottom_nav(msg)
         msg.bot.delete_message.assert_awaited_once_with(chat_id=910020, message_id=101)
         assert carrier_tracker.get(910020) == 205
+
+
+class TestCarrierText:
+
+    def test_carrier_is_a_character_telegram_accepts(self):
+        from bot.handlers.user.main import _KEYBOARD_CARRIER
+        # Telegram answers "text must be non-empty" for whitespace, zero-width and Braille-blank text.
+        assert _KEYBOARD_CARRIER.strip() == _KEYBOARD_CARRIER and _KEYBOARD_CARRIER.isprintable()
+        assert _KEYBOARD_CARRIER not in {"\u2800", "\u200b", "\u2063", "\u3164", " "}
+
+    async def test_a_keyboard_failure_never_blocks_the_menu(self, make_message, fsm_context, env_menu):
+        from aiogram.exceptions import TelegramBadRequest
+        msg = make_message(text="/start", user_id=910030)
+        msg.chat.type = ChatType.PRIVATE
+        sent = []
+
+        async def answer(text, **kw):
+            if text == user_main._KEYBOARD_CARRIER:
+                raise TelegramBadRequest(method=MagicMock(), message="text must be non-empty")
+            sent.append(text)
+            return MagicMock(message_id=1)
+
+        msg.answer = AsyncMock(side_effect=answer)
+        await start(msg, fsm_context)
+        assert sent == ["menu.title"]
