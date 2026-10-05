@@ -186,7 +186,7 @@ class TestSending:
         await user_factory(telegram_id=910012, language="en")
         call = make_callback_query(data="lang:ru", user_id=910012)
         await lang_h.choose_language(call, fsm_context)
-        sent = call.message.answer.await_args
+        sent = call.message.answer.await_args_list[0]       # the welcome line comes first, the profile follows
         assert sent.args[0] == "menu.welcome"
         assert isinstance(sent.kwargs["reply_markup"], ReplyKeyboardMarkup)
 

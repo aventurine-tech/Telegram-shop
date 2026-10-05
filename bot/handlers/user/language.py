@@ -104,10 +104,12 @@ async def choose_language(call: CallbackQuery, state: FSMContext):
         await call.answer(localize("language.changed", language=_LABELS[code]))
         await state.clear()
         if had_language and payload is None:
-            # Changed from the profile: go back there, now in the new language.
-            await show_profile(call)
-            # The reply keyboard keeps its old labels until a message replaces it.
+            # Changed from the profile. The reply keyboard keeps its old labels until a message replaces it, and
+            # that message (the welcome line) must stay above the menu: remove the picker, send the welcome line,
+            # then show the profile below it, now in the new language.
+            await _delete_quietly(call.message)
             await send_bottom_nav(call.message)
+            await show_profile(call, as_new=True)
             return
         # First choice: swap the picker for the normal start flow.
         await _delete_quietly(call.message)

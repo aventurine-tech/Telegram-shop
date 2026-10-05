@@ -250,8 +250,10 @@ async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
-async def show_profile(call: CallbackQuery | Message) -> None:
-    """Render the profile screen into the callback's message (or as a new message for a Message)."""
+async def show_profile(call: CallbackQuery | Message, *, as_new: bool = False) -> None:
+    """Render the profile screen into the callback's message (or as a new message for a Message).
+
+    ``as_new`` sends it as a fresh message instead (the caller has removed the old screen)."""
     # For both a CallbackQuery and a Message, `from_user` is the person (`call.message.from_user` would be the bot).
     user_id = call.from_user.id
     tg_user = call.from_user
@@ -278,7 +280,10 @@ async def show_profile(call: CallbackQuery | Message) -> None:
         f"{localize('profile.orders_count', count=orders)}"
     )
     try:
-        await edit_screen(call, text, reply_markup=markup, parse_mode='HTML')
+        if as_new and not isinstance(call, Message):
+            await call.message.answer(text, reply_markup=markup, parse_mode='HTML')
+        else:
+            await edit_screen(call, text, reply_markup=markup, parse_mode='HTML')
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
