@@ -191,6 +191,15 @@ TRANSLATIONS = {
         "web.form.description_main_hint": "The shop's main language ({language}): used wherever a translation is left empty. Leave empty to use the description from your language (or keep the current one).",
         "web.form.name_required": "Enter the name in {language}.",
         "web.form.description_required": "Enter the description in {language}.",
+        "web.col.parent": "Parent category",
+        "web.form.parent_none": "— none (top-level category) —",
+        "web.form.parent_hint": "Choose a top-level category to make this one its subcategory. Leave empty for a top-level category. Only two levels are allowed, and a category either has subcategories or holds products.",
+        "web.form.parent_unknown": "The chosen parent category does not exist.",
+        "web.form.parent_self": "A category cannot be its own parent.",
+        "web.form.parent_not_top_level": "The parent must be a top-level category (only two levels are allowed).",
+        "web.form.parent_has_children": "This category has subcategories, so it cannot become a subcategory itself.",
+        "web.form.parent_has_items": "The chosen parent already holds products, so it cannot have subcategories. Move its products first.",
+        "web.category.delete_has_children": "This category has subcategories. Delete or move them first.",
         "web.form.name_taken": "An item named \u201c{name}\u201d already exists. Choose a different name.",
         "web.form.lang.en": "English",
         "web.form.lang.ru": "Russian",
@@ -288,7 +297,7 @@ TRANSLATIONS = {
             "<p>A <b>Product</b> is a physical item: name, price, description, category, optional "
             "sale and the number of units on hand (<code>stock</code>).</p>"
             "<ol class=\"mb-2\">"
-            "<li>Create a <b>Category</b> (if needed).</li>"
+            "<li>Create a <b>Category</b> (if needed). To make a <b>subcategory</b>, pick its <i>Parent category</i> in the form: only two levels are allowed, and a category either has subcategories or holds products.</li>"
             "<li>Create a <b>Product</b> — set name, price, description, category and <code>stock</code>.</li>"
             "<li>Optionally upload a <b>Picture</b> (JPEG, PNG or WEBP, up to 10&nbsp;MB) — it is kept as uploaded and "
             "shown on the product card in the bot. Tick <i>Remove picture</i> on the edit page to delete it; "
@@ -512,6 +521,15 @@ TRANSLATIONS = {
         "web.form.description_main_hint": "Основной язык магазина («{language}»): используется там, где перевод не заполнен. Оставьте пустым, чтобы использовать описание на вашем языке (или сохранить текущее).",
         "web.form.name_required": "Укажите название ({language}).",
         "web.form.description_required": "Укажите описание ({language}).",
+        "web.col.parent": "Родительская категория",
+        "web.form.parent_none": "— нет (категория верхнего уровня) —",
+        "web.form.parent_hint": "Выберите категорию верхнего уровня, чтобы сделать эту категорию её подкатегорией. Оставьте пустым для категории верхнего уровня. Допускается только два уровня, а в категории либо есть подкатегории, либо лежат товары.",
+        "web.form.parent_unknown": "Выбранной родительской категории не существует.",
+        "web.form.parent_self": "Категория не может быть родителем самой себя.",
+        "web.form.parent_not_top_level": "Родительская категория должна быть верхнего уровня (допускается только два уровня).",
+        "web.form.parent_has_children": "В этой категории есть подкатегории, поэтому она сама не может стать подкатегорией.",
+        "web.form.parent_has_items": "В выбранной родительской категории уже есть товары, поэтому в ней нельзя создавать подкатегории. Сначала перенесите товары.",
+        "web.category.delete_has_children": "В этой категории есть подкатегории. Сначала удалите их или перенесите.",
         "web.form.name_taken": "Позиция с названием «{name}» уже существует. Выберите другое название.",
         "web.form.lang.en": "английский",
         "web.form.lang.ru": "русский",
@@ -604,7 +622,7 @@ TRANSLATIONS = {
             "<p><b>Товар</b> — это физический предмет: название, цена, описание, категория, необязательная "
             "скидка и количество на складе (<code>stock</code>).</p>"
             "<ol class=\"mb-2\">"
-            "<li>Создайте <b>категорию</b> (если нужно).</li>"
+            "<li>Создайте <b>категорию</b> (если нужно). Чтобы создать <b>подкатегорию</b>, выберите в форме её <i>родительскую категорию</i>: допускается только два уровня, а в категории либо есть подкатегории, либо лежат товары.</li>"
             "<li>Создайте <b>товар</b> — укажите название, цену, описание, категорию и <code>stock</code>.</li>"
             "<li>При желании загрузите <b>фото</b> (JPEG, PNG или WEBP, до 10&nbsp;МБ) — оно хранится как загружено и "
             "показывается в карточке товара в боте. Отметьте <i>Удалить фото</i> на странице редактирования, чтобы "

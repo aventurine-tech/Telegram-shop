@@ -158,6 +158,15 @@ TRANSLATIONS = {
         "web.form.description_main_hint": "Limba principală a magazinului ({language}): se folosește oriunde o traducere lipsește. Lăsați gol pentru a folosi descrierea din limba dvs. (sau pentru a păstra cea actuală).",
         "web.form.name_required": "Introduceți denumirea ({language}).",
         "web.form.description_required": "Introduceți descrierea ({language}).",
+        "web.col.parent": "Categorie părinte",
+        "web.form.parent_none": "— niciuna (categorie de nivel superior) —",
+        "web.form.parent_hint": "Alegeți o categorie de nivel superior pentru a face din aceasta subcategoria ei. Lăsați gol pentru o categorie de nivel superior. Sunt permise doar două niveluri, iar o categorie fie are subcategorii, fie conține produse.",
+        "web.form.parent_unknown": "Categoria părinte aleasă nu există.",
+        "web.form.parent_self": "O categorie nu poate fi propriul părinte.",
+        "web.form.parent_not_top_level": "Părintele trebuie să fie o categorie de nivel superior (sunt permise doar două niveluri).",
+        "web.form.parent_has_children": "Această categorie are subcategorii, deci nu poate deveni ea însăși subcategorie.",
+        "web.form.parent_has_items": "Categoria părinte aleasă conține deja produse, deci nu poate avea subcategorii. Mutați mai întâi produsele.",
+        "web.category.delete_has_children": "Această categorie are subcategorii. Ștergeți-le sau mutați-le mai întâi.",
         "web.form.name_taken": "Există deja un articol cu denumirea \u201e{name}\u201d. Alegeți altă denumire.",
         "web.form.lang.en": "engleză",
         "web.form.lang.ru": "rusă",
@@ -250,7 +259,7 @@ TRANSLATIONS = {
             "<p>Un <b>Produs</b> este un articol fizic: denumire, preț, descriere, categorie, o reducere "
             "opțională și numărul de unități în stoc (<code>stock</code>).</p>"
             "<ol class=\"mb-2\">"
-            "<li>Creați o <b>Categorie</b> (dacă este nevoie).</li>"
+            "<li>Creați o <b>Categorie</b> (dacă este nevoie). Pentru a crea o <b>subcategorie</b>, alegeți <i>Categoria părinte</i> în formular: sunt permise doar două niveluri, iar o categorie fie are subcategorii, fie conține produse.</li>"
             "<li>Creați un <b>Produs</b> — setați denumirea, prețul, descrierea, categoria și <code>stock</code>.</li>"
             "<li>Opțional, încărcați o <b>Poză</b> (JPEG, PNG sau WEBP, până la 10&nbsp;MB) — se păstrează așa cum a fost "
             "încărcată și apare pe cardul produsului în bot. Bifați <i>Șterge poza</i> pe pagina de editare pentru "

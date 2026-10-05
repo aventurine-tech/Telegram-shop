@@ -13,6 +13,7 @@ from bot.database.methods import (
     query_categories, get_item_info_cached, select_item_stock_cached, effective_price
 )
 from bot.database.methods.read import (
+    get_category_by_id, category_children_count, check_category_cached,
     get_item_avg_rating, has_purchased_item, validate_promo_for_item,
     get_user_review, invalidate_rating_cache, is_subscribed_to_stock,
 )
@@ -22,6 +23,7 @@ from bot.database.methods.create import create_review, subscribe_to_stock
 from bot.database.methods.delete import unsubscribe_from_stock
 from bot.database.methods.lazy_queries import (
     query_item_reviews, query_goods_search, query_items_in_category, query_user_orders,
+    query_subcategories,
 )
 from bot.database.methods.transactions import redeem_balance_promo
 from bot.database.methods.audit import log_audit_bg
@@ -271,6 +273,8 @@ async def _show_categories_page(call: CallbackQuery | Message, state: FSMContext
     await state.update_data(
         category_page_items=list(page_items),
         category_page_num=page,
+        current_parent=None,        # back at the top level: no parent, not opened from the menu
+        shop_origin=None,
     )
 
 
@@ -295,8 +299,21 @@ async def navigate_categories(call: CallbackQuery, state: FSMContext):
 
 async def _show_goods_page(call: CallbackQuery, state: FSMContext,
                            category_name: str, cat_page: int, page: int):
-    """Render one page of goods inside a category (shared by category-open + paginate)."""
+    """Render one page of goods inside a category (shared by category-open + paginate).
+
+    `cat_page` is the page of the list Back returns to: the subcategory list when the category was
+    opened through a parent (FSM `current_parent`), the main menu when it was opened from there
+    (`shop_origin`), else the top-level list.
+    """
     from bot.database.methods.lazy_queries import query_items_in_category
+
+    data = await state.get_data()
+    if data.get('current_parent'):
+        back_cb = f"subcat-page_{cat_page}"
+    elif data.get('shop_origin') == "menu":
+        back_cb = "back_to_menu"
+    else:
+        back_cb = f"categories-page_{cat_page}"
 
     paginator = LazyPaginator(partial(query_items_in_category, category_name), per_page=10)
 
@@ -309,7 +326,7 @@ async def _show_goods_page(call: CallbackQuery, state: FSMContext,
         item_text=lambda item: labels.get(item, item),
         item_callback=lambda item: f"itm:{items_index[item]}:{page}",
         page=page,
-        back_cb=f"categories-page_{cat_page}",
+        back_cb=back_cb,
         nav_cb_prefix="gp_",
     )
 
@@ -323,10 +340,63 @@ async def _show_goods_page(call: CallbackQuery, state: FSMContext,
     await state.set_state(ShopStates.viewing_goods)
 
 
+async def _show_subcategories_page(call: CallbackQuery, state: FSMContext, parent_name: str, page: int):
+    """Render one page of a category's subcategories (parent = FSM `current_parent`)."""
+    data = await state.get_data()
+    paginator = LazyPaginator(partial(query_subcategories, parent_name), per_page=10)
+
+    page_items = await paginator.get_page(page)
+    items_index = {cat: idx for idx, cat in enumerate(page_items)}
+    labels = await category_labels(page_items + [parent_name])
+
+    # Back leaves the drill-down: to the menu it was opened from, else to the top-level list.
+    if data.get('shop_origin') == "menu":
+        back_cb = "back_to_menu"
+    else:
+        back_cb = f"categories-page_{data.get('parent_cat_page', 0)}"
+
+    markup = await lazy_paginated_keyboard(
+        paginator=paginator,
+        item_text=lambda cat: labels.get(cat, cat),
+        item_callback=lambda cat: f"subcat:{items_index[cat]}:{page}",
+        page=page,
+        back_cb=back_cb,
+        nav_cb_prefix="subcat-page_",
+    )
+
+    title = localize("shop.subcategories.title", name=esc(labels.get(parent_name, parent_name)))
+    await edit_screen(call, title, reply_markup=markup)
+    await state.update_data(
+        subcategory_page_items=list(page_items),
+        subcategory_page_num=page,
+        current_parent=parent_name,
+    )
+    await state.set_state(ShopStates.viewing_categories)
+
+
+async def _open_category(call: CallbackQuery, state: FSMContext, category_name: str,
+                         cat_page: int, origin: str | None = None):
+    """Open a top-level category: its subcategory list if it has any, else its products.
+
+    `origin` ("menu") is where Back should finally lead; `cat_page` the top-level list page it came from.
+    """
+    cat = await check_category_cached(category_name)
+    if not cat:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    if await category_children_count(cat['id']):
+        await state.update_data(shop_origin=origin, parent_cat_page=cat_page)
+        await _show_subcategories_page(call, state, category_name, 0)
+        return
+    # A leaf: forget any earlier parent so Back does not return to a stale subcategory list.
+    await state.update_data(current_parent=None, shop_origin=origin)
+    await _show_goods_page(call, state, category_name, cat_page, 0)
+
+
 @router.callback_query(F.data.startswith('cat:'))
 async def items_list_callback_handler(call: CallbackQuery, state: FSMContext):
     """
-    Show items of selected category.
+    Show items (or subcategories) of selected category.
     Parse index and page from cat:{index}:{page}, look up category name from state.
     """
     try:
@@ -344,7 +414,61 @@ async def items_list_callback_handler(call: CallbackQuery, state: FSMContext):
         await call.answer(localize("shop.item.not_found"), show_alert=True)
         return
 
-    await _show_goods_page(call, state, category, cat_page, 0)
+    await _open_category(call, state, category, cat_page)
+
+
+@router.callback_query(F.data.startswith('mcat:'))
+async def menu_category_handler(call: CallbackQuery, state: FSMContext):
+    """A category button of the main menu (mcat:{category_id}); Back returns to the menu."""
+    try:
+        cat_id = int(call.data.split(':', 1)[1])
+    except (ValueError, IndexError):
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    cat = await get_category_by_id(cat_id)
+    if not cat or cat.get('parent_id') is not None:     # gone since the menu was drawn
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    metrics = get_metrics()
+    if metrics:
+        metrics.track_conversion("purchase_funnel", "view_shop", call.from_user.id)
+    await _open_category(call, state, cat['name'], 0, origin="menu")
+
+
+@router.callback_query(F.data.startswith('subcat-page_'))
+async def navigate_subcategories(call: CallbackQuery, state: FSMContext):
+    """Pagination across a parent's subcategories (also where Back from its products lands)."""
+    page = _page_arg(call.data.split('_', 1)[1])
+    parent = (await state.get_data()).get('current_parent')
+    if page is None or not parent:
+        # State is gone (restart / stale keyboard): the top-level list is the safe place.
+        await _show_categories_page(call, state, 0)
+        return
+    await _show_subcategories_page(call, state, parent, page)
+
+
+@router.callback_query(F.data.startswith('subcat:'))
+async def subcategory_callback_handler(call: CallbackQuery, state: FSMContext):
+    """Show the products of a subcategory. Format: subcat:{index}:{page}"""
+    try:
+        parts = call.data.split(':')
+        idx = int(parts[1])
+        page = int(parts[2]) if len(parts) > 2 else 0
+    except (ValueError, IndexError):
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    parent = (await state.get_data()).get('current_parent')
+    if not parent:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+
+    sub = await _page_item_from_state(state, 'subcategory_page_items', 'subcategory_page_num', page, idx)
+    if sub is None:
+        sub = await _page_item_at(partial(query_subcategories, parent), page, idx)
+    if sub is None:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    await _show_goods_page(call, state, sub, page, 0)
 
 
 @router.callback_query(F.data.startswith('gp_'), ShopStates.viewing_goods)

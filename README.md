@@ -34,6 +34,7 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 ## ✨ Features
 
 - **Catalog & stock** — categories and products, each with an integer **units in stock**.
+- **Subcategories** — a top-level category can hold subcategories (two levels max, e.g. *Hookah tobacco → Classic / Intense*). A category holds either subcategories or products, never both. Top-level categories appear as buttons on the main menu; promo codes bound to a parent also cover its subcategories.
   Stock is *reserved* the moment an order is placed and *released* if the order is cancelled,
   so two customers can never buy the last unit. Optional time-limited per-product sales.
 - **Product pictures** — each product can have one picture, shown on its card in the shop and kept exactly

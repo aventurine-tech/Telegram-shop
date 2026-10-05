@@ -70,6 +70,8 @@ async def _add_category(make_message, make_callback_query, fsm_context, name, an
             await cm.skip_category_translation(_call(make_callback_query, "cat_tr_skip"), fsm_context)
         else:
             await cm.process_category_translation(make_message(text=answer, user_id=1), fsm_context)
+    # last (optional) step: no parent
+    await cm.skip_category_parent(_call(make_callback_query, "cat_parent_skip"), fsm_context)
 
 
 class TestAddCategory:
@@ -105,6 +107,8 @@ class TestAddCategory:
         while await fsm_context.get_state() == CategoryFSM.waiting_add_category_translation:
             asked.append((await fsm_context.get_data())["cat_queue"][0])
             await cm.skip_category_translation(_call(make_callback_query, "cat_tr_skip"), fsm_context)
+        assert await fsm_context.get_state() == CategoryFSM.waiting_add_category_parent
+        await cm.skip_category_parent(_call(make_callback_query, "cat_parent_skip"), fsm_context)
         assert asked == OTHERS[main_lang]
         cat = await check_category("Main")
         assert all(cat[f"name_{l}"] is None for l in OTHERS[main_lang])

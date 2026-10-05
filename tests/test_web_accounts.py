@@ -492,7 +492,7 @@ class TestLanguage:
             await c.get("/admin/login?lang=ro")
             await login(c, BOSS)
             await c.post(f"/admin/{ACCOUNTS}/create", data=new_account())
-        entry = (await audit_rows("sqladmin_create"))[0]
+        entry = (await audit_rows("sqladmin_create"))[-1]
         assert entry.resource_type == "Web Account"
 
     def test_request_language_resolution_order(self):

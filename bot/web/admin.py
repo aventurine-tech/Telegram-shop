@@ -9,6 +9,7 @@ from typing import Any
 from sqladmin import Admin, ModelView, action
 from sqladmin.authentication import AuthenticationBackend
 from starlette.applications import Starlette
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -97,7 +98,7 @@ from bot.misc.metrics import get_metrics
 from bot.misc.caching import get_cache_manager
 from bot.database.methods.read import (
     invalidate_user_cache, invalidate_item_cache, invalidate_rating_cache, get_item_name_by_id,
-    invalidate_category_cache,
+    invalidate_category_cache, parent_assignment_error,
 )
 from bot.database.methods.cache_utils import safe_create_task
 from bot.database.methods.product_images import items_with_images, remove_item_image, set_item_image
@@ -465,8 +466,16 @@ class TranslatedModelView(AuditModelView):
             raise ValueError(localize("web.form.name_taken", name=name))
 
 
+_PARENT_ERRORS = {
+    "self_parent": "web.form.parent_self",
+    "parent_not_top_level": "web.form.parent_not_top_level",
+    "has_children": "web.form.parent_has_children",
+    "parent_has_items": "web.form.parent_has_items",
+}
+
+
 class CategoryAdmin(TranslatedModelView, model=Categories):
-    column_list = [Categories.name]
+    column_list = [Categories.name, "parent"]
     column_searchable_list = [Categories.name, Categories.name_en, Categories.name_ru, Categories.name_ro]
     form_columns = _translation_fields(False)
     name = Localized("web.model.category.one")
@@ -481,24 +490,98 @@ class CategoryAdmin(TranslatedModelView, model=Categories):
     def form_widget_args(self) -> dict:
         return _translation_widget_args(False)
 
+    async def scaffold_form(self, *args, **kwargs):
+        """The parent select (top-level categories only; empty = top-level), in the request language."""
+        Base = await super().scaffold_form(*args, **kwargs)
+        async with Database().session() as session:
+            tops = (await session.execute(
+                sa_select(Categories).where(Categories.parent_id.is_(None)).order_by(Categories.name)
+            )).scalars().all()
+        viewer = _viewer_language()
+        choices = [("", localize("web.form.parent_none"))] + [(str(c.id), pick(c, "name", viewer)) for c in tops]
+
+        def coerce(value):
+            return None if value in (None, "", "None") else int(value)
+
+        class CategoryForm(Base):
+            parent_id = SelectField(localize("web.col.parent"), choices=choices, coerce=coerce,
+                                    validate_choice=False, validators=[WtfOptional()],
+                                    description=localize("web.form.parent_hint"))
+
+        return CategoryForm
+
+    async def list(self, request: Request):
+        pagination = await super().list(request)
+        ids = {r.parent_id for r in pagination.rows if r.parent_id}
+        parents = {}
+        if ids:
+            async with Database().session() as session:
+                parents = {c.id: c for c in (await session.execute(
+                    sa_select(Categories).where(Categories.id.in_(ids)))).scalars().all()}
+        for row in pagination.rows:
+            row.parent_row = parents.get(row.parent_id)
+        return pagination
+
+    async def get_list_value(self, obj: Any, prop: str):
+        if prop == "parent":
+            parent = getattr(obj, "parent_row", None)
+            if parent is None:
+                return None, ""
+            return parent.name, pick(parent, "name", _viewer_language())
+        return await super().get_list_value(obj, prop)
+
+    async def _validate_parent(self, data: dict, model: Any, is_created: bool) -> None:
+        """Refuse a parent that would break the two-level rule; the checks are shared with the bot."""
+        if "parent_id" not in data:
+            return
+        parent_id = data["parent_id"] or None
+        data["parent_id"] = parent_id
+        if parent_id is None or (not is_created and parent_id == getattr(model, "parent_id", None)):
+            return                                    # top-level, or the parent is not being changed
+        async with Database().session() as session:
+            parent = await session.get(Categories, parent_id)
+            if parent is None:
+                raise ValueError(localize("web.form.parent_unknown"))
+            error = await parent_assignment_error(session, parent, None if is_created else model.id)
+        if error:
+            raise ValueError(localize(_PARENT_ERRORS[error]))
+
     async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         # On an edit `model` still holds the pre-edit name here; remember it for the cache invalidation.
         request.state.category_old_name = None if is_created else getattr(model, "name", None)
+        request.state.category_old_parent_id = None if is_created else getattr(model, "parent_id", None)
         await self._apply_translations(data, model, is_created)
+        await self._validate_parent(data, model, is_created)
 
-    async def _invalidate(self, model: Any, old_name: str | None = None) -> None:
+    async def on_model_delete(self, model: Any, request: Request) -> None:
+        async with Database().session() as session:
+            has_children = (await session.execute(
+                sa_select(Categories.id).where(Categories.parent_id == model.id).limit(1))).first() is not None
+        if has_children:
+            raise HTTPException(status_code=409, detail=localize("web.category.delete_has_children"))
+
+    async def _invalidate(self, model: Any, old_name: str | None = None, parent_ids=()) -> None:
         # Every translation rides in the cached `category:<name>` row, so any edit drops it (and the old
-        # key on a rename).
-        for name in {n for n in (getattr(model, "name", None), old_name) if n}:
+        # key on a rename). The old and the new parent's entries go too: their subcategories changed.
+        names = {n for n in (getattr(model, "name", None), old_name) if n}
+        for parent_id in {p for p in parent_ids if p}:
+            async with Database().session() as session:
+                parent_name = (await session.execute(
+                    sa_select(Categories.name).where(Categories.id == parent_id))).scalar()
+            if parent_name:
+                names.add(parent_name)
+        for name in names:
             safe_create_task(invalidate_category_cache(name))
 
     async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         await super().after_model_change(data, model, is_created, request)
-        await self._invalidate(model, getattr(request.state, "category_old_name", None))
+        await self._invalidate(model, getattr(request.state, "category_old_name", None),
+                               (getattr(request.state, "category_old_parent_id", None),
+                                getattr(model, "parent_id", None)))
 
     async def after_model_delete(self, model: Any, request: Request) -> None:
         await super().after_model_delete(model, request)
-        await self._invalidate(model)
+        await self._invalidate(model, parent_ids=(getattr(model, "parent_id", None),))
 
 
 _PICTURE_ERRORS = ("too_large", "invalid_image", "unsupported_format", "item_not_found")
