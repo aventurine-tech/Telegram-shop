@@ -442,6 +442,11 @@ Two ways to manage the shop:
   verification go through the bot so stock, balance and referral rules can never be bypassed.
   The landing page is a built-in cheat sheet.
 
+The sidebar is grouped, in this order: **Orders** · **Clients** (customers, referral earnings, carts) · **Payments**
+(MIA payments waiting to be verified, balance operations) · **Catalog** (products, categories) · **Marketing**
+(promo codes, reviews) · **Settings** (web accounts, roles, audit log, My account) · **Log out**. Groups collapse and stay
+open while you are inside one; names follow the panel language.
+
 ### Web accounts
 
 Open **Web accounts** in the panel (Admins only) to add people. The first Admin is created from

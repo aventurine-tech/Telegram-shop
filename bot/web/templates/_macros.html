@@ -1,0 +1,69 @@
+{# Sidebar menu: single pages are plain links, groups (Clients, Payments, Catalog, …) collapse and stay open while
+   one of their pages is the current one. Group names come from `category` and are translated in the view code. #}
+{% set group_icons = {
+  'clients': 'fa-solid fa-users', 'payments': 'fa-solid fa-credit-card', 'catalog': 'fa-solid fa-store',
+  'marketing': 'fa-solid fa-bullhorn', 'settings': 'fa-solid fa-gear'
+} %}
+
+{% macro menu_category(menu, request) %}
+{% if menu.is_active(request) %}
+{% set ns = namespace(open=false) %}
+{% for sub_menu in menu.children %}{% if sub_menu.is_active(request) %}{% set ns.open = true %}{% endif %}{% endfor %}
+<li class="nav-item">
+  <a class="nav-link d-flex align-items-center {% if not ns.open %}collapsed{% endif %}" data-bs-toggle="collapse"
+    href="#menu-group-{{ menu.name }}" role="button" aria-expanded="{{ 'true' if ns.open else 'false' }}"
+    aria-controls="menu-group-{{ menu.name }}">
+    <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="{{ group_icons.get(menu.name, 'fa-solid fa-folder') }}"></i></span>
+    <span class="nav-link-title">{{ menu.display_name }}</span>
+    <span class="ms-auto"><i class="fa-solid fa-chevron-down small"></i></span>
+  </a>
+  <div class="collapse {% if ns.open %}show{% endif %}" id="menu-group-{{ menu.name }}">
+    <div class="nav flex-column ps-3">
+      {% for sub_menu in menu.children %}
+      {% if sub_menu.is_visible(request) and sub_menu.is_accessible(request) %}
+      <a class="nav-link {% if sub_menu.is_active(request) %}active{% endif %}" href="{{ sub_menu.url(request) }}">
+        <span class="nav-link-icon d-md-none d-lg-inline-block">
+          {% if sub_menu.icon %}<i class="{{ sub_menu.icon }}"></i>{% endif %}
+        </span>
+        <span class="nav-link-title">{{ sub_menu.display_name }}</span>
+      </a>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</li>
+{% endif %}
+{% endmacro %}
+
+{% macro menu_item(menu, request) %}
+{% if menu.is_visible(request) and menu.is_accessible(request) %}
+<li class="nav-item">
+  <a class="nav-link {% if menu.is_active(request) %}active{% endif %}" href="{{ menu.url(request) }}">
+    <span class="nav-link-icon d-md-none d-lg-inline-block">
+      {% if menu.icon %}<i class="{{ menu.icon }}"></i>{% endif %}
+    </span>
+    <span class="nav-link-title">{{ menu.display_name }}</span>
+  </a>
+</li>
+{% endif %}
+{% endmacro %}
+
+{% macro display_menu(menu, request) %}
+<ul class="navbar-nav pt-lg-3">
+  {% for item in menu.items %}
+  {% if item.type_ == "View" %}
+  {{ menu_item(item, request) }}
+  {% elif item.type_ == "Category" %}
+  {{ menu_category(item, request) }}
+  {% endif %}
+  {% endfor %}
+  {% if admin.authentication_backend %}
+  <li class="nav-item mt-2 border-top pt-2">
+    <a class="nav-link" href="{{ request.url_for('admin:logout') }}">
+      <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="fa-solid fa-right-from-bracket"></i></span>
+      <span class="nav-link-title">{{ _('web.logout') }}</span>
+    </a>
+  </li>
+  {% endif %}
+</ul>
+{% endmacro %}

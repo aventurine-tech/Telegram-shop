@@ -40,6 +40,7 @@ class WebUserAdmin(AuditModelView, model=WebUsers):
     name = Localized("web.model.web_user.one")
     name_plural = Localized("web.model.web_user.many")
     icon = "fa-solid fa-user-lock"
+    category = "settings"
 
     column_list = [WebUsers.id, WebUsers.username, WebUsers.role, WebUsers.language, WebUsers.is_active,
                    WebUsers.last_login_at, WebUsers.created_at]
@@ -184,6 +185,7 @@ class MyAccountView(BaseView):
     """Every signed-in person: change your own password and your own panel language."""
     name = Localized("web.model.my_account")
     icon = "fa-solid fa-user-gear"
+    category = "settings"
 
     @expose("/my-account", methods=["GET", "POST"], identity="my-account")
     async def my_account(self, request: Request):

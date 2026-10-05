@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from '_macros.html' import display_menu %}
+{% from '_macros.html' import display_menu with context %}
 {% block body %}
 <div class="wrapper">
   <aside class="navbar navbar-expand-lg navbar-vertical navbar-expand-md navbar-dark">
@@ -22,14 +22,8 @@
           {{ display_menu(admin._menu, request) }}
         </div>
       </nav>
-      {% if admin.authentication_backend %}
-      {% if request.session.get('role') %}
+      {% if admin.authentication_backend and request.session.get('role') %}
       <div class="text-muted small mb-2">{{ _('web.role.' ~ request.session.get('role')) }}</div>
-      {% endif %}
-      <a href="{{ request.url_for('admin:logout') }}" class="btn btn-secondary btn-icon">
-        <i class="fa fa-sign-out"></i>
-        <span>{{ _('web.logout') }}</span>
-      </a>
       {% endif %}
     </div>
   </aside>

@@ -3,6 +3,13 @@
 TRANSLATIONS = {
     "ro": {
         "web.logout": "Ieșire",
+        "web.menu.clients": "Clienți",
+        "web.menu.payments": "Plăți",
+        "web.menu.catalog": "Catalog",
+        "web.menu.marketing": "Marketing",
+        "web.menu.settings": "Setări",
+        "web.model.payment.one": "Plată de verificat",
+        "web.model.payment.many": "Plăți de verificat",
         "web.role.admin": "Administrator",
         "web.role.staff": "Angajat",
         "web.yes": "da",
@@ -24,7 +31,7 @@ TRANSLATIONS = {
         "web.login.choose_language": "Alegeți limba",
 
         "web.model.user.one": "Utilizator",
-        "web.model.user.many": "Utilizatori",
+        "web.model.user.many": "Clienți",
         "web.model.role.one": "Rol",
         "web.model.role.many": "Roluri",
         "web.model.category.one": "Categorie",
@@ -35,8 +42,8 @@ TRANSLATIONS = {
         "web.model.order.many": "Comenzi",
         "web.model.order_line.one": "Linie de comandă",
         "web.model.order_line.many": "Linii de comandă",
-        "web.model.operation.one": "Operațiune",
-        "web.model.operation.many": "Operațiuni",
+        "web.model.operation.one": "Operațiune de sold",
+        "web.model.operation.many": "Operațiuni de sold",
         "web.model.referral_earning.one": "Câștig din recomandări",
         "web.model.referral_earning.many": "Câștiguri din recomandări",
         "web.model.audit_log.one": "Înregistrare de audit",
