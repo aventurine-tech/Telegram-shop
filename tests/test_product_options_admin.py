@@ -215,7 +215,7 @@ async def _category_id():
 
 
 def _form(name, head_id=None, label=None, **extra):
-    data = {f"{f}_{l}": v for l in ("en", "ru", "ro") for f, v in (("name", name), ("description", "d"))}
+    data = {"name": name, **{f"description_{l}": "d" for l in ("en", "ru", "ro")}}
     data.update({"price": 5, "stock": 1, "variant_of": head_id, "variant_label": label, **extra})
     return data
 
@@ -365,9 +365,8 @@ class TestWebDeleteAndList:
 
     async def test_form_has_the_label_field_and_head_select(self):
         view = GoodsAdmin()
-        assert "variant_label" in view.form_columns
-        assert view.form_args["variant_label"]["description"]
         assert view._column_labels["variant_of"] == "Option of"
+        assert view._column_labels["variant_label"] == "Option label"
 
 
 async def _value(view, obj):

@@ -182,7 +182,9 @@ class Categories(Database.BASE):
         "Goods", back_populates="category", lazy='raise', passive_deletes=True)
 
     def __str__(self):
-        return self.name or ""
+        # Shown in the web panel's category dropdown: the name in the viewer's language (falls back to `name`).
+        from bot.misc.localized import pick
+        return pick(self, "name") or ""
 
 
 class Goods(Database.BASE):

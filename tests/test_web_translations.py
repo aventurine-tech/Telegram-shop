@@ -83,7 +83,7 @@ async def goods(name):
 
 
 def product_form(category_id, **extra):
-    form = {"name_ru": "Chair", "description_ru": "A chair", "price": "10", "category": str(category_id),
+    form = {"name": "Chair", "description_ru": "A chair", "price": "10", "category": str(category_id),
             "stock": "1", "sale_percent": "", "sale_until": ""}
     form.update(extra)
     return form
@@ -105,19 +105,17 @@ class TestForms:
         assert 'name="name"' not in page
         assert page.index('name="name_en"') < page.index('name="name_ru"') < page.index('name="name_ro"')
 
-    @pytest.mark.parametrize("lang,name_own,descr_own", [
-        ("en", "Name", "Description"), ("ru", "Название", "Описание"), ("ro", "Denumire", "Descriere"),
-    ])
-    async def test_product_form_labels_and_textareas(self, boss, category_factory, lang, name_own, descr_own):
+    @pytest.mark.parametrize("lang,descr_own", [("en", "Description"), ("ru", "Описание"), ("ro", "Descriere")])
+    async def test_product_form_description_labels_and_textareas(self, boss, category_factory, lang, descr_own):
         await category_factory("Furniture")
         boss.cookies.set(LANG_COOKIE, lang)
         page = (await boss.get(f"/admin/{GOODS}/create")).text
-        assert label(page, f"name_{lang}") == name_own and label(page, f"description_{lang}") == descr_own
+        assert label(page, f"description_{lang}") == descr_own
         for other in {"en", "ru", "ro"} - {lang}:
-            assert "(" in label(page, f"name_{other}") and "(" in label(page, f"description_{other}")
+            assert "(" in label(page, f"description_{other}")
         for code in ("en", "ru", "ro"):
             assert re.search(rf'<textarea[^>]*name="description_{code}"', page)
-        assert 'name="name"' not in page and 'name="description"' not in page
+        assert 'name="description"' not in page
         assert page.index('name="description_ro"') < page.index('name="price"')
         assert 'name="picture"' in page and 'name="remove_picture"' in page
 
@@ -269,26 +267,50 @@ class TestCategories:
 
 class TestProducts:
 
-    async def test_create_with_only_the_viewers_language(self, boss, category_factory, caches):
+    async def test_form_has_one_name_labelled_in_the_viewers_language(self, boss, category_factory):
+        await category_factory("Furniture")
+        for lang, own in (("en", "Name"), ("ru", "Название"), ("ro", "Denumire")):
+            boss.cookies.set(LANG_COOKIE, lang)
+            page = (await boss.get(f"/admin/{GOODS}/create")).text
+            assert label(page, "name") == own
+            assert not re.search(r'name="name_(en|ru|ro)"', page)
+            assert re.search(r'<textarea[^>]*name="description_en"', page)
+
+    async def test_category_dropdown_follows_the_interface_language(self, boss, category_factory):
+        from bot.database.methods.create import create_category
+        await create_category("Мебель", names={"ro": "Mobilă", "en": "Furniture"})
+        for lang, shown in (("ro", "Mobilă"), ("en", "Furniture"), ("ru", "Мебель")):
+            boss.cookies.set(LANG_COOKIE, lang)
+            page = (await boss.get(f"/admin/{GOODS}/create")).text
+            select = re.search(r'<select[^>]*name="category".*?</select>', page, re.S).group(0)
+            assert shown in select
+
+    async def test_option_fields_sit_together_after_the_main_fields_and_are_styled(self, boss, category_factory):
+        await category_factory("Furniture")
+        page = (await boss.get(f"/admin/{GOODS}/create")).text
+        assert page.index('name="sale_until"') < page.index('name="variant_of"') < page.index('name="variant_label"')
+        assert re.search(r'<select[^>]*class="[^"]*form-select[^"]*"[^>]*name="variant_of"|'
+                         r'<select[^>]*name="variant_of"[^>]*class="[^"]*form-select', page)
+
+    async def test_create_with_one_name(self, boss, category_factory, caches):
         await category_factory("Furniture")
         cat = await category("Furniture")
         boss.cookies.set(LANG_COOKIE, "en")
         resp = await boss.post(f"/admin/{GOODS}/create", data={
-            "name_en": "Chair", "description_en": "  A chair ", "price": "10", "category": str(cat.id),
+            "name": "  Chair ", "description_en": "  A chair ", "price": "10", "category": str(cat.id),
             "stock": "1", "sale_percent": "", "sale_until": ""})
         assert resp.status_code == 302, resp.text[:400]
         item = await goods("Chair")
-        assert (item.name_en, item.name_ru, item.name_ro) == ("Chair", "Chair", None)
+        assert (item.name, item.name_en, item.name_ru, item.name_ro) == ("Chair", "Chair", "Chair", "Chair")
         assert (item.description, item.description_en, item.description_ru) == ("A chair", "A chair", "A chair")
 
-    async def test_create_with_translations_and_main_language_wins(self, boss, category_factory, caches):
+    async def test_descriptions_keep_their_translations(self, boss, category_factory, caches):
         await category_factory("Furniture")
         cat = await category("Furniture")
         resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(
-            cat.id, name_en="Chair EN", name_ro="Scaun", description_ru="Стул\n\nудобный", description_ro="  Confortabil "))
+            cat.id, description_ru="Стул\n\nудобный", description_ro="  Confortabil "))
         assert resp.status_code == 302, resp.text[:400]
         item = await goods("Chair")
-        assert (item.name_en, item.name_ru, item.name_ro) == ("Chair EN", "Chair", "Scaun")
         assert (item.description, item.description_ru, item.description_ro) == (
             "Стул\n\nудобный", "Стул\n\nудобный", "Confortabil")
 
@@ -296,35 +318,45 @@ class TestProducts:
         await category_factory("Furniture")
         cat = await category("Furniture")
         boss.cookies.set(LANG_COOKIE, "ro")
-        resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id))
-        assert resp.status_code == 400 and "Introduceți denumirea (română)" in resp.text
-        resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, name_ro="Scaun"))
+        resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, name=""))
+        assert resp.status_code == 400 and "Introduceți denumirea produsului" in resp.text
+        resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, name="Scaun", description_ru=""))
         assert resp.status_code == 400 and "Introduceți descrierea (română)" in resp.text
         assert await goods("Chair") is None and await goods("Scaun") is None
 
-    async def test_edit_blank_main_fields_keep_canonical_and_blank_translations_clear(self, boss, category_factory, caches):
+    async def test_edit_rename_resets_every_language_and_blank_translations_clear(self, boss, category_factory, caches):
         await category_factory("Furniture")
         cat = await category("Furniture")
-        await boss.post(f"/admin/{GOODS}/create", data=product_form(
-            cat.id, name_en="Chair", name_ro="Scaun", description_ro="Confortabil"))
+        await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, description_ro="Confortabil"))
         item = await goods("Chair")
         boss.cookies.set(LANG_COOKIE, "en")
         resp = await boss.post(f"/admin/{GOODS}/edit/{item.id}", data={
-            "name_en": "Armchair", "name_ru": "", "name_ro": "", "description_en": "Soft",
+            "name": "Armchair", "description_en": "Soft",
             "description_ru": "", "description_ro": "", "price": "10", "category": str(cat.id), "stock": "1"})
         assert resp.status_code == 302, resp.text[:400]
-        item = await goods("Chair")
-        assert (item.name_en, item.name_ru, item.name_ro) == ("Armchair", "Chair", None)
+        item = await goods("Armchair")
+        assert (item.name, item.name_en, item.name_ru, item.name_ro) == ("Armchair",) * 4
         assert (item.description, item.description_en, item.description_ru, item.description_ro) == (
             "A chair", "Soft", "A chair", None)
 
-    async def test_edit_form_prefills_main_language_fields_of_a_legacy_row(self, boss, item_factory):
+    async def test_edit_without_a_rename_keeps_existing_translated_names(self, boss, category_factory, caches):
+        from bot.database.methods.create import create_item
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await create_item("Chair", "d", 10, "Furniture", names={"ro": "Scaun"})
+        item = await goods("Chair")
+        resp = await boss.post(f"/admin/{GOODS}/edit/{item.id}", data={
+            "name": "Chair", "description_ru": "d", "price": "12", "category": str(cat.id), "stock": "1"})
+        assert resp.status_code == 302, resp.text[:400]
+        assert (await goods("Chair")).name_ro == "Scaun"
+
+    async def test_edit_form_prefills_the_description_of_a_legacy_row(self, boss, item_factory):
         await item_factory(name="Chair", price=10, stock=1)
         item = await goods("Chair")
         assert item.name_ru is None and item.description_ru is None
         boss.cookies.set(LANG_COOKIE, "en")
         page = (await boss.get(f"/admin/{GOODS}/edit/{item.id}")).text
-        assert re.search(r'name="name_ru"[^>]*value="Chair"', page)
+        assert re.search(r'name="name"[^>]*value="Chair"', page)
         assert re.search(rf'<textarea[^>]*name="description_ru"[^>]*>\s*{re.escape(item.description)}', page)
 
     async def test_duplicate_name_is_a_translated_error(self, boss, item_factory, caches):
@@ -334,7 +366,7 @@ class TestProducts:
         resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(item.category_id))
         assert resp.status_code == 400 and "уже существует" in resp.text
 
-    @pytest.mark.parametrize("field,limit", [("name_ro", MAX_NAME_LEN), ("description_en", MAX_DESCRIPTION_LEN)])
+    @pytest.mark.parametrize("field,limit", [("name", MAX_NAME_LEN), ("description_en", MAX_DESCRIPTION_LEN)])
     async def test_too_long_is_rejected_with_a_translated_error(self, boss, category_factory, caches, field, limit):
         await category_factory("Furniture")
         cat = await category("Furniture")
@@ -350,32 +382,31 @@ class TestProducts:
         item = await goods("Chair")
         cat_id = item.category_id
 
-        await boss.post(f"/admin/{GOODS}/edit/{item.id}",
-                        data=product_form(cat_id, name_ru="Chair", name_ro="Scaun", description_ru=item.description))
+        await boss.post(f"/admin/{GOODS}/edit/{item.id}", data=product_form(cat_id, description_ru=item.description))
         assert {c.args[0] for c in item_cache.call_args_list} == {"Chair"}
 
         item_cache.reset_mock()
         resp = await boss.post(f"/admin/{GOODS}/edit/{item.id}",
-                               data=product_form(cat_id, name_ru="Armchair", description_ru=item.description))
+                               data=product_form(cat_id, name="Armchair", description_ru=item.description))
         assert resp.status_code == 302, resp.text[:400]
         assert {c.args[0] for c in item_cache.call_args_list} == {"Chair", "Armchair"}
 
-    async def test_list_shows_the_name_in_the_viewers_language(self, boss, category_factory, caches):
+    async def test_list_shows_the_translated_name_in_the_viewers_language(self, boss, category_factory, caches):
+        from bot.database.methods.create import create_item
         await category_factory("Furniture")
-        cat = await category("Furniture")
-        await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, name_ru="Стул", name_ro="Scaun"))
+        await create_item("Chair", "d", 10, "Furniture", names={"ro": "Scaun", "en": "Seat"})
         boss.cookies.set(LANG_COOKIE, "ro")
         assert "Scaun" in (await boss.get(f"/admin/{GOODS}/list")).text
         boss.cookies.set(LANG_COOKIE, "en")
-        page = (await boss.get(f"/admin/{GOODS}/list")).text
-        assert "Стул" in page and "Scaun" not in page  # no English: the canonical name
+        assert "Seat" in (await boss.get(f"/admin/{GOODS}/list")).text
 
     async def test_search_finds_translated_names(self, boss, item_factory, caches):
+        from bot.database.methods.create import create_item
         await item_factory(name="Chair", price=10, stock=1)
         await item_factory(name="Table", price=10, stock=1)
-        item = await goods("Chair")
-        await boss.post(f"/admin/{GOODS}/edit/{item.id}", data=product_form(
-            item.category_id, name_ru="Chair", name_ro="Scaun", description_ru=item.description))
+        async with Database().session() as sess:
+            row = (await sess.execute(select(Goods).where(Goods.name == "Chair"))).scalars().one()
+            row.name_ro = "Scaun"
         found = (await boss.get(f"/admin/{GOODS}/list?search=Scaun")).text
         assert "Chair" in found
         assert "Table" not in found
@@ -398,3 +429,30 @@ class TestAccountsAndLabels:
         resp = await boss.get("/admin/")
         assert resp.status_code == 200 and title in resp.text
         assert {"en": "Russian", "ru": "русский", "ro": "rusă"}[lang] in resp.text  # the main language
+
+
+class TestWebOptionCreation:
+    """Creating a weight option from the product form: only the head and the label are needed."""
+
+    async def test_option_needs_only_head_label_price_and_stock(self, boss, category_factory, caches):
+        from bot.database.methods.create import create_item
+        from bot.database.methods.read import get_item_family
+        await category_factory("Furniture")
+        await create_item("Sofa", "Comfy", 0, "Furniture", names={"ro": "Canapea"})
+        head = await goods("Sofa")
+        boss.cookies.set(LANG_COOKIE, "ro")
+        resp = await boss.post(f"/admin/{GOODS}/create", data={
+            "name": "", "variant_of": str(head.id), "variant_label": "200 g", "price": "300", "stock": "0",
+            "category": str(head.category_id), "sale_percent": "", "sale_until": ""})
+        assert resp.status_code == 302, resp.text[:600]
+        fam = await get_item_family("Sofa")
+        assert [(o["name"], o["variant_label"], o["name_ro"]) for o in fam["options"]] == [
+            ("Sofa · 200 g", "200 g", "Canapea · 200 g")]
+        assert fam["options"][0]["category_id"] == head.category_id
+
+    async def test_label_without_a_head_is_a_visible_error(self, boss, category_factory, caches):
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        boss.cookies.set(LANG_COOKIE, "en")
+        resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, variant_label="50 g"))
+        assert resp.status_code == 400 and "only be set together" in resp.text
