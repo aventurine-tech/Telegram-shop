@@ -10,6 +10,10 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### #25 — CI runs once per change (2026-10-06)
+- **Changed** the workflow no longer triggers on both `push` and `pull_request` (which ran every check twice per PR update): PRs are tested by
+  the `pull_request` event, pushes only on `development`/`main`.
+
 ### Documentation set (2026-10-06)
 - **Added** `AGENTS.md` (canonical rulebook), rewritten `CLAUDE.md`, this `CHANGELOG.md`, `ROADMAP.md`, and `docs/`: `PROJECT_PRINCIPLES`
   (with the owner's requirements register), `DECISIONS`, `GIT_WORKFLOW`, `NAMING_STANDARDS`, `TESTING`, `SECURITY`,

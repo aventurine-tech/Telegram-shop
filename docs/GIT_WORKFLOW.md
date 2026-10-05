@@ -53,10 +53,10 @@ Applies to every contributor, human or AI. Short version: **branch → PR into `
 
 ## 5. CI
 
-`.github/workflows/tests.yml`, on every push and PR:
+`.github/workflows/tests.yml` runs **once per change**: on the `pull_request` event for PR branches (a branch without a PR is not tested), and on `push` only for `development` and `main`. Two jobs run in parallel:
 - **Unit tests** — `pytest` with coverage on Python 3.11.
 - **Migrations on PostgreSQL** — PostgreSQL 16 service: `alembic upgrade head` → `downgrade -1` → `upgrade head`.
-Concurrent runs for the same ref are cancelled (a "cancelled" run on an old commit is normal; look at the **latest** head SHA).
+A newer push to the same PR cancels the older run (a "cancelled" run on an old commit is normal; look at the **latest** head SHA).
 
 ## 6. Merging
 
