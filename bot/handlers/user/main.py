@@ -16,6 +16,8 @@ from bot.database.methods.read import get_cart_count, invalidate_user_cache
 from bot.database.methods.lazy_queries import query_user_operations_history
 from bot.handlers.other import check_sub_channel, _parse_channel_username
 from bot.keyboards import main_menu, back, profile_keyboard, check_sub
+from bot.keyboards.reply import bottom_nav_keyboard
+from bot.handlers.user._screen import edit_screen
 from bot.misc import EnvKeys
 from bot.misc.metrics import get_metrics
 from bot.i18n import localize
@@ -140,8 +142,15 @@ async def open_main_menu(message: Message, user_id: int, role_data: int) -> None
             await message.answer(localize("subscribe.prompt"), reply_markup=check_sub(channel_username))
             return
 
+    # The bottom keyboard rides on its own message (one reply_markup per message), ahead of the inline menu.
+    await send_bottom_nav(message)
     markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_ID)
     await message.answer(localize("menu.title"), reply_markup=markup)
+
+
+async def send_bottom_nav(message: Message) -> None:
+    """(Re)send the persistent Catalog / Cart / Profile keyboard in the current language."""
+    await message.answer(localize("menu.quick"), reply_markup=bottom_nav_keyboard())
 
 
 def start_payload(text: str | None) -> str | None:
@@ -201,13 +210,17 @@ async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
-async def show_profile(call: CallbackQuery) -> None:
-    """Render the profile screen into the callback's message."""
+async def show_profile(call: CallbackQuery | Message) -> None:
+    """Render the profile screen into the callback's message (or as a new message for a Message)."""
+    # For both a CallbackQuery and a Message, `from_user` is the person (`call.message.from_user` would be the bot).
     user_id = call.from_user.id
     tg_user = call.from_user
     user_info = await _ensure_user(user_id)
     if not user_info:
-        await call.answer(localize("errors.something_wrong"), show_alert=True)
+        if isinstance(call, Message):
+            await call.answer(localize("errors.something_wrong"))
+        else:
+            await call.answer(localize("errors.something_wrong"), show_alert=True)
         return
 
     balance = user_info.get('balance')
@@ -225,7 +238,7 @@ async def show_profile(call: CallbackQuery) -> None:
         f"{localize('profile.orders_count', count=orders)}"
     )
     try:
-        await call.message.edit_text(text, reply_markup=markup, parse_mode='HTML')
+        await edit_screen(call, text, reply_markup=markup, parse_mode='HTML')
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise

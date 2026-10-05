@@ -41,6 +41,7 @@ def real_localize():
     with patch('bot.misc.services.order_view.localize', i18n.localize), \
             patch('bot.handlers.user.language.localize', i18n.localize), \
             patch('bot.handlers.user.main.localize', i18n.localize), \
+            patch('bot.keyboards.reply.localize', i18n.localize), \
             patch('bot.keyboards.inline.localize', i18n.localize):
         yield
 
@@ -245,7 +246,12 @@ class TestProfileLanguage:
         call.message.delete.assert_not_awaited()
         text = call.message.edit_text.await_args.args[0]
         assert i18n.localize_in("ro", "profile.id", id=740002) in text
-        call.message.answer.assert_not_awaited()
+        # Only the small message that swaps the bottom keyboard to the new language.
+        call.message.answer.assert_awaited_once()
+        sent = call.message.answer.await_args
+        assert sent.args[0] == i18n.localize_in("ro", "menu.quick")
+        assert [b.text for b in sent.kwargs["reply_markup"].keyboard[0]] == [
+            i18n.localize_in("ro", k) for k in ("btn.nav.catalog", "btn.nav.cart", "btn.nav.profile")]
 
 
 class TestLanguageMiddleware:

@@ -2,6 +2,7 @@
 import contextlib
 
 from aiogram.exceptions import TelegramAPIError
+from aiogram.types import Message
 
 
 def is_photo_message(message) -> bool:
@@ -15,8 +16,11 @@ async def edit_screen(target, text: str, reply_markup=None, **kwargs):
 
     Telegram cannot edit a photo message into text, so a photo message is deleted and the screen
     is sent as a fresh message; anything else is edited exactly as `edit_text` would.
-    `target` is a CallbackQuery (its `.message` is used) or a Message.
+    `target` is a CallbackQuery (its `.message` is used) or a Message. A real Message (e.g. a bottom-keyboard
+    tap) has nothing to edit, so the screen is answered as a new message.
     """
+    if isinstance(target, Message):
+        return await target.answer(text, reply_markup=reply_markup, **kwargs)
     message = target.message if hasattr(target, 'message') else target
     if is_photo_message(message):
         with contextlib.suppress(TelegramAPIError):

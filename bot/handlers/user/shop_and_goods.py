@@ -246,8 +246,8 @@ async def _send_card_photo(target, item_name: str, ref: dict, caption: str, mark
 
 # --- Shop / categories / items ---
 
-async def _show_categories_page(call: CallbackQuery, state: FSMContext, page: int):
-    """Render one page of the category list (shared by the shop entry + paginate handlers)."""
+async def _show_categories_page(call: CallbackQuery | Message, state: FSMContext, page: int):
+    """Render one page of the category list (shared by the shop entry, paginate handlers and the bottom keyboard)."""
     paginator = LazyPaginator(query_categories, per_page=10)
 
     # Pre-fetch page items to build the index map used by the item_callback.

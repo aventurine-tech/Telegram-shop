@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
@@ -79,8 +79,8 @@ async def _cart_view_data(user_id: int) -> tuple[list[dict], dict[str, dict], di
     return items, info_map, line_data, total
 
 
-async def _show_cart(call: CallbackQuery):
-    """Shared logic: render cart view."""
+async def _show_cart(call: CallbackQuery | Message):
+    """Shared logic: render cart view (edits the pressed message, or answers a new one for a Message)."""
     user_id = call.from_user.id
     items, info_map, line_data, real_total = await _cart_view_data(user_id)
 
