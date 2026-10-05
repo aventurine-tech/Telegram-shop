@@ -8,15 +8,30 @@ import pytest
 from sqlalchemy import select
 
 from bot.database.main import Database
-from bot.database.methods.create import create_pending_payment
 from tests.factories import add_operation
-from bot.database.models.main import BoughtGoods, User
+from bot.database.models.main import Orders, OrderItems, User
 from bot.web.export import (
     BATCH_SIZE, _sanitize_cell, _parse_date_params, _check_auth, _stream_csv,
-    export_users, export_purchases, export_operations, export_payments,
+    export_users, export_orders, export_order_items, export_operations,
 )
 
 NOW = datetime.datetime.now(datetime.timezone.utc)
+
+
+async def _add_order(user_id, *, customer="Ann", total=100, created_at=NOW, lines=(("Lamp", 1, 100),)):
+    """Insert an order with its lines; returns the order id."""
+    async with Database().session() as s:
+        order = Orders(
+            user_id=user_id, status="new", payment_method="cod", payment_status="unpaid",
+            fulfillment="pickup", customer_name=customer, phone="123456", total=total,
+            balance_used=0, created_at=created_at,
+        )
+        s.add(order)
+        await s.flush()
+        for name, qty, line_total in lines:
+            s.add(OrderItems(order_id=order.id, item_name=name, quantity=qty,
+                             unit_price=line_total / qty, line_total=line_total))
+        return order.id
 
 
 def _request(session=None, **query_params):
@@ -84,7 +99,7 @@ class TestCheckAuth:
 class TestExportEndpointsRequireAuth:
 
     @pytest.mark.parametrize("endpoint", [
-        export_users, export_purchases, export_operations, export_payments,
+        export_users, export_orders, export_order_items, export_operations,
     ])
     async def test_unauthenticated_request_is_rejected(self, endpoint):
         response = await endpoint(_request())
@@ -138,21 +153,26 @@ class TestStreamCsv:
     async def test_batch_size_default_is_not_accidentally_tiny(self):
         assert BATCH_SIZE == 1000
 
-    async def test_exported_item_name_cannot_carry_a_formula(self, user_factory):
-        """End-to-end: a hostile product name reaches the CSV neutralized."""
+    async def test_exported_customer_name_cannot_carry_a_formula(self, user_factory):
+        """End-to-end: a hostile customer name reaches the CSV neutralized."""
         await user_factory(telegram_id=770020)
-        async with Database().session() as s:
-            s.add(BoughtGoods(
-                item_name="=HYPERLINK(\"http://evil\",\"click\")", value="v",
-                price=10, bought_datetime=NOW, unique_id=770020, buyer_id=770020,
-            ))
+        await _add_order(770020, customer="=HYPERLINK(\"http://evil\",\"click\")")
 
-        response = await export_purchases(_request(session={"authenticated": True}))
+        response = await export_orders(_request(session={"authenticated": True}))
         body = await _collect(response)
 
         rows = list(csv.reader(io.StringIO(body)))
-        item_names = [r[1] for r in rows[1:]]
-        assert item_names == ["'=HYPERLINK(\"http://evil\",\"click\")"]
+        names = [r[rows[0].index("customer_name")] for r in rows[1:]]
+        assert names == ["'=HYPERLINK(\"http://evil\",\"click\")"]
+
+    async def test_exported_product_name_cannot_carry_a_formula(self, user_factory):
+        await user_factory(telegram_id=770021)
+        await _add_order(770021, lines=(("@SUM(1+1)", 1, 100),))
+
+        response = await export_order_items(_request(session={"authenticated": True}))
+        rows = list(csv.reader(io.StringIO(await _collect(response))))
+
+        assert [r[2] for r in rows[1:]] == ["'@SUM(1+1)"]
 
 
 class TestExportEndpoints:
@@ -180,16 +200,40 @@ class TestExportEndpoints:
         assert rows[1][1] == "770040"
         assert Decimal(rows[1][2]) == Decimal("150")
 
-    async def test_payments_export(self, user_factory):
+    async def test_orders_export(self, user_factory):
         await user_factory(telegram_id=770050)
-        await create_pending_payment("cryptopay", "ext_770050", 770050, 500, "RUB")
+        order_id = await _add_order(770050, total=100)
 
-        response = await export_payments(_request(session=self.AUTHED))
+        response = await export_orders(_request(session=self.AUTHED))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
-        assert rows[0][:3] == ["id", "provider", "external_id"]
-        assert rows[1][1:3] == ["cryptopay", "ext_770050"]
-        assert rows[1][6] == "pending"
+        assert rows[0][:4] == ["id", "user_id", "status", "payment_method"]
+        assert rows[1][:5] == [str(order_id), "770050", "new", "cod", "unpaid"]
+        assert Decimal(rows[1][rows[0].index("total")]) == Decimal("100")
+        assert response.headers["content-disposition"] == "attachment; filename=orders.csv"
+
+    async def test_order_items_export(self, user_factory):
+        await user_factory(telegram_id=770051)
+        order_id = await _add_order(770051, total=300, lines=(("Lamp", 2, 200), ("Cable", 1, 100)))
+
+        response = await export_order_items(_request(session=self.AUTHED))
+        rows = list(csv.reader(io.StringIO(await _collect(response))))
+
+        assert rows[0] == ["id", "order_id", "item_name", "quantity", "unit_price", "line_total"]
+        assert [(r[1], r[2], r[3]) for r in rows[1:]] == [
+            (str(order_id), "Lamp", "2"), (str(order_id), "Cable", "1"),
+        ]
+
+    async def test_order_date_filter_applies_to_order_and_its_lines(self, user_factory):
+        await user_factory(telegram_id=770052)
+        old = NOW - datetime.timedelta(days=10)
+        await _add_order(770052, created_at=old)
+
+        cutoff = (NOW - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        for endpoint in (export_orders, export_order_items):
+            response = await endpoint(_request(session=self.AUTHED, **{"from": cutoff}))
+            rows = list(csv.reader(io.StringIO(await _collect(response))))
+            assert len(rows) == 1  # header only
 
     async def test_date_filter_excludes_rows_outside_the_window(self, user_factory):
         await user_factory(telegram_id=770060)

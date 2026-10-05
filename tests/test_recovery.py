@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from bot.misc.services.cleanup import CleanupManager
 from bot.misc.services.recovery import RecoveryManager
 from bot.database.main import Database
+from bot.database.models.main import Orders  # noqa: F401  (registers the tables before the session DB is built)
 
 
 class TestRecoveryManager:
