@@ -17,23 +17,18 @@
       <div class="card">
         <div class="card-header"><h3 class="card-title">📦 Selling goods (product + stock)</h3></div>
         <div class="card-body">
-          <p>A <b>Product</b> is the listing (name, price, description, category, optional
-             sale). Its sellable units live separately as <b>Stock Items</b>.</p>
+          <p>A <b>Product</b> is a physical item: name, price, description, category, optional
+             sale and the number of units on hand (<code>stock</code>).</p>
           <ol class="mb-2">
             <li>Create a <b>Category</b> (if needed).</li>
-            <li>Create a <b>Product</b> — set name, price, description, category. Sale is optional.</li>
-            <li>Add <b>Stock Items</b> for that product — this is what buyers actually receive.</li>
+            <li>Create a <b>Product</b> — set name, price, description, category and <code>stock</code>.</li>
+            <li>Change <code>stock</code> whenever goods arrive or are written off.</li>
           </ol>
-          <p class="mb-1"><b>Stock Item</b> fields:</p>
-          <ul class="mb-2">
-            <li><code>item</code> — which product this unit belongs to.</li>
-            <li><code>value</code> — the delivered content (account, key, license text…).</li>
-            <li><code>is_infinity</code> —
-              <b>off</b>: a limited unit, consumed on purchase (add one row per unit);
-              <b>on</b>: unlimited — the same <code>value</code> is delivered on every purchase and never runs out.</li>
-          </ul>
+          <p class="mb-2"><code>stock</code> is reserved when a customer places an order and returned
+             when the order is cancelled. A product at <code>0</code> cannot be ordered; customers who
+             asked to be notified get a message when it goes from 0 to more.</p>
           <p class="text-muted mb-0">Renaming or deleting a product keeps carts, reviews and
-             purchase history consistent automatically.</p>
+             order history consistent automatically.</p>
         </div>
       </div>
     </div>
@@ -53,13 +48,14 @@
                 <tr><td>USE</td><td>1</td><td>Basic bot access</td></tr>
                 <tr><td>BROADCAST</td><td>2</td><td>Mass messaging</td></tr>
                 <tr><td>SETTINGS</td><td>4</td><td>Maintenance mode</td></tr>
-                <tr><td>USERS</td><td>8</td><td>View / block users, referrals, purchases</td></tr>
+                <tr><td>USERS</td><td>8</td><td>View / block users, referrals, orders</td></tr>
                 <tr><td>CATALOG</td><td>16</td><td>Categories, products, stock</td></tr>
                 <tr><td>ADMINS</td><td>32</td><td>Create roles, assign roles</td></tr>
                 <tr><td>OWNER</td><td>64</td><td>Owner-only operations</td></tr>
-                <tr><td>STATS</td><td>128</td><td>Statistics, logs, item search</td></tr>
+                <tr><td>STATS</td><td>128</td><td>Statistics, logs</td></tr>
                 <tr><td>BALANCE</td><td>256</td><td>Top-up / deduct balance</td></tr>
                 <tr><td>PROMO</td><td>512</td><td>Promo-code management</td></tr>
+                <tr><td>ORDERS</td><td>1024</td><td>View orders, verify MIA payments, change order status</td></tr>
               </tbody>
             </table>
           </div>
@@ -78,9 +74,10 @@
           <ul class="mb-0">
             <li><b>Users</b> — balance, role, block status (edits take effect immediately).</li>
             <li><b>Roles</b> — permission bitmasks (see the table).</li>
-            <li><b>Categories / Products / Stock Items</b> — the catalog.</li>
+            <li><b>Categories / Products</b> — the catalog, with stock per product.</li>
+            <li><b>Orders / Order Lines</b> — customer orders (see the tip below).</li>
             <li><b>Promo Codes</b> — percent / fixed / balance codes, limits, expiry.</li>
-            <li><b>Purchases / Payments / Operations</b> — read-only financial history.</li>
+            <li><b>Operations / Referral Earnings</b> — read-only balance history.</li>
             <li><b>Reviews</b> — 1–5★ product reviews.</li>
             <li><b>Audit Logs</b> — read-only record of every admin action.</li>
           </ul>
@@ -94,8 +91,16 @@
         <div class="card-header"><h3 class="card-title">💡 Good to know</h3></div>
         <div class="card-body">
           <ul class="mb-0">
-            <li>Financial tables (purchases, payments, operations) and audit logs are
-                <b>read-only</b> by design.</li>
+            <li>Orders, order lines, operations and audit logs are <b>read-only</b> by design.</li>
+            <li>To handle an order, tick it in the <b>Orders</b> list (or open it) and use the
+                <b>Actions</b> menu: confirm MIA payment, confirm, shipped, completed, cancel. These run
+                through the same logic as the bot, so stock, balance refunds, referral commissions and
+                customer notifications always stay correct. A move that is not allowed (for example
+                shipping an order whose MIA payment is not verified) is skipped and logged.
+                Cancelling does <b>not</b> return cash or MIA money — refund it by hand.</li>
+            <li>CSV exports: <code>/export/users</code>, <code>/export/orders</code>,
+                <code>/export/order_items</code>, <code>/export/operations</code>
+                (optional <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code>).</li>
             <li>Prices/balances use exact decimals — enter plain numbers (e.g. <code>199.99</code>).</li>
             <li>A promo code's <code>discount_type</code> is one of
                 <code>percent</code>, <code>fixed</code>, or <code>balance</code>.</li>

@@ -21,6 +21,7 @@ class Permission:
     STATS_VIEW      = 1 << 7   # 128 — statistics, logs, bought-item search
     BALANCE_MANAGE  = 1 << 8   # 256 — top-up / deduct user balance
     PROMO_MANAGE    = 1 << 9   # 512 — promo code CRUD
+    ORDERS_MANAGE   = 1 << 10  # 1024 — view orders, confirm MIA payments, change order status
 
     @staticmethod
     def is_subset(perms: int, of: int) -> bool:
@@ -56,12 +57,14 @@ class Role(Database.BASE):
             'ADMIN': [Permission.USE, Permission.BROADCAST,
                       Permission.SETTINGS_MANAGE, Permission.USERS_MANAGE,
                       Permission.CATALOG_MANAGE, Permission.STATS_VIEW,
-                      Permission.BALANCE_MANAGE, Permission.PROMO_MANAGE],
+                      Permission.BALANCE_MANAGE, Permission.PROMO_MANAGE,
+                      Permission.ORDERS_MANAGE],
             'OWNER': [Permission.USE, Permission.BROADCAST,
                       Permission.SETTINGS_MANAGE, Permission.USERS_MANAGE,
                       Permission.CATALOG_MANAGE, Permission.ADMINS_MANAGE,
                       Permission.OWN, Permission.STATS_VIEW,
-                      Permission.BALANCE_MANAGE, Permission.PROMO_MANAGE],
+                      Permission.BALANCE_MANAGE, Permission.PROMO_MANAGE,
+                      Permission.ORDERS_MANAGE],
         }
         default_role = 'USER'
         async with Database().session() as s:
@@ -105,8 +108,8 @@ class User(Database.BASE):
     is_blocked: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, index=True)
     user_operations: Mapped[list["Operations"]] = relationship(
         "Operations", back_populates="user_telegram_id", lazy='raise')
-    user_goods: Mapped[list["BoughtGoods"]] = relationship(
-        "BoughtGoods", back_populates="user_telegram_id", lazy='raise')
+    user_orders: Mapped[list["Orders"]] = relationship(
+        "Orders", back_populates="user", lazy='raise')
 
     __table_args__ = (
         CheckConstraint('referral_id != telegram_id', name='ck_users_no_self_referral'),
@@ -151,53 +154,123 @@ class Goods(Database.BASE):
         Integer, ForeignKey('categories.id', ondelete="CASCADE"), nullable=False, index=True)
     sale_percent: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     sale_until: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Units on hand. Reserved at order creation, restored when an order is cancelled.
+    stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
     category: Mapped["Categories"] = relationship("Categories", back_populates="items", lazy='raise')
-    values: Mapped[list["ItemValues"]] = relationship(
-        "ItemValues", back_populates="item", lazy='raise', passive_deletes=True)
+
+    __table_args__ = (
+        CheckConstraint('stock >= 0', name='ck_goods_stock_nonneg'),
+    )
 
     def __str__(self):
         return self.name or ""
 
 
-class ItemValues(Database.BASE):
-    __tablename__ = 'item_values'
+class OrderStatus:
+    NEW = 'new'              # placed, not yet handled by the shop
+    CONFIRMED = 'confirmed'  # accepted by the shop (and, for MIA, the payment is verified)
+    SHIPPED = 'shipped'      # handed to the courier / ready for pickup
+    COMPLETED = 'completed'  # delivered or picked up (and paid)
+    CANCELLED = 'cancelled'  # cancelled by the customer, an admin, or an unpaid-MIA timeout
+
+    ALL = (NEW, CONFIRMED, SHIPPED, COMPLETED, CANCELLED)
+    ACTIVE = (NEW, CONFIRMED, SHIPPED)
+    # Allowed forward moves; CANCELLED is reachable from any active state.
+    NEXT = {
+        NEW: (CONFIRMED, CANCELLED),
+        CONFIRMED: (SHIPPED, COMPLETED, CANCELLED),
+        SHIPPED: (COMPLETED, CANCELLED),
+        COMPLETED: (),
+        CANCELLED: (),
+    }
+
+
+class PaymentMethod:
+    MIA = 'mia'      # MIA instant transfer, confirmed manually by an admin
+    COD = 'cod'      # cash on delivery / on pickup
+    BALANCE = 'balance'  # order fully covered by the user's store balance (no cash/MIA due)
+
+    CHOICES = (MIA, COD)
+
+
+class PaymentStatus:
+    UNPAID = 'unpaid'                # nothing collected yet (COD before hand-over)
+    AWAITING_PAYMENT = 'awaiting_payment'          # MIA: waiting for the customer's transfer
+    AWAITING_CONFIRMATION = 'awaiting_confirmation'  # MIA: customer says paid, admin must verify
+    PAID = 'paid'
+    REFUNDED = 'refunded'
+
+
+class Fulfillment:
+    DELIVERY = 'delivery'
+    PICKUP = 'pickup'
+
+    CHOICES = (DELIVERY, PICKUP)
+
+
+class Orders(Database.BASE):
+    __tablename__ = 'orders'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    item_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey('goods.id', ondelete="CASCADE"), nullable=False, index=True)
-    value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    is_infinity: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    item: Mapped["Goods"] = relationship("Goods", back_populates="values", lazy='raise')
-
-    __table_args__ = (
-        UniqueConstraint('item_id', 'value', name='uq_item_value_per_item'),
-        Index('ix_item_values_item_inf', 'item_id', 'is_infinity'),
-    )
-
-    def __str__(self):
-        return f"#{self.id} ({self.item_id})"
-
-
-class BoughtGoods(Database.BASE):
-    __tablename__ = 'bought_goods'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    item_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    value: Mapped[str] = mapped_column(Text, nullable=False)
-    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    buyer_id: Mapped[Optional[int]] = mapped_column(
+    user_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey('users.telegram_id', ondelete="SET NULL"), nullable=True, index=True)
-    bought_datetime: Mapped[datetime.datetime] = mapped_column(
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=OrderStatus.NEW)
+    payment_method: Mapped[str] = mapped_column(String(16), nullable=False)
+    payment_status: Mapped[str] = mapped_column(String(24), nullable=False, default=PaymentStatus.UNPAID)
+    fulfillment: Mapped[str] = mapped_column(String(16), nullable=False)
+    customer_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    phone: Mapped[str] = mapped_column(String(32), nullable=False)
+    address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Sum of the lines after sales and promo codes.
+    total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    # Part of `total` covered from the user's store balance. Due now = total - balance_used.
+    balance_used: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default='0')
+    # Telegram file_id of the MIA payment screenshot, if the customer sent one.
+    payment_proof: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    # Unpaid MIA orders are cancelled (and their stock released) after this moment.
+    pay_by: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())
-    unique_id: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
-    user_telegram_id: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="user_goods", lazy='raise')
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="user_orders", lazy='raise')
+    items: Mapped[list["OrderItems"]] = relationship(
+        "OrderItems", back_populates="order", lazy='raise', passive_deletes=True,
+        order_by="OrderItems.id")
 
     __table_args__ = (
-        Index('ix_bought_goods_datetime', 'bought_datetime'),
-        Index('ix_bought_goods_buyer_datetime_id', 'buyer_id', 'bought_datetime', 'id'),
+        CheckConstraint('total >= 0', name='ck_orders_total_nonneg'),
+        CheckConstraint('balance_used >= 0 AND balance_used <= total', name='ck_orders_balance_used_range'),
+        Index('ix_orders_status_created_id', 'status', 'created_at', 'id'),
+        Index('ix_orders_user_created_id', 'user_id', 'created_at', 'id'),
+        Index('ix_orders_payment_status_pay_by', 'payment_status', 'pay_by'),
     )
 
     def __str__(self):
-        return self.item_name or ""
+        return f"#{self.id}"
+
+
+class OrderItems(Database.BASE):
+    __tablename__ = 'order_items'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('orders.id', ondelete="CASCADE"), nullable=False, index=True)
+    # Nullable: the product can be deleted later, the order line keeps its snapshot.
+    item_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey('goods.id', ondelete="SET NULL"), nullable=True, index=True)
+    item_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    # Line total after the sale/promo; unit_price * quantity before a promo.
+    line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    order: Mapped["Orders"] = relationship("Orders", back_populates="items", lazy='raise')
+
+    __table_args__ = (
+        CheckConstraint('quantity > 0', name='ck_order_items_quantity_positive'),
+    )
+
+    def __str__(self):
+        return f"{self.item_name} x{self.quantity}"
 
 
 class Operations(Database.BASE):
@@ -217,30 +290,6 @@ class Operations(Database.BASE):
 
     def __str__(self):
         return f"#{self.id}"
-
-
-class Payments(Database.BASE):
-    __tablename__ = "payments"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    provider: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    external_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    user_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey('users.telegram_id', ondelete="SET NULL"), nullable=True, index=True)
-    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(8), nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
-
-    __table_args__ = (
-        UniqueConstraint('provider', 'external_id', name='uq_payment_provider_ext'),
-        Index('ix_payments_status_created', 'status', 'created_at'),
-    )
-
-    def __str__(self):
-        return f"{self.provider}:{self.external_id}"
 
 
 class ReferralEarnings(Database.BASE):

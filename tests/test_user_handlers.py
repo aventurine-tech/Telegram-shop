@@ -184,3 +184,46 @@ class TestProfileWithoutUserRow:
 
         assert await check_user(630010) is not None
         call.message.edit_text.assert_called_once()
+
+
+class TestProfileForPhysicalShop:
+
+    async def test_profile_has_no_topup_and_no_orders_button_without_orders(
+        self, make_callback_query, fsm_context, user_factory
+    ):
+
+        await user_factory(telegram_id=630020, balance=5)
+        call = make_callback_query(data="profile", user_id=630020)
+        await profile_callback_handler(call, fsm_context)
+
+        cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
+               for b in row]
+        assert "replenish_balance" not in cbs
+        assert "my_orders" not in cbs
+        assert "cart" in cbs and "redeem_promo" in cbs
+        text = call.message.edit_text.call_args[0][0]
+        assert "profile.balance" in text
+        assert "profile.total_topup" not in text
+
+    async def test_profile_offers_my_orders_once_the_user_has_ordered(
+        self, make_callback_query, fsm_context, user_factory, item_factory
+    ):
+        from bot.database.methods.create import add_to_cart
+        from bot.database.methods.orders import create_order_transaction
+
+        await user_factory(telegram_id=630021)
+        await item_factory(name="ProfileItem", price=10, stock=2)
+        await add_to_cart(630021, "ProfileItem")
+        ok, _code, _order = await create_order_transaction(
+            630021, fulfillment="pickup", customer_name="Ana", phone="+37369123456",
+            address=None, comment=None, payment_method="cod",
+        )
+        assert ok
+
+        call = make_callback_query(data="profile", user_id=630021)
+        await profile_callback_handler(call, fsm_context)
+
+        cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
+               for b in row]
+        assert "my_orders" in cbs
+        assert "profile.orders_count" in call.message.edit_text.call_args[0][0]

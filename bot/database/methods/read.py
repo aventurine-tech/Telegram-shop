@@ -6,9 +6,12 @@ from typing import Optional, Dict, TypeVar, Callable, Any, Coroutine
 
 from sqlalchemy import func, exists, select, inspect as sa_inspect
 
-from bot.database.models import Database, User, ItemValues, Goods, Categories, Role, BoughtGoods, \
+from bot.database.models import Database, User, Goods, Categories, Role, \
     Operations, ReferralEarnings, Permission
-from bot.database.models.main import PromoCodes, PromoCodeUsages, CartItems, Reviews, StockSubscriptions
+from bot.database.models.main import (
+    PromoCodes, PromoCodeUsages, CartItems, Reviews, StockSubscriptions,
+    Orders, OrderItems, OrderStatus,
+)
 from bot.misc.caching import get_cache_manager, single_flight
 
 F = TypeVar('F', bound=Callable[..., Coroutine[Any, Any, Any]])
@@ -193,19 +196,6 @@ async def get_all_users() -> list[tuple[int]]:
         return result.all()
 
 
-async def get_bought_item_info(item_id: int, buyer_id: int | None = None) -> dict | None:
-    """Return bought item row as dict by row id, or None.
-
-    When ``buyer_id`` is given the row must also belong to that buyer, so a user
-    can only read their own delivered goods. Admin views pass ``buyer_id=None``
-    after an explicit permission check.
-    """
-    clauses = [BoughtGoods.id == item_id]
-    if buyer_id is not None:
-        clauses.append(BoughtGoods.buyer_id == buyer_id)
-    return await _fetch_one_dict(BoughtGoods, *clauses)
-
-
 async def get_item_info(item_name: str) -> dict | None:
     """Return item (position) row as dict by name, or None."""
     return await _fetch_one_dict(Goods, Goods.name == item_name)
@@ -219,22 +209,6 @@ async def get_items_info(item_names: list[str]) -> dict[str, dict]:
     async with Database().session() as s:
         result = await s.execute(select(Goods).where(Goods.name.in_(names)))
         return {g.name: _obj_to_dict(g, Goods) for g in result.scalars().all()}
-
-
-async def get_goods_info(item_id: int) -> dict | None:
-    """Return item_value row as dict by id, including item_name from Goods."""
-    async with Database().session() as s:
-        result = await s.execute(
-            select(ItemValues, Goods.name.label('item_name'))
-            .join(Goods, Goods.id == ItemValues.item_id)
-            .where(ItemValues.id == int(item_id))
-        )
-        row = result.first()
-        if not row:
-            return None
-        d = _obj_to_dict(row.ItemValues, ItemValues)
-        d['item_name'] = row.item_name
-        return d
 
 
 async def check_category(category_name: str) -> dict | None:
@@ -253,8 +227,7 @@ async def get_category_name_by_id(category_id: int) -> str | None:
 async def get_item_name_by_id(item_id: int) -> str | None:
     """Return a product's name by its id, or None.
 
-    ItemValues.item is lazy='raise', so callers holding only a stock row cannot
-    walk the relationship to get there.
+    Handy for callers that only hold an item id (e.g. a callback payload).
     """
     async with Database().session() as s:
         return (await s.execute(
@@ -262,45 +235,28 @@ async def get_item_name_by_id(item_id: int) -> str | None:
         )).scalar()
 
 
-async def select_item_values_amount(item_name: str) -> int:
-    """Return count of item_values for an item (by item name)."""
+async def select_item_stock(item_name: str) -> int:
+    """Return units on hand for an item (by item name); 0 when the item is unknown."""
     async with Database().session() as s:
         return (await s.execute(
-            select(func.count(ItemValues.id))
-            .join(Goods, Goods.id == ItemValues.item_id)
-            .where(Goods.name == item_name)
+            select(Goods.stock).where(Goods.name == item_name)
         )).scalar() or 0
-
-
-async def check_value(item_name: str) -> bool:
-    """Return True if item has any infinite value (is_infinity=True)."""
-    async with Database().session() as s:
-        return bool((await s.execute(
-            select(exists().where(
-                ItemValues.item_id == Goods.id,
-                Goods.name == item_name,
-                ItemValues.is_infinity.is_(True),
-            ))
-        )).scalar())
 
 
 async def select_user_items(buyer_id: int | str) -> int:
-    """Return count of bought items for user."""
+    """Return count of orders the user has placed (cancelled ones excluded)."""
     async with Database().session() as s:
         return (await s.execute(
-            select(func.count()).select_from(BoughtGoods).where(BoughtGoods.buyer_id == buyer_id)
+            select(func.count()).select_from(Orders).where(
+                Orders.user_id == buyer_id, Orders.status != OrderStatus.CANCELLED,
+            )
         )).scalar() or 0
 
 
-async def select_bought_item(unique_id: int) -> dict | None:
-    """Return one bought item by unique_id as dict, or None."""
-    return await _fetch_one_dict(BoughtGoods, BoughtGoods.unique_id == unique_id)
-
-
 async def select_count_items() -> int:
-    """Return total count of item_values."""
+    """Return total units in stock across all products."""
     async with Database().session() as s:
-        return (await s.execute(select(func.count()).select_from(ItemValues))).scalar() or 0
+        return (await s.execute(select(func.coalesce(func.sum(Goods.stock), 0)))).scalar() or 0
 
 
 async def select_count_goods() -> int:
@@ -316,35 +272,40 @@ async def select_count_categories() -> int:
 
 
 async def select_count_bought_items() -> int:
-    """Return total count of bought items."""
+    """Return total units sold (cancelled orders excluded)."""
     async with Database().session() as s:
-        return (await s.execute(select(func.count()).select_from(BoughtGoods))).scalar() or 0
+        return (await s.execute(
+            select(func.coalesce(func.sum(OrderItems.quantity), 0))
+            .join(Orders, Orders.id == OrderItems.order_id)
+            .where(Orders.status != OrderStatus.CANCELLED)
+        )).scalar() or 0
 
 
 async def select_unique_buyers() -> int:
-    """Return count of unique users who made at least one purchase."""
+    """Return count of unique users who placed at least one (non-cancelled) order."""
     async with Database().session() as s:
         return (await s.execute(
-            select(func.count(func.distinct(BoughtGoods.buyer_id)))
+            select(func.count(func.distinct(Orders.user_id))).where(Orders.status != OrderStatus.CANCELLED)
         )).scalar() or 0
 
 
 async def select_avg_order() -> Decimal:
-    """Return average purchase price."""
+    """Return the average order total (cancelled orders excluded)."""
     async with Database().session() as s:
         return (await s.execute(
-            select(func.avg(BoughtGoods.price))
+            select(func.avg(Orders.total)).where(Orders.status != OrderStatus.CANCELLED)
         )).scalar() or Decimal(0)
 
 
 async def select_today_orders_count(date: str) -> int:
-    """Return number of purchases for given date."""
+    """Return number of orders placed on the given date (cancelled excluded)."""
     start_of_day, end_of_day = _day_window(date)
     async with Database().session() as s:
         return (await s.execute(
-            select(func.count()).select_from(BoughtGoods).where(
-                BoughtGoods.bought_datetime >= start_of_day,
-                BoughtGoods.bought_datetime < end_of_day
+            select(func.count()).select_from(Orders).where(
+                Orders.status != OrderStatus.CANCELLED,
+                Orders.created_at >= start_of_day,
+                Orders.created_at < end_of_day,
             )
         )).scalar() or 0
 
@@ -367,22 +328,25 @@ async def get_blocked_user_ids() -> list[int]:
 
 
 async def select_today_orders(date: str) -> Decimal:
-    """Return total revenue for given date (YYYY-MM-DD)."""
+    """Return total of orders placed on the given date (YYYY-MM-DD), cancelled excluded."""
     start_of_day, end_of_day = _day_window(date)
     async with Database().session() as s:
         res = (await s.execute(
-            select(func.sum(BoughtGoods.price)).where(
-                BoughtGoods.bought_datetime >= start_of_day,
-                BoughtGoods.bought_datetime < end_of_day
+            select(func.sum(Orders.total)).where(
+                Orders.status != OrderStatus.CANCELLED,
+                Orders.created_at >= start_of_day,
+                Orders.created_at < end_of_day,
             )
         )).scalar()
         return res or Decimal(0)
 
 
 async def select_all_orders() -> Decimal:
-    """Return total revenue for all time (sum of BoughtGoods.price)."""
+    """Return total of all orders ever placed (cancelled excluded)."""
     async with Database().session() as s:
-        return (await s.execute(select(func.sum(BoughtGoods.price)))).scalar() or Decimal(0)
+        return (await s.execute(
+            select(func.sum(Orders.total)).where(Orders.status != OrderStatus.CANCELLED)
+        )).scalar() or Decimal(0)
 
 
 async def select_today_operations(date: str) -> Decimal:
@@ -446,8 +410,8 @@ async def get_user_profile_aggregates(user_id: int, role_id: int | None) -> dict
                 .where(Operations.user_id == user_id)
                 .scalar_subquery().label("operations_total"),
 
-                select(func.count()).select_from(BoughtGoods)
-                .where(BoughtGoods.buyer_id == user_id)
+                select(func.count()).select_from(Orders)
+                .where(Orders.user_id == user_id, Orders.status != OrderStatus.CANCELLED)
                 .scalar_subquery().label("items_count"),
 
                 select(func.count()).select_from(User)
@@ -558,15 +522,9 @@ async def get_item_info_cached(item_name: str):
 
 
 @async_cached(ttl=300, key_prefix="item_values")
-async def select_item_values_amount_cached(item_name: str):
-    """Cached quantity of goods"""
-    return await select_item_values_amount(item_name)
-
-
-@async_cached(ttl=300, key_prefix="item_infinite")
-async def check_value_cached(item_name: str):
-    """Cached check_value (whether the item has an infinite value)."""
-    return bool(await check_value(item_name))
+async def select_item_stock_cached(item_name: str):
+    """Cached units on hand"""
+    return await select_item_stock(item_name)
 
 
 @async_cached(ttl=60, key_prefix="user_count")
@@ -594,7 +552,7 @@ async def invalidate_user_cache(user_id: int):
         await cache.delete_many((
             f"user:{user_id}",
             f"auth:role:{user_id}",
-            f"count:bought:{user_id}",
+            f"count:orders:{user_id}",
             f"count:ops:{user_id}",
         ))
 
@@ -614,10 +572,8 @@ async def invalidate_item_cache(item_name: str, category_name: str = None):
         keys = [
             f"item_info:{item_name}",
             f"item_values:{item_name}",
-            f"item_infinite:{item_name}",
             f"avg_rating:{item_name}",
             f"count:reviews:{item_name}",
-            f"count:stock:{item_name}",
         ]
         if category_name:
             keys.append(f"category:{category_name}")
@@ -874,12 +830,14 @@ async def get_item_avg_rating(item_name: str) -> float | None:
 
 
 async def has_purchased_item(user_id: int, item_name: str) -> bool:
-    """Check if user has purchased an item."""
+    """Check if the user has received an item (a *completed* order contains it)."""
     async with Database().session() as s:
         return (await s.execute(
             select(exists().where(
-                BoughtGoods.buyer_id == user_id,
-                BoughtGoods.item_name == item_name
+                OrderItems.order_id == Orders.id,
+                Orders.user_id == user_id,
+                Orders.status == OrderStatus.COMPLETED,
+                OrderItems.item_name == item_name,
             ))
         )).scalar()
 

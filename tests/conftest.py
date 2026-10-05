@@ -132,8 +132,8 @@ async def db_cleanup(setup_test_database):
 
     from bot.database.main import Database
     from bot.database.models.main import (
-        ReferralEarnings, BoughtGoods, Operations, Payments,
-        ItemValues, Goods, Categories, User, Role,
+        ReferralEarnings, Operations, OrderItems, Orders,
+        Goods, Categories, User, Role,
         Reviews, CartItems, PromoCodeUsages, PromoCodes,
         StockSubscriptions,
     )
@@ -147,10 +147,9 @@ async def db_cleanup(setup_test_database):
         await s.execute(delete(PromoCodeUsages))
         await s.execute(delete(PromoCodes))
         await s.execute(delete(ReferralEarnings))
-        await s.execute(delete(BoughtGoods))
+        await s.execute(delete(OrderItems))
+        await s.execute(delete(Orders))
         await s.execute(delete(Operations))
-        await s.execute(delete(Payments))
-        await s.execute(delete(ItemValues))
         await s.execute(delete(Goods))
         await s.execute(delete(Categories))
         await s.execute(delete(User))
@@ -184,7 +183,8 @@ def patch_safe_create_task():
             patch('bot.database.methods.create.safe_create_task', side_effect=run_immediately), \
             patch('bot.database.methods.update.safe_create_task', side_effect=run_immediately), \
             patch('bot.database.methods.delete.safe_create_task', side_effect=run_immediately), \
-            patch('bot.database.methods.transactions.safe_create_task', side_effect=run_immediately):
+            patch('bot.database.methods.transactions.safe_create_task', side_effect=run_immediately), \
+            patch('bot.database.methods.orders.safe_create_task', side_effect=run_immediately):
         yield
 
 
@@ -192,15 +192,21 @@ def patch_safe_create_task():
 def patch_env_keys():
     """Provide safe default EnvKeys for tests."""
     patches = {
-        'PAY_CURRENCY': 'RUB',
+        'PAY_CURRENCY': 'MDL',
         'REFERRAL_PERCENT': 10,
         'OWNER_ID': 999999,
         'MIN_AMOUNT': 10,
         'MAX_AMOUNT': 10000,
-        'PAYMENT_TIME': 1800,
-        'STARS_PER_VALUE': 0.91,
-        'CRYPTO_PAY_TOKEN': 'test_token',
-        'TELEGRAM_PROVIDER_TOKEN': 'test_provider',
+        'MIA_RECIPIENT': 'Test Shop SRL',
+        'MIA_PHONE': '+37360000000',
+        'MIA_IBAN': 'MD00TEST000000000000',
+        'MIA_PAY_TIMEOUT_MIN': 120,
+        'COD_ENABLED': '1',
+        'DELIVERY_ENABLED': '1',
+        'PICKUP_ENABLED': '1',
+        'PICKUP_ADDRESS': 'Test street 1',
+        'DELIVERY_INFO': '',
+        'ORDERS_CHAT_ID': '',
         'CHANNEL_URL': '',
         'HELPER_ID': '',
         'RULES': 'Test rules',
@@ -210,25 +216,44 @@ def patch_env_keys():
         yield
 
 
+# Every module that does `from bot.i18n import localize`. Patched when importable, so a
+# module that is renamed or removed doesn't break the whole suite.
+_LOCALIZING_MODULES = (
+    'bot.handlers.user.main',
+    'bot.handlers.user.shop_and_goods',
+    'bot.handlers.user.referral_system',
+    'bot.handlers.user.cart',
+    'bot.handlers.user.checkout',
+    'bot.handlers.user.balance_and_payment',
+    'bot.handlers.admin.user_management',
+    'bot.handlers.admin.categories_management',
+    'bot.handlers.admin.goods_management',
+    'bot.handlers.admin.sale_management',
+    'bot.handlers.admin.role_management',
+    'bot.handlers.admin.orders_management',
+)
+
+
 @pytest.fixture(autouse=True)
 def mock_localize():
     """localize() returns the key so tests can assert which message was sent."""
+    import contextlib
+    import importlib
 
     def fake_localize(key, **kwargs):
         if kwargs:
             return f"{key}:{kwargs}"
         return key
 
-    with patch('bot.i18n.localize', side_effect=fake_localize) as m, \
-            patch('bot.handlers.user.main.localize', side_effect=fake_localize), \
-            patch('bot.handlers.user.balance_and_payment.localize', side_effect=fake_localize), \
-            patch('bot.handlers.user.shop_and_goods.localize', side_effect=fake_localize), \
-            patch('bot.handlers.user.referral_system.localize', side_effect=fake_localize), \
-            patch('bot.handlers.admin.user_management.localize', side_effect=fake_localize), \
-            patch('bot.handlers.admin.categories_management.localize', side_effect=fake_localize), \
-            patch('bot.handlers.admin.goods_management.localize', side_effect=fake_localize), \
-            patch('bot.handlers.admin.sale_management.localize', side_effect=fake_localize), \
-            patch('bot.handlers.admin.role_management.localize', side_effect=fake_localize):
+    with contextlib.ExitStack() as stack:
+        m = stack.enter_context(patch('bot.i18n.localize', side_effect=fake_localize))
+        for path in _LOCALIZING_MODULES:
+            try:
+                module = importlib.import_module(path)
+            except Exception:  # missing, renamed, or mid-refactor: nothing to patch
+                continue
+            if hasattr(module, 'localize'):
+                stack.enter_context(patch.object(module, 'localize', side_effect=fake_localize))
         yield m
 
 
@@ -290,21 +315,18 @@ def category_factory():
 
 @pytest.fixture
 def item_factory(category_factory):
-    """Factory to create items with optional stock values."""
-    from bot.database.methods.create import create_item, add_values_to_item
+    """Factory to create items with an optional units-on-hand count."""
+    from bot.database.methods.create import create_item
 
     async def _create(
             name: str = "TestItem",
             price: int = 100,
             category: str = "TestCategory",
             description: str = "Test description",
-            values: list = None,
+            stock: int = 0,
     ):
         await category_factory(category)
-        await create_item(name, description, price, category)
-        if values:
-            for val, is_inf in values:
-                await add_values_to_item(name, val, is_inf)
+        await create_item(name, description, price, category, stock=stock)
 
     return _create
 
@@ -314,7 +336,7 @@ def mock_bot():
     """Mock bot with common method signatures."""
     bot = AsyncMock()
     bot.send_message = AsyncMock()
-    bot.send_invoice = AsyncMock()
+    bot.send_photo = AsyncMock()
     bot.get_chat = AsyncMock(return_value=MagicMock(first_name="TestUser"))
     bot.get_chat_member = AsyncMock()
     return bot

@@ -12,11 +12,14 @@ from bot.i18n import localize
 from bot.database.models import Permission
 from bot.database.methods import (
     check_role_name_by_id, check_user_cached, get_one_referral_earning,
-    query_user_bought_items, query_user_referrals, query_referral_earnings_from_user, query_all_referral_earnings,
+    query_user_orders, query_user_referrals, query_referral_earnings_from_user, query_all_referral_earnings,
     admin_balance_change
 )
 from bot.database.methods.read import get_user_profile_aggregates
 from bot.keyboards import back, close, simple_buttons, lazy_paginated_keyboard
+from bot.keyboards.orders_admin import order_card_keyboard
+from bot.database.methods.orders import get_order
+from bot.misc.services.order_view import format_order
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.handlers.admin._common import user_profile_lines
@@ -42,7 +45,7 @@ async def _build_user_profile(bot, target_id: int, caller_perms: int = 0):
         get_user_profile_aggregates(target_id, user.get('role_id')),
     )
     overall_balance = agg['operations_total']
-    items_count = agg['items_count']
+    orders_count = agg['items_count']
     role = agg['role_name']
     referrals = agg['referrals']
     earnings_stats = agg['earnings']
@@ -68,8 +71,8 @@ async def _build_user_profile(bot, target_id: int, caller_perms: int = 0):
         else:
             actions.append((localize('btn.admin.block'), f"block-user_{target_id}"))
 
-    if items_count:
-        actions.append((localize('btn.purchased'), f"user-items_{target_id}"))
+    if orders_count and caller_perms & Permission.ORDERS_MANAGE:
+        actions.append((localize('admin.users.btn.orders'), f"user-orders_{target_id}"))
 
     if has_referrals:
         actions.append((localize('admin.users.btn.view_referrals'), f"admin-view-referrals_{target_id}"))
@@ -82,7 +85,7 @@ async def _build_user_profile(bot, target_id: int, caller_perms: int = 0):
 
     lines = user_profile_lines(
         user, first_name, target_id,
-        overall_balance=overall_balance, items_count=items_count,
+        overall_balance=overall_balance, orders_count=orders_count,
         role=role, referrals=referrals, include_referral_id=False,
     )
 
@@ -372,32 +375,82 @@ async def admin_earning_detail_handler(call: CallbackQuery):
     )
 
 
-@router.callback_query(F.data.startswith('user-items_'), HasPermissionFilter(Permission.USERS_MANAGE))
-async def user_items_callback_handler(call: CallbackQuery, state: FSMContext):
-    """
-    Shows bought items of a specific user with lazy loading.
-    Callback data format: user-items_{user_id}
-    """
-    try:
-        user_id = int(call.data[len('user-items_'):])
-    except (ValueError, TypeError):
-        await call.answer(localize('errors.invalid_data'), show_alert=True)
-        return
+async def _show_user_orders_page(call: CallbackQuery, user_id: int, page: int):
+    """Render one page of a user's orders (shared by the view and paginate handlers)."""
+    paginator = LazyPaginator(partial(query_user_orders, user_id), per_page=10)
 
-    # Create paginator
-    query_func = partial(query_user_bought_items, user_id)
-    paginator = LazyPaginator(query_func, per_page=10)
+    if page == 0 and await paginator.get_total_count() == 0:
+        await call.message.edit_text(
+            localize('admin.users.orders.empty'),
+            reply_markup=back(f'check-user_{user_id}')
+        )
+        return
 
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
-        item_text=lambda item: item.item_name,
-        item_callback=lambda item: f"bought-item:{item.id}:bought-goods-page_{user_id}_0",
-        page=0,
+        item_text=lambda o: localize('admin.users.orders.item', id=o.id, total=o.total,
+                                     currency=EnvKeys.PAY_CURRENCY,
+                                     status=localize(f'order.status.{o.status}')),
+        item_callback=lambda o: f"uord:{o.id}:{user_id}:{page}",
+        page=page,
         back_cb=f'check-user_{user_id}',
-        nav_cb_prefix=f"bought-goods-page_{user_id}_"
+        nav_cb_prefix=f"user-orders-page_{user_id}_"
     )
 
-    await call.message.edit_text(localize('purchases.title'), reply_markup=markup)
+    await call.message.edit_text(localize('admin.users.orders.title'), reply_markup=markup)
+
+
+@router.callback_query(F.data.startswith('user-orders_'),
+                       HasPermissionFilter(permission=Permission.USERS_MANAGE | Permission.ORDERS_MANAGE))
+async def user_orders_callback_handler(call: CallbackQuery, state: FSMContext):
+    """
+    Shows the orders of a specific user with lazy loading.
+    Callback data format: user-orders_{user_id}
+    """
+    try:
+        user_id = int(call.data[len('user-orders_'):])
+    except (ValueError, TypeError):
+        await call.answer(localize('errors.invalid_data'), show_alert=True)
+        return
+    await _show_user_orders_page(call, user_id, 0)
+
+
+@router.callback_query(F.data.startswith('user-orders-page_'),
+                       HasPermissionFilter(permission=Permission.USERS_MANAGE | Permission.ORDERS_MANAGE))
+async def user_orders_pagination_handler(call: CallbackQuery, state: FSMContext):
+    """Pagination for a user's orders. Format: user-orders-page_{user}_{page}"""
+    try:
+        _prefix, user_id, page = call.data.split('_')
+        user_id, page = int(user_id), int(page)
+    except ValueError:
+        await call.answer(localize('errors.pagination_invalid'))
+        return
+    await _show_user_orders_page(call, user_id, page)
+
+
+@router.callback_query(F.data.startswith('uord:'),
+                       HasPermissionFilter(permission=Permission.USERS_MANAGE | Permission.ORDERS_MANAGE))
+async def user_order_card_handler(call: CallbackQuery):
+    """
+    Opens one of the user's orders as the admin order card.
+    Callback data format: uord:{order_id}:{user_id}:{page}
+    """
+    try:
+        _prefix, order_id, user_id, page = call.data.split(':')
+        order_id, user_id, page = int(order_id), int(user_id), int(page)
+    except ValueError:
+        await call.answer(localize('errors.invalid_data'), show_alert=True)
+        return
+
+    order = await get_order(order_id, user_id=user_id)
+    if not order:
+        await call.answer(localize('admin.orders.err.not_found'), show_alert=True)
+        return
+
+    await call.message.edit_text(
+        format_order(order, admin=True), parse_mode='HTML',
+        reply_markup=order_card_keyboard(order, back_cb=f"user-orders-page_{user_id}_{page}"),
+    )
 
 
 @router.callback_query(F.data.startswith('fill-user-balance_'), HasPermissionFilter(Permission.BALANCE_MANAGE))

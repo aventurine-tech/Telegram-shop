@@ -10,7 +10,7 @@ from html import escape as _esc
 
 from bot.database.methods import (
     select_max_role_id, create_user, check_role_cached, check_user,
-    select_user_operations_total, select_user_items, check_user_cached
+    select_user_items, check_user_cached
 )
 from bot.database.methods.read import get_cart_count, invalidate_user_cache
 from bot.database.methods.lazy_queries import query_user_operations_history
@@ -185,7 +185,7 @@ async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "profile")
 async def profile_callback_handler(call: CallbackQuery, state: FSMContext):
     """
-    Send profile info (balance, purchases count, id, etc.).
+    Send profile info (balance, orders count, id, etc.).
     """
     user_id = call.from_user.id
     tg_user = call.from_user
@@ -195,20 +195,18 @@ async def profile_callback_handler(call: CallbackQuery, state: FSMContext):
         return
 
     balance = user_info.get('balance')
-    overall_balance, items, cart_count = await asyncio.gather(
-        select_user_operations_total(user_id),
+    orders, cart_count = await asyncio.gather(
         select_user_items(user_id),
         get_cart_count(user_id),
     )
     referral = EnvKeys.REFERRAL_PERCENT
 
-    markup = profile_keyboard(referral, items, cart_count=cart_count)
+    markup = profile_keyboard(referral, orders, cart_count=cart_count)
     text = (
         f"{localize('profile.caption', name=_esc(tg_user.first_name or ''), id=user_id)}\n"
         f"{localize('profile.id', id=user_id)}\n"
         f"{localize('profile.balance', amount=balance, currency=EnvKeys.PAY_CURRENCY)}\n"
-        f"{localize('profile.total_topup', amount=overall_balance, currency=EnvKeys.PAY_CURRENCY)}\n"
-        f"{localize('profile.purchased_count', count=items)}"
+        f"{localize('profile.orders_count', count=orders)}"
     )
     try:
         await call.message.edit_text(text, reply_markup=markup, parse_mode='HTML')

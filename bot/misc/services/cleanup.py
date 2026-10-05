@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class CleanupManager:
-    """Periodic cleanup of old audit_log entries and expired payments."""
+    """Periodic cleanup of old audit_log entries."""
 
     def __init__(self):
         self.tasks = []
@@ -48,16 +48,14 @@ class CleanupManager:
 
             try:
                 from bot.database import Database
-                from bot.database.models.main import AuditLog, Payments
+                from bot.database.models.main import AuditLog
                 from bot.misc.env import EnvKeys
                 from bot.database.methods.audit import log_audit
 
                 audit_days = EnvKeys.AUDIT_RETENTION_DAYS
-                payments_days = EnvKeys.PAYMENTS_RETENTION_DAYS
                 now = datetime.now(timezone.utc)
 
                 audit_deleted = 0
-                payments_deleted = 0
 
                 async with Database().session() as s:
                     # 1. Delete old audit_log entries
@@ -67,21 +65,11 @@ class CleanupManager:
                         )
                         audit_deleted = audit_result.rowcount
 
-                    # 2. Delete old pending/failed payments
-                    if payments_days > 0:
-                        payments_result = await s.execute(
-                            delete(Payments).where(
-                                Payments.status.in_(['pending', 'failed']),
-                                Payments.created_at < now - timedelta(days=payments_days)
-                            )
-                        )
-                        payments_deleted = payments_result.rowcount
-
                 await log_audit(
                     "daily_cleanup",
-                    details=f"audit_deleted={audit_deleted}, payments_deleted={payments_deleted}"
+                    details=f"audit_deleted={audit_deleted}"
                 )
-                logger.info(f"Daily cleanup: audit={audit_deleted}, payments={payments_deleted}")
+                logger.info(f"Daily cleanup: audit={audit_deleted}")
 
             except Exception as e:
                 logger.error(f"Daily cleanup failed: {e}", exc_info=True)

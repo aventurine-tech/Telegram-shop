@@ -1,12 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from sqlalchemy import select
-
 from bot.misc.services.cleanup import CleanupManager
 from bot.misc.services.recovery import RecoveryManager
-from bot.database.methods.create import create_pending_payment
 from bot.database.main import Database
-from bot.database.models.main import Payments
 
 
 class TestRecoveryManager:
@@ -16,60 +12,74 @@ class TestRecoveryManager:
         self.bot.get_me = AsyncMock(return_value=MagicMock(username="test_bot"))
         self.manager = RecoveryManager(self.bot)
 
-    async def test_check_and_process_paid_payment(self, user_factory):
-        await user_factory(telegram_id=500001, balance=0)
-        await create_pending_payment("cryptopay", "rec_inv_1", 500001, 200, "RUB")
+    async def _order(self, user_id, item_name, stock=3, qty=1, method="mia"):
+        from bot.database.methods.create import add_to_cart
+        from bot.database.methods.orders import create_order_transaction
+        await add_to_cart(user_id, item_name, quantity=qty)
+        ok, code, order = await create_order_transaction(
+            user_id, fulfillment="pickup", customer_name="Ana", phone="+37369123456",
+            address=None, comment=None, payment_method=method,
+        )
+        assert ok, code
+        return order
 
-        # Get the payment object
+    async def _expire(self, order_id):
+        """Pretend the pay-by deadline passed an hour ago."""
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import update
+        from bot.database.models.main import Orders
         async with Database().session() as s:
-            payment = (await s.execute(select(Payments).filter(
-                Payments.external_id == "rec_inv_1"
-            ))).scalars().first()
-            payment_copy = MagicMock()
-            payment_copy.id = payment.id
-            payment_copy.provider = payment.provider
-            payment_copy.external_id = payment.external_id
-            payment_copy.user_id = payment.user_id
-            payment_copy.amount = payment.amount
-            payment_copy.currency = payment.currency
+            await s.execute(update(Orders).where(Orders.id == order_id).values(
+                pay_by=datetime.now(timezone.utc) - timedelta(hours=1)))
 
-        mock_crypto = AsyncMock()
-        mock_crypto.get_invoice = AsyncMock(return_value={"status": "paid"})
+    async def test_sweep_cancels_overdue_mia_order_and_tells_the_customer(self, user_factory, item_factory):
+        from bot.database.methods.orders import get_order
+        from bot.database.methods.read import select_item_stock
 
-        with patch('bot.misc.services.payment.CryptoPayAPI', return_value=mock_crypto):
-            await self.manager._check_and_process_payment(payment_copy)
+        await user_factory(telegram_id=500001)
+        await item_factory(name="SweepItem", price=10, stock=2)
+        order = await self._order(500001, "SweepItem", qty=2)
+        assert await select_item_stock("SweepItem") == 0
+        await self._expire(order["id"])
 
-        # Verify payment processed
-        async with Database().session() as s:
-            p = (await s.execute(select(Payments).filter(Payments.external_id == "rec_inv_1"))).scalars().first()
-            assert p.status == "succeeded"
+        with patch("bot.misc.services.restock_notifier.notify_restock", new_callable=AsyncMock) as restock:
+            await self.manager.expire_unpaid_orders()
 
-    async def test_check_and_process_expired_payment(self, user_factory):
+        assert (await get_order(order["id"]))["status"] == "cancelled"
+        assert await select_item_stock("SweepItem") == 2
+        self.bot.send_message.assert_awaited_once()
+        assert self.bot.send_message.await_args.args[0] == 500001
+        assert "notify.customer.mia_expired" in self.bot.send_message.await_args.args[1]
+        restock.assert_awaited_once_with(self.bot, "SweepItem")   # 0 -> 2 wakes the waiting list
+
+    async def test_sweep_leaves_orders_within_their_deadline_alone(self, user_factory, item_factory):
+        from bot.database.methods.orders import get_order
+
         await user_factory(telegram_id=500002)
-        await create_pending_payment("cryptopay", "rec_inv_2", 500002, 100, "RUB")
+        await item_factory(name="FreshItem", price=10, stock=2)
+        order = await self._order(500002, "FreshItem")
 
-        async with Database().session() as s:
-            payment = (await s.execute(select(Payments).filter(
-                Payments.external_id == "rec_inv_2"
-            ))).scalars().first()
-            payment_copy = MagicMock()
-            payment_copy.id = payment.id
-            payment_copy.provider = payment.provider
-            payment_copy.external_id = payment.external_id
-            payment_copy.user_id = payment.user_id
-            payment_copy.amount = payment.amount
-            payment_copy.currency = payment.currency
+        await self.manager.expire_unpaid_orders()
 
-        mock_crypto = AsyncMock()
-        mock_crypto.get_invoice = AsyncMock(return_value={"status": "expired"})
+        assert (await get_order(order["id"]))["status"] == "new"
+        self.bot.send_message.assert_not_awaited()
 
-        with patch('bot.misc.services.payment.CryptoPayAPI', return_value=mock_crypto):
-            await self.manager._check_and_process_payment(payment_copy)
+    async def test_sweep_skips_cod_and_claimed_orders(self, user_factory, item_factory):
+        from bot.database.methods.orders import get_order, mark_mia_paid
 
-        # Should be marked as failed
-        async with Database().session() as s:
-            p = (await s.execute(select(Payments).filter(Payments.external_id == "rec_inv_2"))).scalars().first()
-            assert p.status == "failed"
+        await user_factory(telegram_id=500003)
+        await user_factory(telegram_id=500004)
+        await item_factory(name="CodItem", price=10, stock=5)
+        cod = await self._order(500003, "CodItem", method="cod")
+        mia = await self._order(500004, "CodItem")
+        await mark_mia_paid(mia["id"], 500004)            # the shop is verifying: the timer must not cancel it
+        await self._expire(cod["id"])
+        await self._expire(mia["id"])
+
+        await self.manager.expire_unpaid_orders()
+
+        assert (await get_order(cod["id"]))["status"] == "new"
+        assert (await get_order(mia["id"]))["status"] == "new"
 
     async def test_health_check_does_not_call_telegram(self, fake_cache):
         """The per-minute health check must not spend a Telegram API call —
@@ -81,7 +91,7 @@ class TestRecoveryManager:
 
     async def test_start_creates_tasks(self):
         # Patch the recovery methods to not actually run
-        self.manager.recover_pending_payments = AsyncMock()
+        self.manager.expire_unpaid_orders = AsyncMock()
         self.manager.periodic_health_check = AsyncMock()
 
         await self.manager.start()
@@ -114,95 +124,27 @@ class TestRecoveryManager:
             self.manager.ERROR_BACKOFF, 300,
         ]
 
-    async def test_check_and_process_api_timeout(self, user_factory):
-        """API timeout should not crash the recovery manager."""
-        await user_factory(telegram_id=500003, balance=0)
-        await create_pending_payment("cryptopay", "rec_inv_timeout", 500003, 300, "RUB")
+    async def test_sweep_failure_to_notify_does_not_undo_the_cancellation(self, user_factory, item_factory):
+        from bot.database.methods.orders import get_order
 
-        async with Database().session() as s:
-            payment = (await s.execute(select(Payments).filter(
-                Payments.external_id == "rec_inv_timeout"
-            ))).scalars().first()
-            payment_copy = MagicMock()
-            payment_copy.id = payment.id
-            payment_copy.provider = payment.provider
-            payment_copy.external_id = payment.external_id
-            payment_copy.user_id = payment.user_id
-            payment_copy.amount = payment.amount
-            payment_copy.currency = payment.currency
+        await user_factory(telegram_id=500005)
+        await item_factory(name="BlockedItem", price=10, stock=1)
+        order = await self._order(500005, "BlockedItem")
+        await self._expire(order["id"])
+        self.bot.send_message.side_effect = RuntimeError("bot was blocked by the user")
 
-        mock_crypto = AsyncMock()
-        mock_crypto.get_invoice = AsyncMock(side_effect=Exception("Connection timeout"))
+        await self.manager.expire_unpaid_orders()
 
-        with patch('bot.misc.services.payment.CryptoPayAPI', return_value=mock_crypto):
-            # Should not raise
-            await self.manager._check_and_process_payment(payment_copy)
-
-        # Payment status should remain unchanged (pending)
-        async with Database().session() as s:
-            p = (await s.execute(select(Payments).filter(Payments.external_id == "rec_inv_timeout"))).scalars().first()
-            assert p.status == "pending"
-
-    async def test_check_and_process_active_payment_no_change(self, user_factory):
-        """Active (not yet paid/expired) payment should stay pending."""
-        await user_factory(telegram_id=500004, balance=0)
-        await create_pending_payment("cryptopay", "rec_inv_active", 500004, 150, "RUB")
-
-        async with Database().session() as s:
-            payment = (await s.execute(select(Payments).filter(
-                Payments.external_id == "rec_inv_active"
-            ))).scalars().first()
-            payment_copy = MagicMock()
-            payment_copy.id = payment.id
-            payment_copy.provider = payment.provider
-            payment_copy.external_id = payment.external_id
-            payment_copy.user_id = payment.user_id
-            payment_copy.amount = payment.amount
-            payment_copy.currency = payment.currency
-
-        mock_crypto = AsyncMock()
-        mock_crypto.get_invoice = AsyncMock(return_value={"status": "active"})
-
-        with patch('bot.misc.services.payment.CryptoPayAPI', return_value=mock_crypto):
-            await self.manager._check_and_process_payment(payment_copy)
-
-        async with Database().session() as s:
-            p = (await s.execute(select(Payments).filter(Payments.external_id == "rec_inv_active"))).scalars().first()
-            assert p.status == "pending"
-
-    async def test_check_non_cryptopay_provider_skipped(self, user_factory):
-        """Non-cryptopay payments should be skipped."""
-        await user_factory(telegram_id=500005, balance=0)
-        await create_pending_payment("stars", "stars_ext_1", 500005, 100, "XTR")
-
-        async with Database().session() as s:
-            payment = (await s.execute(select(Payments).filter(
-                Payments.external_id == "stars_ext_1"
-            ))).scalars().first()
-            payment_copy = MagicMock()
-            payment_copy.id = payment.id
-            payment_copy.provider = payment.provider
-            payment_copy.external_id = payment.external_id
-            payment_copy.user_id = payment.user_id
-            payment_copy.amount = payment.amount
-            payment_copy.currency = payment.currency
-
-        # Should not attempt API call for non-cryptopay
-        await self.manager._check_and_process_payment(payment_copy)
-
-        async with Database().session() as s:
-            p = (await s.execute(select(Payments).filter(Payments.external_id == "stars_ext_1"))).scalars().first()
-            assert p.status == "pending"
+        assert (await get_order(order["id"]))["status"] == "cancelled"
 
 
 class TestCleanupRetention:
     def setup_method(self):
         self.manager = CleanupManager()
 
-    async def _run_one_sweep(self, monkeypatch, *, audit_days, payments_days):
+    async def _run_one_sweep(self, monkeypatch, *, audit_days):
         from bot.misc.env import EnvKeys
         monkeypatch.setattr(EnvKeys, "AUDIT_RETENTION_DAYS", audit_days, raising=False)
-        monkeypatch.setattr(EnvKeys, "PAYMENTS_RETENTION_DAYS", payments_days, raising=False)
 
         self.manager.running = True
 
@@ -216,40 +158,29 @@ class TestCleanupRetention:
 
     async def _seed(self):
         from datetime import datetime, timedelta, timezone
-        from bot.database.models.main import AuditLog, Payments as P
+        from bot.database.models.main import AuditLog
         old = datetime.now(timezone.utc) - timedelta(days=365)
         async with Database().session() as s:
             s.add(AuditLog(timestamp=old, level="INFO", action="ancient"))
-            s.add(P(provider="cryptopay", external_id="ret_old", user_id=None,
-                    amount=10, currency="RUB", status="pending", created_at=old))
 
-    async def _counts(self):
-        from sqlalchemy import func
-        from bot.database.models.main import AuditLog, Payments as P
+    async def _ancient_rows(self):
+        from sqlalchemy import func, select
+        from bot.database.models.main import AuditLog
         async with Database().session() as s:
-            audit = (await s.execute(select(func.count(AuditLog.id)))).scalar()
-            payments = (await s.execute(select(func.count(P.id)))).scalar()
-        return audit, payments
+            return (await s.execute(
+                select(func.count(AuditLog.id)).where(AuditLog.action == "ancient")
+            )).scalar()
 
     async def test_zero_retention_deletes_nothing(self, monkeypatch):
         await self._seed()
-        before = await self._counts()
 
-        await self._run_one_sweep(monkeypatch, audit_days=0, payments_days=0)
+        await self._run_one_sweep(monkeypatch, audit_days=0)
 
-        # The sweep logs its own audit row, so audit can only have grown.
-        audit_after, payments_after = await self._counts()
-        assert audit_after >= before[0]
-        assert payments_after == before[1]
+        assert await self._ancient_rows() == 1
 
     async def test_positive_retention_still_prunes(self, monkeypatch):
         await self._seed()
 
-        await self._run_one_sweep(monkeypatch, audit_days=90, payments_days=90)
+        await self._run_one_sweep(monkeypatch, audit_days=90)
 
-        from bot.database.models.main import Payments as P
-        async with Database().session() as s:
-            stale = (await s.execute(
-                select(P).where(P.external_id == "ret_old")
-            )).scalars().first()
-        assert stale is None
+        assert await self._ancient_rows() == 0

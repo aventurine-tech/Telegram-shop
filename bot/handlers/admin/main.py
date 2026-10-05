@@ -5,12 +5,21 @@ from aiogram.types import CallbackQuery
 from bot.i18n import localize
 from bot.keyboards import admin_console_keyboard
 from bot.database.methods import check_role_cached
+from bot.database.methods.lazy_queries import query_orders
 from bot.filters import HasPermissionFilter
 from bot.database.models import Permission
+from bot.database.models.main import OrderStatus
 from bot.database.methods.audit import log_audit
 from bot.middleware.security import get_auth_middleware
 
 router = Router()
+
+
+async def _new_orders_badge(role: int) -> int:
+    """Orders waiting for a decision, for the badge on the console button (0 without the right)."""
+    if not role & Permission.ORDERS_MANAGE:
+        return 0
+    return await query_orders(status=OrderStatus.NEW, count_only=True)
 
 
 @router.callback_query(F.data == 'console')
@@ -25,7 +34,8 @@ async def console_callback_handler(call: CallbackQuery, state: FSMContext):
         maintenance = mw.maintenance_mode if mw else False
         await call.message.edit_text(
             localize("admin.menu.main"),
-            reply_markup=admin_console_keyboard(maintenance_mode=maintenance, role=role),
+            reply_markup=admin_console_keyboard(
+                maintenance_mode=maintenance, role=role, new_orders=await _new_orders_badge(role)),
         )
     else:
         await call.answer(localize("admin.menu.rights"))
@@ -58,5 +68,6 @@ async def toggle_maintenance_handler(call: CallbackQuery):
     role = await check_role_cached(call.from_user.id)
     await call.message.edit_text(
         localize("admin.menu.main"),
-        reply_markup=admin_console_keyboard(maintenance_mode=mw.maintenance_mode, role=role),
+        reply_markup=admin_console_keyboard(
+            maintenance_mode=mw.maintenance_mode, role=role, new_orders=await _new_orders_badge(role)),
     )

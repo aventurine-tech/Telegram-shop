@@ -5,7 +5,7 @@ import time
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqladmin import Admin, ModelView
+from sqladmin import Admin, ModelView, action
 from sqladmin.authentication import AuthenticationBackend
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -78,9 +78,9 @@ class LoginRateLimiter:
 _login_limiter = LoginRateLimiter()
 from bot.database.main import Database
 from bot.database.models.main import (
-    User, Role, Categories, Goods, ItemValues,
-    BoughtGoods, Operations, Payments, ReferralEarnings,
+    User, Role, Categories, Goods, Orders, OrderItems, Operations, ReferralEarnings,
     AuditLog, PromoCodes, CartItems, Reviews, promo_scope_for,
+    OrderStatus,
 )
 from bot.misc.metrics import get_metrics
 from bot.misc.caching import get_cache_manager
@@ -88,7 +88,9 @@ from bot.database.methods.read import (
     invalidate_user_cache, invalidate_item_cache, invalidate_rating_cache, get_item_name_by_id,
 )
 from bot.database.methods.cache_utils import safe_create_task
+from bot.database.methods.orders import set_order_status, confirm_mia_payment
 from bot.misc.services.restock_notifier import notify_restock
+from bot.misc.services.order_view import notify_customer
 from bot.middleware.security import invalidate_auth_caches, flush_all_role_caches
 
 
@@ -187,7 +189,7 @@ class UserAdmin(AuditModelView, model=User):
     column_sortable_list = [User.telegram_id, User.balance, User.registration_date]
     column_default_sort = (User.registration_date, True)
     form_excluded_columns = [
-        User.user_operations, User.user_goods,
+        User.user_operations, User.user_orders,
         User.referral_earnings_received, User.referral_earnings_generated,
     ]
     name = "User"
@@ -224,6 +226,7 @@ _PERM_FLAGS = [
     (128, "STATS"),
     (256, "BALANCE"),
     (512, "PROMOS"),
+    (1024, "ORDERS"),
 ]
 
 
@@ -257,8 +260,8 @@ class RoleAdmin(AuditModelView, model=Role):
             "description": (
                 "Bitmask value — sum the flags you need: "
                 "USE=1, BROADCAST=2, SETTINGS=4, USERS=8, CATALOG=16, ADMINS=32, "
-                "OWNER=64, STATS=128, BALANCE=256, PROMOS=512. "
-                "Example: 927 = full Admin, 1023 = all (Owner)."
+                "OWNER=64, STATS=128, BALANCE=256, PROMOS=512, ORDERS=1024. "
+                "Example: 1951 = full Admin, 2047 = all (Owner)."
             ),
         },
     }
@@ -288,15 +291,20 @@ class CategoryAdmin(AuditModelView, model=Categories):
 
 
 class GoodsAdmin(AuditModelView, model=Goods):
-    column_list = [Goods.id, Goods.name, Goods.price, Goods.sale_percent,
+    column_list = [Goods.id, Goods.name, Goods.price, Goods.stock, Goods.sale_percent,
                    Goods.sale_until, Goods.description, Goods.category_id]
     column_searchable_list = [Goods.name]
-    column_sortable_list = [Goods.id, Goods.name, Goods.price]
-    form_excluded_columns = [Goods.values]
+    column_sortable_list = [Goods.id, Goods.name, Goods.price, Goods.stock]
     name = "Product"
     name_plural = "Products"
     icon = "fa-solid fa-box"
     form_args = {
+        "stock": {
+            "description": (
+                "Units on hand. Orders reserve stock when placed and cancelling an order "
+                "returns it; customers waiting for this product are notified when it goes from 0 to more."
+            ),
+        },
         "sale_percent": {
             "description": (
                 "Discount percent (0-100) applied while the sale is active. "
@@ -311,6 +319,10 @@ class GoodsAdmin(AuditModelView, model=Goods):
         },
     }
 
+    async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
+        # The model still holds the stock from before the edit here; remember it for the restock check.
+        request.state.stock_before = 0 if is_created else int(getattr(model, "stock", 0) or 0)
+
     async def _invalidate(self, model: Any) -> None:
         name = getattr(model, "name", None)
         if name:
@@ -320,56 +332,111 @@ class GoodsAdmin(AuditModelView, model=Goods):
         await super().after_model_change(data, model, is_created, request)
         await self._invalidate(model)
 
+        name = getattr(model, "name", None)
+        stock_before = getattr(request.state, "stock_before", None)
+        if name and stock_before == 0 and (getattr(model, "stock", 0) or 0) > 0 and _notifier_bot is not None:
+            safe_create_task(notify_restock(_notifier_bot, name))
+
     async def after_model_delete(self, model: Any, request: Request) -> None:
         await super().after_model_delete(model, request)
         await self._invalidate(model)
 
 
-class ItemValuesAdmin(AuditModelView, model=ItemValues):
-    column_list = [ItemValues.id, ItemValues.item_id, ItemValues.value, ItemValues.is_infinity]
-    column_searchable_list = [ItemValues.value]
-    column_sortable_list = [ItemValues.id, ItemValues.item_id]
-    name = "Stock Item"
-    name_plural = "Stock Items"
-    icon = "fa-solid fa-warehouse"
+async def apply_order_action(action_name: str, order_id: int) -> tuple[bool, str]:
+    """Run one order action through the same code as the bot, then tell the customer.
 
-    async def _item_name(self, model: Any) -> str | None:
-        item_id = getattr(model, "item_id", None)
-        return await get_item_name_by_id(int(item_id)) if item_id is not None else None
-
-    async def _invalidate(self, name: str) -> None:
-        safe_create_task(invalidate_item_cache(name))
-
-    async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
-        await super().after_model_change(data, model, is_created, request)
-        name = await self._item_name(model)
-        if not name:
-            return
-        await self._invalidate(name)
-
-        if is_created and _notifier_bot is not None:
-            safe_create_task(notify_restock(_notifier_bot, name))
-
-    async def after_model_delete(self, model: Any, request: Request) -> None:
-        await super().after_model_delete(model, request)
-        name = await self._item_name(model)
-        if name:
-            await self._invalidate(name)
+    Status changes and payment checks go through ``orders.py`` so stock, balance refunds and
+    referral commissions are never bypassed. Returns ``(ok, code)``; a refused move is skipped.
+    """
+    if action_name == "payment_confirmed":
+        ok, code, order = await confirm_mia_payment(order_id)
+    else:
+        ok, code, order = await set_order_status(order_id, action_name)
+    if ok and order is not None:
+        await log_audit(
+            f"sqladmin_order_{action_name}", resource_type="Order", resource_id=str(order_id),
+            details=f"payment={order['payment_status']}",
+        )
+        if _notifier_bot is not None:
+            await notify_customer(_notifier_bot, order, action_name)
+            for name in order.get("restocked", []):
+                safe_create_task(notify_restock(_notifier_bot, name))
+    else:
+        await log_audit(
+            "sqladmin_order_action_refused", level="WARNING", resource_type="Order",
+            resource_id=str(order_id), details=f"action={action_name}, code={code}",
+        )
+    return ok, code
 
 
-class BoughtGoodsAdmin(ModelView, model=BoughtGoods):
-    column_list = [BoughtGoods.id, BoughtGoods.item_name, BoughtGoods.value,
-                   BoughtGoods.price, BoughtGoods.buyer_id, BoughtGoods.bought_datetime,
-                   BoughtGoods.unique_id]
-    column_searchable_list = [BoughtGoods.item_name, BoughtGoods.buyer_id, BoughtGoods.unique_id]
-    column_sortable_list = [BoughtGoods.id, BoughtGoods.bought_datetime, BoughtGoods.price]
-    column_default_sort = (BoughtGoods.id, True)
+class OrderAdmin(ModelView, model=Orders):
+    """Orders are read-only here; status changes are actions that reuse the bot's own order logic."""
+    column_list = [Orders.id, Orders.user_id, Orders.status, Orders.payment_method, Orders.payment_status,
+                   Orders.fulfillment, Orders.customer_name, Orders.phone, Orders.total,
+                   Orders.balance_used, Orders.created_at]
+    column_details_list = [Orders.id, Orders.user_id, Orders.status, Orders.payment_method,
+                           Orders.payment_status, Orders.fulfillment, Orders.customer_name,
+                           Orders.phone, Orders.address, Orders.comment, Orders.total,
+                           Orders.balance_used, Orders.pay_by, Orders.created_at, Orders.updated_at,
+                           Orders.items]
+    # status / payment_status / payment_method are searchable too, which doubles as the filter.
+    column_searchable_list = [Orders.customer_name, Orders.phone, Orders.user_id, Orders.status,
+                              Orders.payment_status, Orders.payment_method, Orders.fulfillment]
+    column_sortable_list = [Orders.id, Orders.created_at, Orders.total, Orders.status]
+    column_default_sort = (Orders.id, True)
     can_create = False
     can_edit = False
     can_delete = False
-    name = "Purchase"
-    name_plural = "Purchases"
-    icon = "fa-solid fa-cart-shopping"
+    name = "Order"
+    name_plural = "Orders"
+    icon = "fa-solid fa-box-open"
+
+    async def _run(self, request: Request, action_name: str) -> RedirectResponse:
+        pks = [int(p) for p in request.query_params.get("pks", "").split(",") if p.strip().isdigit()]
+        for order_id in pks:
+            await apply_order_action(action_name, order_id)
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity), status_code=302)
+
+    @action(name="confirm_payment", label="Confirm MIA payment",
+            confirmation_message="Mark the MIA transfer as received and accept the selected orders?",
+            add_in_detail=True, add_in_list=True)
+    async def confirm_payment(self, request: Request):
+        return await self._run(request, "payment_confirmed")
+
+    @action(name="confirm", label="Confirm order", confirmation_message="Confirm the selected orders?",
+            add_in_detail=True, add_in_list=True)
+    async def confirm_order(self, request: Request):
+        return await self._run(request, OrderStatus.CONFIRMED)
+
+    @action(name="ship", label="Mark as shipped", confirmation_message="Mark the selected orders as shipped?",
+            add_in_detail=True, add_in_list=True)
+    async def ship_order(self, request: Request):
+        return await self._run(request, OrderStatus.SHIPPED)
+
+    @action(name="complete", label="Mark as completed", confirmation_message="Mark the selected orders as completed?",
+            add_in_detail=True, add_in_list=True)
+    async def complete_order(self, request: Request):
+        return await self._run(request, OrderStatus.COMPLETED)
+
+    @action(name="cancel", label="Cancel order",
+            confirmation_message="Cancel the selected orders? Stock returns to the shelf; money already paid must be refunded by hand.",
+            add_in_detail=True, add_in_list=True)
+    async def cancel_order(self, request: Request):
+        return await self._run(request, OrderStatus.CANCELLED)
+
+
+class OrderItemsAdmin(ModelView, model=OrderItems):
+    column_list = [OrderItems.id, OrderItems.order_id, OrderItems.item_name, OrderItems.quantity,
+                   OrderItems.unit_price, OrderItems.line_total]
+    column_searchable_list = [OrderItems.item_name, OrderItems.order_id]
+    column_sortable_list = [OrderItems.id, OrderItems.order_id, OrderItems.line_total]
+    column_default_sort = (OrderItems.id, True)
+    can_create = False
+    can_edit = False
+    can_delete = False
+    name = "Order Line"
+    name_plural = "Order Lines"
+    icon = "fa-solid fa-list"
 
 
 class OperationsAdmin(ModelView, model=Operations):
@@ -384,20 +451,6 @@ class OperationsAdmin(ModelView, model=Operations):
     name = "Operation"
     name_plural = "Operations"
     icon = "fa-solid fa-money-bill-transfer"
-
-
-class PaymentsAdmin(ModelView, model=Payments):
-    column_list = [Payments.id, Payments.provider, Payments.external_id, Payments.user_id,
-                   Payments.amount, Payments.currency, Payments.status, Payments.created_at]
-    column_searchable_list = [Payments.user_id, Payments.external_id, Payments.provider]
-    column_sortable_list = [Payments.id, Payments.created_at, Payments.amount, Payments.status]
-    column_default_sort = (Payments.id, True)
-    can_create = False
-    can_edit = False
-    can_delete = False
-    name = "Payment"
-    name_plural = "Payments"
-    icon = "fa-solid fa-credit-card"
 
 
 class ReferralEarningsAdmin(ModelView, model=ReferralEarnings):
@@ -709,10 +762,9 @@ def create_admin_app(bot: Any = None) -> Starlette:
     admin.add_view(RoleAdmin)
     admin.add_view(CategoryAdmin)
     admin.add_view(GoodsAdmin)
-    admin.add_view(ItemValuesAdmin)
-    admin.add_view(BoughtGoodsAdmin)
+    admin.add_view(OrderAdmin)
+    admin.add_view(OrderItemsAdmin)
     admin.add_view(OperationsAdmin)
-    admin.add_view(PaymentsAdmin)
     admin.add_view(ReferralEarningsAdmin)
     admin.add_view(AuditLogAdmin)
     admin.add_view(PromoCodeAdmin)

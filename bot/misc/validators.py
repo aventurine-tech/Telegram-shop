@@ -4,37 +4,6 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator, model
 import re
 
 
-class PaymentRequest(BaseModel):
-    """Validate payment request data"""
-    amount: Decimal = Field(..., gt=0, le=100000)
-    currency: str = Field(..., min_length=3, max_length=3)
-    provider: str = Field(..., pattern="^(telegram|stars|cryptopay|fiat)$")
-
-    @field_validator('amount')
-    @classmethod
-    def validate_amount(cls, v: Decimal) -> Decimal:
-        if v <= 0:
-            raise ValueError('Amount must be positive')
-        # Prevent too precise amounts (max 2 decimal places)
-        if v.as_tuple().exponent < -2:
-            raise ValueError('Amount can have maximum 2 decimal places')
-        return v
-
-
-class ItemPurchaseRequest(BaseModel):
-    """Validate item purchase request"""
-    item_name: Annotated[str, StringConstraints(min_length=1, max_length=100, strip_whitespace=True)]
-    user_id: int = Field(..., gt=0)
-
-    @field_validator('item_name')
-    @classmethod
-    def validate_item_name(cls, v: str) -> str:
-        # Block control characters (0x00-0x1F, 0x7F)
-        if re.search(r'[\x00-\x1f\x7f]', v):
-            raise ValueError('Invalid characters in item name')
-        return v
-
-
 class UserDataUpdate(BaseModel):
     """Validate user data updates"""
     telegram_id: int = Field(..., gt=0)
@@ -119,6 +88,47 @@ class SearchQuery(BaseModel):
         # Remove special characters that could break search
         v = re.sub(r'[^\w\s\-.]', '', v)
         return v.strip()
+
+
+# Limits for the free text a customer types while checking out (they are also what the order stores).
+NAME_MAX_LEN = 100
+PHONE_MAX_LEN = 32
+ADDRESS_MAX_LEN = 500
+COMMENT_MAX_LEN = 500
+
+_PHONE_RE = re.compile(r'^\+?[\d\s\-()]{6,20}$')
+_CONTROL_RE = re.compile(r'[\x00-\x08\x0b-\x1f\x7f]')
+
+
+def clean_text(value, max_len: int) -> str:
+    """Strip a customer's free text and check it fits; raises ValueError when empty or too long.
+
+    Newlines are kept (an address or comment may have them); other control characters are rejected.
+    """
+    text = (value or "").strip()
+    if not text:
+        raise ValueError("Text is empty")
+    if len(text) > max_len:
+        raise ValueError(f"Text is longer than {max_len} characters")
+    if _CONTROL_RE.search(text):
+        raise ValueError("Invalid characters")
+    return text
+
+
+def validate_customer_name(value) -> str:
+    """A name for the order: one line, up to NAME_MAX_LEN characters."""
+    text = clean_text(value, NAME_MAX_LEN)
+    if "\n" in text:
+        raise ValueError("Name must be a single line")
+    return text
+
+
+def validate_phone(value) -> str:
+    """A phone number as typed: 6-20 digits, spaces, dashes, brackets, optional leading +."""
+    text = clean_text(value, PHONE_MAX_LEN)
+    if not _PHONE_RE.match(text) or sum(c.isdigit() for c in text) < 6:
+        raise ValueError("Invalid phone number")
+    return text
 
 
 # Helper functions for validation

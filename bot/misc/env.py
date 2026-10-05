@@ -47,15 +47,25 @@ class EnvKeys(ABC):
     REDIS_DB: Final = int(_get_optional("REDIS_DB", "0"))
     REDIS_PASSWORD: Final = _get_optional("REDIS_PASSWORD", "")
 
-    # Payments
-    TELEGRAM_PROVIDER_TOKEN: Final = _get_optional("TELEGRAM_PROVIDER_TOKEN", "")
-    CRYPTO_PAY_TOKEN: Final = _get_optional("CRYPTO_PAY_TOKEN", "")
-    STARS_PER_VALUE: Final = float(_get_optional("STARS_PER_VALUE", "0.91"))
+    # Orders & payments (MIA instant transfer confirmed manually, or cash on delivery/pickup)
     REFERRAL_PERCENT: Final = int(_get_optional("REFERRAL_PERCENT", "0"))
-    PAY_CURRENCY: Final = _get_optional("PAY_CURRENCY", "RUB")
-    PAYMENT_TIME: Final = int(_get_optional("PAYMENT_TIME", "1800"))
-    MIN_AMOUNT: Final = int(_get_optional("MIN_AMOUNT", "20"))
-    MAX_AMOUNT: Final = int(_get_optional("MAX_AMOUNT", "10000"))
+    PAY_CURRENCY: Final = _get_optional("PAY_CURRENCY", "MDL")
+    # Allowed range for an admin's manual balance top-up / deduction.
+    MIN_AMOUNT: Final = int(_get_optional("MIN_AMOUNT", "1"))
+    MAX_AMOUNT: Final = int(_get_optional("MAX_AMOUNT", "100000"))
+    # Where customers send MIA transfers. At least one of the three should be set to enable MIA.
+    MIA_RECIPIENT: Final = _get_optional("MIA_RECIPIENT", "")
+    MIA_PHONE: Final = _get_optional("MIA_PHONE", "")
+    MIA_IBAN: Final = _get_optional("MIA_IBAN", "")
+    # Minutes a customer has to pay an MIA order before it is cancelled and its stock released.
+    MIA_PAY_TIMEOUT_MIN: Final = int(_get_optional("MIA_PAY_TIMEOUT_MIN", "120"))
+    COD_ENABLED: Final = _get_optional("COD_ENABLED", "1")
+    PICKUP_ENABLED: Final = _get_optional("PICKUP_ENABLED", "1")
+    DELIVERY_ENABLED: Final = _get_optional("DELIVERY_ENABLED", "1")
+    PICKUP_ADDRESS: Final = _get_optional("PICKUP_ADDRESS", "")
+    DELIVERY_INFO: Final = _get_optional("DELIVERY_INFO", "")
+    # Optional extra chat (e.g. a staff group) that also receives new-order alerts.
+    ORDERS_CHAT_ID: Final = _get_optional("ORDERS_CHAT_ID", "")
 
     # Links / UI
     CHANNEL_URL: Final = _get_optional("CHANNEL_URL", "")
@@ -90,9 +100,13 @@ class EnvKeys(ABC):
 
     # Cleanup
     AUDIT_RETENTION_DAYS: Final = int(_get_optional("AUDIT_RETENTION_DAYS", "90"))
-    PAYMENTS_RETENTION_DAYS: Final = int(_get_optional("PAYMENTS_RETENTION_DAYS", "90"))
 
     DATABASE_URL: Final = f"postgresql+asyncpg://{POSTGRES_USER}:{quote_plus(POSTGRES_PASSWORD)}@{POSTGRES_HOST}:{DB_PORT}/{POSTGRES_DB}"
+
+    @classmethod
+    def mia_enabled(cls) -> bool:
+        """MIA is offered only once the shop has said where to send the money."""
+        return bool(cls.MIA_RECIPIENT or cls.MIA_PHONE or cls.MIA_IBAN)
 
     @classmethod
     def panel_is_exposed(cls) -> bool:
@@ -145,7 +159,17 @@ class EnvKeys(ABC):
         if int(cls.MIN_AMOUNT) >= int(cls.MAX_AMOUNT):
             _env_logger.warning(
                 "CONFIG: MIN_AMOUNT (%s) >= MAX_AMOUNT (%s). "
-                "Payment amounts will always be rejected.", cls.MIN_AMOUNT, cls.MAX_AMOUNT
+                "Admin balance changes will always be rejected.", cls.MIN_AMOUNT, cls.MAX_AMOUNT
+            )
+        if not cls.mia_enabled() and cls.COD_ENABLED != "1":
+            _env_logger.warning(
+                "CONFIG: no payment method is available — set MIA_RECIPIENT/MIA_PHONE/MIA_IBAN "
+                "and/or COD_ENABLED=1, otherwise customers cannot check out."
+            )
+        if cls.DELIVERY_ENABLED != "1" and cls.PICKUP_ENABLED != "1":
+            _env_logger.warning(
+                "CONFIG: both DELIVERY_ENABLED and PICKUP_ENABLED are off — "
+                "customers cannot check out."
             )
         if int(cls.REFERRAL_PERCENT) < 0 or int(cls.REFERRAL_PERCENT) > 99:
             _env_logger.warning(

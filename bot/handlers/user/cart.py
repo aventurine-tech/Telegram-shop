@@ -1,25 +1,20 @@
-from collections import Counter
 from decimal import Decimal
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup
+from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
 from bot.database.methods.create import add_to_cart, CART_MAX_QTY_PER_ITEM
-from bot.database.methods.read import get_cart_items, validate_promos_for_cart
+from bot.database.methods.read import get_cart_items, validate_promos_for_cart, select_item_stock
 from bot.database.methods.update import set_cart_item_quantity, clear_cart_item_promo
 from bot.database.methods.delete import remove_from_cart, clear_cart
-from bot.database.methods.transactions import checkout_cart_transaction
-from bot.keyboards.inline import back, simple_buttons, cart_keyboard
+from bot.keyboards.inline import back, cart_keyboard
 from bot.database.methods.pricing import apply_promo_discount
 from bot.misc import EnvKeys
 from bot.i18n import localize, esc
 
 router = Router()
-
-# A checkout can deliver hundreds of units; the receipt only ever shows this many, then defers to the paginated purchases list.
-RECEIPT_MAX_BUTTONS = 10
 
 
 async def _cart_view_data(user_id: int) -> tuple[list[dict], dict[str, dict], dict[int, dict], Decimal]:
@@ -28,7 +23,7 @@ async def _cart_view_data(user_id: int) -> tuple[list[dict], dict[str, dict], di
     Returns (items, info_map, line_data, total); line_data maps cart line id to
     {'line_total', 'discounted', 'eligible', 'on_sale', 'original'} using the
     same clamped math *and the same one-promo-one-line rule* as
-    checkout_cart_transaction, so the displayed total matches what is charged.
+    create_order_transaction, so the displayed total matches what is charged.
     ``eligible`` marks a line whose promo is valid but was spent on another line.
     Lines whose item no longer exists are absent from line_data.
     """
@@ -141,6 +136,10 @@ async def _show_cart(call: CallbackQuery):
                 price=line_total, currency=EnvKeys.PAY_CURRENCY,
             ))
 
+        info = info_map.get(item['item_name'])
+        if info is not None and info['stock'] < qty:
+            lines.append(localize("cart.low_stock", available=info['stock']))
+
     lines.append(localize("cart.total", total=real_total, currency=EnvKeys.PAY_CURRENCY))
 
     try:
@@ -155,20 +154,31 @@ async def _show_cart(call: CallbackQuery):
             raise
 
 
-@router.callback_query(F.data == "add_to_cart")
-async def add_to_cart_handler(call: CallbackQuery, state: FSMContext):
+async def _add_selected_item(call: CallbackQuery, state: FSMContext) -> bool:
+    """Put the item on screen into the cart, never beyond what is in stock.
+
+    Answers the callback itself on failure; on success the caller answers.
+    """
     data = await state.get_data()
     item_name = data.get('csrf_item')
     if not item_name:
         await call.answer(localize("cart.item_not_found"), show_alert=True)
-        return
+        return False
 
-    promo_code = data.get('applied_promo')
+    stock = await select_item_stock(item_name)
+    if stock <= 0:
+        await call.answer(localize("cart.item_out_of_stock", name=item_name), show_alert=True)
+        return False
 
-    success, msg = await add_to_cart(call.from_user.id, item_name, promo_code=promo_code)
-    if success:
-        await call.answer(localize("cart.added", name=item_name))
-    else:
+    in_cart = next(
+        (i['quantity'] for i in await get_cart_items(call.from_user.id) if i['item_name'] == item_name), 0
+    )
+    if in_cart + 1 > stock:
+        await call.answer(localize("cart.stock_limit", available=stock), show_alert=True)
+        return False
+
+    success, msg = await add_to_cart(call.from_user.id, item_name, promo_code=data.get('applied_promo'))
+    if not success:
         error_map = {
             "cart_full": localize("cart.full"),
             "item_not_found": localize("cart.item_not_found"),
@@ -177,6 +187,22 @@ async def add_to_cart_handler(call: CallbackQuery, state: FSMContext):
             "invalid_quantity": localize("errors.something_wrong"),
         }
         await call.answer(error_map.get(msg, msg), show_alert=True)
+    return success
+
+
+@router.callback_query(F.data == "add_to_cart")
+async def add_to_cart_handler(call: CallbackQuery, state: FSMContext):
+    if await _add_selected_item(call, state):
+        item_name = (await state.get_data()).get('csrf_item')
+        await call.answer(localize("cart.added", name=item_name))
+
+
+@router.callback_query(F.data == "buy_item")
+async def buy_item_handler(call: CallbackQuery, state: FSMContext):
+    """"Order now": add the item and jump straight to the cart."""
+    if await _add_selected_item(call, state):
+        await call.answer()
+        await _show_cart(call)
 
 
 @router.callback_query(F.data.startswith("cart_qty:"))
@@ -189,6 +215,15 @@ async def cart_qty_handler(call: CallbackQuery, state: FSMContext):
     except (ValueError, IndexError):
         await call.answer(localize("errors.invalid_data"), show_alert=True)
         return
+
+    if delta > 0:
+        line = next((i for i in await get_cart_items(call.from_user.id) if i['id'] == cart_item_id), None)
+        if line is not None:
+            stock = await select_item_stock(line['item_name'])
+            if line['quantity'] + delta > stock:
+                await call.answer(localize("cart.stock_limit", available=stock), show_alert=True)
+                await _show_cart(call)
+                return
 
     ok, code, _new_qty = await set_cart_item_quantity(cart_item_id, call.from_user.id, delta)
     if not ok:
@@ -246,165 +281,3 @@ async def clear_cart_handler(call: CallbackQuery, state: FSMContext):
     await clear_cart(call.from_user.id)
     await call.answer(localize("cart.cleared"))
     await _show_cart(call)
-
-
-def _receipt_keyboard(results: list[dict]) -> InlineKeyboardMarkup:
-    """Build the receipt's per-unit buttons, capped.
-    """
-    per_name = Counter(r['item_name'] for r in results)
-    shown = Counter()
-
-    buttons = []
-    for r in results[:RECEIPT_MAX_BUTTONS]:
-        name = r['item_name']
-        shown[name] += 1
-        # Several units of one position would otherwise be indistinguishable.
-        label = f"📦 {name}" if per_name[name] == 1 else f"📦 {name} ({shown[name]})"
-        buttons.append((label, f"bought-item:{r['bought_id']}:cart_receipt"))
-
-    if len(results) > RECEIPT_MAX_BUTTONS:
-        buttons.append((localize("btn.cart_receipt_all"), "bought_items"))
-    buttons.append((localize("btn.back"), "profile"))
-    return simple_buttons(buttons)
-
-
-def _slim_receipt(results: list[dict]) -> list[dict]:
-    """Drop the delivered secret before the receipt goes into FSM storage.
-
-    Only bought_id / item_name / bought_datetime are needed to re-render, and
-    FSM state is serialised into Redis when it is enabled.
-    """
-    return [
-        {
-            "item_name": r["item_name"],
-            "bought_id": r["bought_id"],
-            "bought_datetime": r["bought_datetime"],
-            "price": r["price"],
-        }
-        for r in results
-    ]
-
-
-def _receipt_total(results: list[dict]) -> Decimal:
-    """Sum a checkout's per-unit prices back into the line total.
-    """
-    return sum(
-        (Decimal(str(r['price'])) for r in results), Decimal(0)
-    ).quantize(Decimal("0.01"))
-
-
-async def _calc_cart_total_with_promos(user_id: int) -> Decimal:
-    """Calculate real cart total considering sales and promo codes on each item."""
-    _items, _info, _lines, total = await _cart_view_data(user_id)
-    return total
-
-
-@router.callback_query(F.data == "cart_checkout")
-async def cart_checkout_handler(call: CallbackQuery, state: FSMContext):
-    user_id = call.from_user.id
-    items, _info, _lines, total = await _cart_view_data(user_id)
-    count = sum(item['quantity'] for item in items)
-
-    # Remember the total the user is being asked to confirm, so checkout can detect a price/sale change and refuse to charge a different amount.
-    await state.update_data(cart_expected_total=str(total))
-
-    buttons = [
-        (localize("btn.yes"), "cart_checkout_confirm"),
-        (localize("btn.no"), "cart"),
-    ]
-    await call.message.edit_text(
-        localize("cart.checkout_confirm", count=count, total=total, currency=EnvKeys.PAY_CURRENCY),
-        reply_markup=simple_buttons(buttons),
-    )
-
-
-@router.callback_query(F.data == "cart_checkout_confirm")
-async def cart_checkout_confirm_handler(call: CallbackQuery, state: FSMContext):
-    user_id = call.from_user.id
-    await call.answer(localize("shop.purchase.processing"))
-
-    data = await state.get_data()
-    expected_raw = data.get("cart_expected_total")
-    expected_total = Decimal(expected_raw) if expected_raw is not None else None
-
-    success, msg, results = await checkout_cart_transaction(user_id, expected_total=expected_total)
-
-    if not success:
-        reason_map = {
-            "user_not_found": "User not found",
-            "cart_empty": localize("cart.empty"),
-            "cart_items_unavailable": localize("cart.items_unavailable"),
-            "out_of_stock": localize("cart.out_of_stock"),
-            "insufficient_funds": localize("shop.insufficient_funds"),
-            "transaction_error": localize("errors.something_wrong"),
-            "price_changed": localize("cart.price_changed"),
-        }
-        await call.message.edit_text(
-            localize("cart.checkout_fail", reason=reason_map.get(msg, msg)),
-            reply_markup=back("cart"),
-        )
-        return
-
-    total = _receipt_total(results)
-    username = esc(call.from_user.username or call.from_user.first_name)
-    dt = results[0]['bought_datetime'] if results else ""
-
-    # Save results in state for cart_receipt back navigation
-    await state.update_data(
-        cart_receipt_results=_slim_receipt(results),
-        cart_receipt_total=str(total),
-    )
-
-    await call.message.edit_text(
-        localize(
-            "cart.checkout_receipt",
-            count=len(results),
-            total=total,
-            currency=EnvKeys.PAY_CURRENCY,
-            username=username,
-            user_id=user_id,
-            datetime=dt,
-        ),
-        parse_mode="HTML",
-        reply_markup=_receipt_keyboard(results),
-    )
-
-    from bot.database.methods.audit import log_audit_bg
-    log_audit_bg(
-        "cart_checkout",
-        user_id=user_id,
-        resource_type="Cart",
-        details=f"items={len(results)}, total={total}",
-    )
-
-
-@router.callback_query(F.data == "cart_receipt")
-async def cart_receipt_handler(call: CallbackQuery, state: FSMContext):
-    """Re-render the cart checkout receipt (back from bought-item detail)."""
-    data = await state.get_data()
-    results = data.get("cart_receipt_results")
-    total = data.get("cart_receipt_total") or (_receipt_total(results) if results else 0)
-
-    if not results:
-        await call.message.edit_text(
-            localize("cart.empty"),
-            reply_markup=back("profile"),
-        )
-        return
-
-    username = esc(call.from_user.username or call.from_user.first_name)
-    dt = results[0].get("bought_datetime", "")
-
-    await call.message.edit_text(
-        localize(
-            "cart.checkout_receipt",
-            count=len(results),
-            total=total,
-            currency=EnvKeys.PAY_CURRENCY,
-            username=username,
-            user_id=call.from_user.id,
-            datetime=dt,
-        ),
-        parse_mode="HTML",
-        reply_markup=_receipt_keyboard(results),
-    )

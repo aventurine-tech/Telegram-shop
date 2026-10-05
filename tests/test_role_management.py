@@ -67,12 +67,12 @@ class TestRoleCRUDMethods:
             assert (r['permissions'] & ~1) == 0
 
     async def test_get_roles_with_max_perms_all(self):
-        roles = await get_roles_with_max_perms(1023)  # All permissions
+        roles = await get_roles_with_max_perms(2047)  # All permissions
         assert len(roles) >= 3  # At least USER, ADMIN, OWNER
 
     async def test_get_roles_with_max_perms_includes_custom(self, role_factory):
         await role_factory("HELPER", 3)
-        roles = await get_roles_with_max_perms(1023)
+        roles = await get_roles_with_max_perms(2047)
         names = [r['name'] for r in roles]
         assert 'HELPER' in names
 
@@ -412,6 +412,10 @@ class TestHelpers:
         assert "USE" in result
         assert "BROADCAST" in result
         assert "OWNER" in result
+
+    def test_format_permissions_includes_orders(self):
+        from bot.database.models import Permission
+        assert "ORDERS" in _format_permissions(Permission.ORDERS_MANAGE)
 
     def test_format_permissions_none(self):
         assert _format_permissions(0) == "\u2014"  # em dash

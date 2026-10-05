@@ -1,16 +1,15 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update, text
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
 
 class RecoveryManager:
-    """Disaster Recovery Manager — payment recovery and health monitoring"""
+    """Disaster Recovery Manager — unpaid-order expiry and health monitoring"""
 
-    PENDING_PAYMENT_INTERVAL = 300
+    UNPAID_ORDER_INTERVAL = 60
     HEALTH_CHECK_INTERVAL = 60
     ERROR_BACKOFF = 30
 
@@ -25,7 +24,7 @@ class RecoveryManager:
         self.running = True
 
         self.recovery_tasks.append(asyncio.create_task(
-            self._run_periodically(self.recover_pending_payments, self.PENDING_PAYMENT_INTERVAL)
+            self._run_periodically(self.expire_unpaid_orders, self.UNPAID_ORDER_INTERVAL)
         ))
 
         self.recovery_tasks.append(asyncio.create_task(
@@ -56,91 +55,17 @@ class RecoveryManager:
                 continue
             await asyncio.sleep(interval)
 
-    async def recover_pending_payments(self):
-        """One sweep over CryptoPay payments left pending for over an hour."""
-        from bot.database import Database
-        from bot.database.models import Payments
+    async def expire_unpaid_orders(self):
+        """One sweep: cancel MIA orders nobody paid for in time, tell the customers, wake restock subscribers."""
+        from bot.database.methods.orders import expire_unpaid_orders
+        from bot.misc.services.order_view import notify_customer
+        from bot.misc.services.restock_notifier import notify_restock
 
-        payment_copies = []
-        async with Database().session() as s:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
-            result = await s.execute(
-                select(Payments).where(
-                    Payments.status == "pending",
-                    Payments.created_at < cutoff,
-                    Payments.provider == "cryptopay"
-                )
-            )
-            for p in result.scalars().all():
-                payment_copies.append({
-                    'id': p.id,
-                    'provider': p.provider,
-                    'external_id': p.external_id,
-                    'user_id': p.user_id,
-                    'amount': p.amount,
-                    'currency': p.currency,
-                })
-
-        for pc in payment_copies:
-            await self._check_and_process_payment(pc)
-
-    async def _check_and_process_payment(self, payment):
-        """Verification and processing of a specific payment.
-
-        Args:
-            payment: dict with keys id, provider, external_id, user_id, amount, currency
-        """
-        from bot.database.methods.transactions import process_payment_with_referral
-        from bot.misc import EnvKeys
-        from bot.misc.services.payment import CryptoPayAPI
-        from bot.i18n import localize
-
-        p_id = payment['id'] if isinstance(payment, dict) else payment.id
-        p_provider = payment['provider'] if isinstance(payment, dict) else payment.provider
-        p_external_id = payment['external_id'] if isinstance(payment, dict) else payment.external_id
-        p_user_id = payment['user_id'] if isinstance(payment, dict) else payment.user_id
-        p_amount = payment['amount'] if isinstance(payment, dict) else payment.amount
-        p_currency = payment['currency'] if isinstance(payment, dict) else payment.currency
-
-        try:
-            if p_provider == "cryptopay" and EnvKeys.CRYPTO_PAY_TOKEN:
-                crypto = CryptoPayAPI()
-                info = await crypto.get_invoice(p_external_id)
-
-                if info.get("status") == "paid":
-                    success, _ = await process_payment_with_referral(
-                        user_id=p_user_id,
-                        amount=p_amount,
-                        provider=p_provider,
-                        external_id=p_external_id,
-                        referral_percent=EnvKeys.REFERRAL_PERCENT
-                    )
-
-                    if success:
-                        logger.info(f"Recovered payment {p_external_id}")
-                        try:
-                            await self.bot.send_message(
-                                p_user_id,
-                                localize("payments.topped_simple", amount=p_amount, currency=p_currency)
-                            )
-                        except Exception as e:
-                            logger.error(f"Failed to notify user {p_user_id}: {e}")
-
-                elif info.get("status") in ["expired", "failed"]:
-                    await self._mark_payment_failed(p_id)
-
-        except Exception as e:
-            logger.error(f"Error processing payment {p_id}: {e}")
-
-    async def _mark_payment_failed(self, payment_id: int):
-        """Mark payment as failed."""
-        from bot.database import Database
-        from bot.database.models import Payments
-
-        async with Database().session() as s:
-            await s.execute(
-                update(Payments).where(Payments.id == payment_id).values(status="failed")
-            )
+        for order in await expire_unpaid_orders():
+            logger.info("Order %s cancelled: MIA payment not received in time", order["id"])
+            await notify_customer(self.bot, order, "mia_expired")
+            for name in order.get("restocked", []):
+                await notify_restock(self.bot, name)
 
     async def periodic_health_check(self):
         """One DB + cache health probe"""

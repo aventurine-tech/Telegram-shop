@@ -2,8 +2,8 @@ import pytest
 from decimal import Decimal
 from pydantic import ValidationError
 
-from bot.misc.validators import validate_telegram_id, validate_money_amount, sanitize_html, PaymentRequest, \
-    ItemPurchaseRequest, CategoryRequest, BroadcastMessage
+from bot.misc.validators import validate_telegram_id, validate_money_amount, sanitize_html, \
+    CategoryRequest, BroadcastMessage, validate_customer_name, validate_phone, clean_text
 
 
 class TestValidateTelegramId:
@@ -73,42 +73,44 @@ class TestSanitizeHtml:
         assert sanitize_html("hello world") == "hello world"
 
 
-class TestPaymentRequest:
+class TestCheckoutFields:
 
-    def test_valid_request(self):
-        req = PaymentRequest(amount=Decimal("100"), currency="RUB", provider="cryptopay")
-        assert req.amount == Decimal("100")
-
-    @pytest.mark.parametrize("amount,currency,provider", [
-        (Decimal("100"), "RUB", "paypal"),   # unsupported provider
-        (Decimal("0"), "RUB", "stars"),
-        (Decimal("-10"), "RUB", "telegram"),
-        (Decimal("10.123"), "RUB", "fiat"),  # more than 2 decimals
-        (Decimal("100"), "LONG", "stars"),   # currency must be 3 chars
+    @pytest.mark.parametrize("raw,expected", [
+        ("Ana", "Ana"),
+        ("  Ion Popescu  ", "Ion Popescu"),
+        ("Ана-Мария", "Ана-Мария"),
+        ("N" * 100, "N" * 100),
     ])
-    def test_rejected(self, amount, currency, provider):
-        with pytest.raises(ValidationError):
-            PaymentRequest(amount=amount, currency=currency, provider=provider)
+    def test_name_accepted(self, raw, expected):
+        assert validate_customer_name(raw) == expected
 
+    @pytest.mark.parametrize("raw", ["", "   ", None, "N" * 101, "Two\nLines", "bad\x00name"])
+    def test_name_rejected(self, raw):
+        with pytest.raises(ValueError):
+            validate_customer_name(raw)
 
-class TestItemPurchaseRequest:
-
-    @pytest.mark.parametrize("item_name", [
-        "Widget",
-        "Select Edition",  # SQL keywords in a product name are legitimate
+    @pytest.mark.parametrize("raw", [
+        "+37369123456", "069 123 456", "069-123-456", "+373 (69) 123456", "123456",
     ])
-    def test_accepted(self, item_name):
-        assert ItemPurchaseRequest(item_name=item_name, user_id=12345).item_name == item_name
+    def test_phone_accepted(self, raw):
+        assert validate_phone(raw) == raw.strip()
 
-    @pytest.mark.parametrize("item_name,user_id", [
-        ("item\x00name", 1),  # control characters
-        ("item\x1fname", 1),
-        ("", 1),
-        ("Widget", 0),        # invalid telegram id
+    @pytest.mark.parametrize("raw", [
+        "", "12345", "call me", "+", "1" * 21, "+373 69 123 456 ext 5", "<b>123456</b>", "()- ()-",
     ])
-    def test_rejected(self, item_name, user_id):
-        with pytest.raises(ValidationError):
-            ItemPurchaseRequest(item_name=item_name, user_id=user_id)
+    def test_phone_rejected(self, raw):
+        with pytest.raises(ValueError):
+            validate_phone(raw)
+
+    def test_free_text_keeps_newlines_but_not_control_chars(self):
+        assert clean_text("Str. Mare 1\napt 4", 500) == "Str. Mare 1\napt 4"
+        with pytest.raises(ValueError):
+            clean_text("a\x07b", 500)
+
+    def test_free_text_length_limit(self):
+        assert len(clean_text("a" * 500, 500)) == 500
+        with pytest.raises(ValueError):
+            clean_text("a" * 501, 500)
 
 
 class TestCategoryRequest:

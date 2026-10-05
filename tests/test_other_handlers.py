@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from aiogram.enums import ChatMemberStatus
 
 from bot.handlers.other import (
-    check_sub_channel, _any_payment_method_enabled, generate_short_hash, is_safe_item_name,
+    check_sub_channel, generate_short_hash, is_safe_item_name,
     caller_name, display_name,
 )
 
@@ -67,22 +67,6 @@ class TestCheckSubChannel:
         member = MagicMock()
         member.status = status
         assert await check_sub_channel(member) is expected
-
-
-class TestAnyPaymentMethodEnabled:
-
-    @pytest.mark.parametrize("crypto,stars,provider,expected", [
-        ("token", 0.91, "provider", True),  # all three configured
-        ("", 0, "", False),                 # none configured
-        ("token", 0, "", True),             # crypto only
-        ("", 0.91, "", True),               # stars only
-    ])
-    def test_enabled(self, crypto, stars, provider, expected):
-        with patch('bot.handlers.other.EnvKeys') as env:
-            env.CRYPTO_PAY_TOKEN = crypto
-            env.STARS_PER_VALUE = stars
-            env.TELEGRAM_PROVIDER_TOKEN = provider
-            assert _any_payment_method_enabled() is expected
 
 
 class TestGenerateShortHash:

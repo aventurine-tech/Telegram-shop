@@ -4,15 +4,14 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 from bot.database.methods.read import (
     check_user, get_role_id_by_name, check_role_name_by_id, select_max_role_id,
-    get_item_info, select_item_values_amount, check_value,
+    get_item_info, select_item_stock,
 )
-from bot.database.methods.transactions import replace_item_stock_and_meta
 from bot.database.methods.update import update_item
 from bot.handlers.admin.categories_management import (
     process_category_for_add, process_category_for_delete,
     check_category_for_update, check_category_name_for_update,
 )
-from bot.handlers.admin.goods_management import delete_str_item, show_str_item
+from bot.handlers.admin.goods_management import delete_str_item, show_item_stock
 from bot.handlers.admin.role_management import assign_role_confirm
 from bot.handlers.admin.update_position import check_item_name_for_update
 from bot.handlers.admin.user_management import (
@@ -65,7 +64,7 @@ class TestAssignRole:
 
         call = make_callback_query(data=f"asr_{admin_role}_800010", user_id=900010)
 
-        with patch('bot.handlers.admin.role_management.check_role_cached', new_callable=AsyncMock, return_value=1023):
+        with patch('bot.handlers.admin.role_management.check_role_cached', new_callable=AsyncMock, return_value=2047):
             await assign_role_confirm(call)
 
         call.message.edit_text.assert_called_once()
@@ -299,7 +298,7 @@ class TestGoodsManagement:
 
     async def test_delete_item(self, make_message, fsm_context, item_factory):
 
-        await item_factory(name="ToDeleteItem", price=100, category="DelCat", values=[("v1", False)])
+        await item_factory(name="ToDeleteItem", price=100, category="DelCat", stock=1)
 
         msg = make_message(text="ToDeleteItem", user_id=900050)
 
@@ -323,11 +322,11 @@ class TestGoodsManagement:
         text = msg.answer.call_args[0][0]
         assert "not_found" in text
 
-    async def test_show_items_not_found(self, make_message, fsm_context):
+    async def test_show_stock_not_found(self, make_message, fsm_context):
 
         msg = make_message(text="NoItem", user_id=900052)
 
-        await show_str_item(msg, fsm_context)
+        await show_item_stock(msg, fsm_context)
 
         msg.answer.assert_called_once()
         text = msg.answer.call_args[0][0]
@@ -337,7 +336,7 @@ class TestGoodsManagement:
 class TestUpdateItemFlow:
     async def test_update_flow_stores_category_name_not_id(self, make_message, fsm_context, item_factory):
 
-        await item_factory(name="UpdMe", price=10, category="MyCat", values=[("v", False)])
+        await item_factory(name="UpdMe", price=10, category="MyCat", stock=4)
         msg = make_message(text="UpdMe", user_id=900060)
 
         await check_item_name_for_update(msg, fsm_context)
@@ -347,71 +346,8 @@ class TestUpdateItemFlow:
 
         ok, err = await update_item("UpdMe", "UpdMe", "new desc", 20, data["item_category"])
         assert (ok, err) == (True, None)
-
-
-class TestAtomicStockReplacement:
-    async def test_failed_rename_leaves_stock_untouched(self, item_factory):
-
-        await item_factory(name="KeepStock", price=100, category="AtomCat",
-                           values=[("a", False), ("b", False), ("c", False)])
-        # The new name is already taken, so the meta update must fail.
-        await item_factory(name="Occupied", price=50, category="AtomCat")
-
-        ok, err, added = await replace_item_stock_and_meta(
-            old_name="KeepStock", new_name="Occupied", description="d",
-            price=100, category_name="AtomCat", values=["x"], is_infinity=True,
-        )
-
-        assert (ok, err, added) == (False, "position_exists", 0)
-        # Nothing changed: the stock is intact and the name is unchanged.
-        assert await select_item_values_amount("KeepStock") == 3
-        assert await get_item_info("KeepStock") is not None
-
-    async def test_unknown_category_is_rejected_before_any_write(self, item_factory):
-
-        await item_factory(name="CatGuard", price=10, category="AtomCat2",
-                           values=[("a", False), ("b", False)])
-
-        ok, err, _ = await replace_item_stock_and_meta(
-            old_name="CatGuard", new_name="CatGuard", description="d",
-            price=10, category_name="NoSuchCategory", values=["x"], is_infinity=False,
-        )
-
-        assert (ok, err) == (False, "position_invalid")
-        assert await select_item_values_amount("CatGuard") == 2
-
-    async def test_success_replaces_stock_and_renames(self, item_factory):
-
-        await item_factory(name="ToInfinite", price=100, category="AtomCat3",
-                           values=[("a", False), ("b", False)])
-
-        ok, err, added = await replace_item_stock_and_meta(
-            old_name="ToInfinite", new_name="NowInfinite", description="new desc",
-            price=250, category_name="AtomCat3", values=["forever"], is_infinity=True,
-        )
-
-        assert (ok, err, added) == (True, None, 1)
-        assert await get_item_info("ToInfinite") is None
-        info = await get_item_info("NowInfinite")
-        assert info["description"] == "new desc"
-        assert int(info["price"]) == 250
-        # Exactly one row, and it is the infinite one.
-        assert await select_item_values_amount("NowInfinite") == 1
-        assert await check_value("NowInfinite") is True
-
-    async def test_duplicates_and_blanks_are_dropped(self, item_factory):
-
-        await item_factory(name="DedupStock", price=10, category="AtomCat4", values=[])
-
-        ok, err, added = await replace_item_stock_and_meta(
-            old_name="DedupStock", new_name="DedupStock", description="d",
-            price=10, category_name="AtomCat4",
-            values=["a", "a", "  ", "b", "", " b "], is_infinity=False,
-        )
-
-        assert (ok, err) == (True, None)
-        assert added == 2
-        assert await select_item_values_amount("DedupStock") == 2
+        # Editing the details never touches the units on hand.
+        assert await select_item_stock("UpdMe") == 4
 
 
 class TestStatsAggregates:
@@ -426,36 +362,43 @@ class TestStatsAggregates:
         await user_factory(telegram_id=930002)
         await item_factory(
             name="StatItem", price=100, category="StatCat",
-            values=[("a", False), ("b", False)],
+            stock=2,
         )
-        await item_factory(name="StatItem2", price=50, category="StatCat", values=[])
+        await item_factory(name="StatItem2", price=50, category="StatCat", stock=0)
 
         stats = await (await self._stats_cache(fake_cache)).get_global_stats()
 
         assert stats["total_users"] == 2
         assert stats["total_goods"] == 2
-        assert stats["total_items"] == 2  # stock rows, not positions
+        assert stats["total_items"] == 2  # units on hand, not products
         assert stats["total_revenue"] == Decimal(0)
 
-    async def test_global_revenue_sums_purchases(
+    async def test_global_revenue_sums_orders_and_skips_cancelled(
         self, fake_cache, user_factory, item_factory
     ):
-        from bot.database.methods.transactions import buy_item_transaction
+        from bot.database.methods.create import add_to_cart
+        from bot.database.methods.orders import create_order_transaction, cancel_order_transaction
+        from bot.database.models.main import Fulfillment, PaymentMethod
 
-        await user_factory(telegram_id=930003, balance=1000)
-        await item_factory(
-            name="SoldItem", price=150, category="StatCat2",
-            values=[("v1", False), ("v2", False)],
-        )
+        await user_factory(telegram_id=930003)
+        await item_factory(name="SoldItem", price=150, category="StatCat2", stock=5)
 
-        assert (await buy_item_transaction(930003, "SoldItem"))[0] is True
-        assert (await buy_item_transaction(930003, "SoldItem"))[0] is True
+        orders = []
+        for qty in (2, 1):
+            await add_to_cart(930003, "SoldItem", quantity=qty)
+            ok, code, order = await create_order_transaction(
+                930003, fulfillment=Fulfillment.PICKUP, customer_name="T", phone="123456",
+                address=None, comment=None, payment_method=PaymentMethod.COD,
+            )
+            assert ok, code
+            orders.append(order)
+        assert (await cancel_order_transaction(orders[1]["id"]))[0] is True
 
         stats = await (await self._stats_cache(fake_cache)).get_global_stats()
 
         assert stats["total_revenue"] == Decimal("300.00")
-        # Both stock rows were consumed.
-        assert stats["total_items"] == 0
+        # 5 on hand, 3 reserved, 1 returned by the cancellation.
+        assert stats["total_items"] == 3
 
     async def test_daily_stats_respects_the_day_window(
         self, fake_cache, user_factory
@@ -505,7 +448,7 @@ class TestStatisticsScreen:
 
         await user_factory(telegram_id=931001)
         await item_factory(name="ScreenItem", price=100, category="ScreenCat",
-                           values=[("x", False)])
+                           stock=1)
 
         call = make_callback_query(data="statistics", user_id=931001)
         with patch.object(shop_management, "stats_cache", StatsCache(fake_cache)):

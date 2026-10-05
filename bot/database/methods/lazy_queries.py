@@ -3,10 +3,10 @@ from sqlalchemy import func, select, or_
 from sqlalchemy import desc
 from bot.database import Database
 from bot.database.models import (
-    Categories, Goods, User, BoughtGoods, ItemValues,
+    Categories, Goods, User,
     ReferralEarnings, Operations
 )
-from bot.database.models.main import PromoCodes, Reviews
+from bot.database.models.main import PromoCodes, Reviews, Orders, OrderStatus, PaymentStatus
 from bot.misc.caching import get_cache_manager
 
 # Paginator COUNTs re-run on every page render; a short TTL absorbs that while
@@ -100,23 +100,51 @@ async def query_goods_search(query: str, offset: int = 0, limit: int = 10,
         return [row[0] for row in result.all()]
 
 
-async def query_user_bought_items(user_id: int, offset: int = 0, limit: int = 10, count_only: bool = False) -> Any:
-    """Query user's bought items with pagination"""
+async def query_user_orders(user_id: int, offset: int = 0, limit: int = 10, count_only: bool = False) -> Any:
+    """A user's orders (all statuses), newest first."""
     if count_only:
         async def _count():
             async with Database().session() as s:
                 return (await s.execute(
-                    select(func.count()).select_from(BoughtGoods).where(BoughtGoods.buyer_id == user_id)
+                    select(func.count()).select_from(Orders).where(Orders.user_id == user_id)
                 )).scalar() or 0
-        return await _cached_count(f"count:bought:{user_id}", _count)
+        return await _cached_count(f"count:orders:{user_id}", _count)
 
     async with Database().session() as s:
         result = await s.execute(
-            select(BoughtGoods)
-            .where(BoughtGoods.buyer_id == user_id)
-            .order_by(desc(BoughtGoods.bought_datetime), desc(BoughtGoods.id))
+            select(Orders)
+            .where(Orders.user_id == user_id)
+            .order_by(desc(Orders.created_at), desc(Orders.id))
             .offset(offset)
             .limit(limit)
+        )
+        return result.scalars().all()
+
+
+async def query_orders(status: str | None = None, offset: int = 0, limit: int = 10,
+                       count_only: bool = False, awaiting_payment_check: bool = False) -> Any:
+    """Admin order list, newest first.
+
+    ``status`` filters by order status. ``awaiting_payment_check`` narrows to MIA orders
+    whose customer says they paid and who are waiting for an admin to verify the transfer.
+    Counts are not cached: an admin expects the badge to be live.
+    """
+    clauses = []
+    if status:
+        clauses.append(Orders.status == status)
+    if awaiting_payment_check:
+        clauses.append(Orders.payment_status == PaymentStatus.AWAITING_CONFIRMATION)
+        clauses.append(Orders.status != OrderStatus.CANCELLED)
+
+    async with Database().session() as s:
+        if count_only:
+            return (await s.execute(
+                select(func.count()).select_from(Orders).where(*clauses)
+            )).scalar() or 0
+        result = await s.execute(
+            select(Orders).where(*clauses)
+            .order_by(desc(Orders.created_at), desc(Orders.id))
+            .offset(offset).limit(limit)
         )
         return result.scalars().all()
 
@@ -135,35 +163,6 @@ async def query_all_users(offset: int = 0, limit: int = 10, count_only: bool = F
             .order_by(User.telegram_id.asc())
             .offset(offset)
             .limit(limit)
-        )
-        return [row[0] for row in result.all()]
-
-
-async def query_items_in_position(item_name: str, offset: int = 0, limit: int = 10, count_only: bool = False) -> Any:
-    """Query items in position with pagination"""
-    if count_only:
-        async def _count():
-            async with Database().session() as s:
-                item_id = (await s.execute(
-                    select(Goods.id).where(Goods.name == item_name)
-                )).scalar()
-                if not item_id:
-                    return 0
-                return (await s.execute(
-                    select(func.count(ItemValues.id)).where(ItemValues.item_id == item_id)
-                )).scalar() or 0
-        return await _cached_count(f"count:stock:{item_name}", _count)
-
-    async with Database().session() as s:
-        item_id = (await s.execute(
-            select(Goods.id).where(Goods.name == item_name)
-        )).scalar()
-        if not item_id:
-            return []
-        result = await s.execute(
-            select(ItemValues.id)
-            .where(ItemValues.item_id == item_id)
-            .order_by(ItemValues.id.asc()).offset(offset).limit(limit)
         )
         return [row[0] for row in result.all()]
 
@@ -308,8 +307,9 @@ async def query_user_operations_history(user_id: int, offset: int = 0, limit: in
                         .where(Operations.user_id == user_id, Operations.operation_value > 0)
                         .scalar_subquery()
                         + select(func.count())
-                        .select_from(BoughtGoods)
-                        .where(BoughtGoods.buyer_id == user_id)
+                        .select_from(Orders)
+                        .where(Orders.user_id == user_id, Orders.balance_used > 0,
+                               Orders.status != OrderStatus.CANCELLED)
                         .scalar_subquery()
                         + select(func.count())
                         .select_from(ReferralEarnings)
@@ -330,15 +330,16 @@ async def query_user_operations_history(user_id: int, offset: int = 0, limit: in
             )
             .where(Operations.user_id == user_id, Operations.operation_value > 0)
         )
-        # 2. Purchases
+        # 2. Orders paid (fully or partly) from the balance
         purchases = (
             select(
-                BoughtGoods.id,
+                Orders.id,
                 literal('purchase').label('type'),
-                (-BoughtGoods.price).label('amount'),
-                BoughtGoods.bought_datetime.label('date'),
+                (-Orders.balance_used).label('amount'),
+                Orders.created_at.label('date'),
             )
-            .where(BoughtGoods.buyer_id == user_id)
+            .where(Orders.user_id == user_id, Orders.balance_used > 0,
+                   Orders.status != OrderStatus.CANCELLED)
         )
         # 3. Referral earnings
         referrals = (

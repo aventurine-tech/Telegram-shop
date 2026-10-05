@@ -224,10 +224,6 @@ async def _shutdown(ctx: AppContext, bot: Bot) -> None:
     if ctx.webhook_server:
         ctx.webhook_server.should_exit = True
 
-    # Close CryptoPay shared HTTP session
-    from bot.misc.services.payment import CryptoPayAPI
-    await CryptoPayAPI.close_session()
-
     # Let fire-and-forget invalidations and audit rows land while the engine and Redis are both still open.
     from bot.database.methods.cache_utils import drain_background_tasks
     await drain_background_tasks()
@@ -259,8 +255,6 @@ def _configure_logging() -> None:
 _ALLOWED_UPDATES = [
     "message",
     "callback_query",
-    "pre_checkout_query",
-    "successful_payment",
 ]
 
 

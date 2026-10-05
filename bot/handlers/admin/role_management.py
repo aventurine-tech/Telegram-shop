@@ -33,6 +33,7 @@ PERM_LABELS = {
     Permission.STATS_VIEW: "STATS",
     Permission.BALANCE_MANAGE: "BALANCE",
     Permission.PROMO_MANAGE: "PROMOS",
+    Permission.ORDERS_MANAGE: "ORDERS",
 }
 
 
