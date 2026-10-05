@@ -17,7 +17,7 @@ from starlette.routing import Route
 from sqlalchemy import text
 
 from markupsafe import Markup, escape
-from wtforms import BooleanField, FileField, Form, SelectField, StringField
+from wtforms import BooleanField, FileField, Form, SelectField, StringField, TextAreaField
 from wtforms.validators import Optional as WtfOptional, StopValidation
 from sqlalchemy import select as sa_select, update as sa_update, func as sa_func
 
@@ -102,6 +102,10 @@ from bot.database.methods.read import (
 )
 from bot.database.methods.cache_utils import safe_create_task
 from bot.database.methods.delete import delete_item
+from bot.database.methods.item_options import (
+    OptionsError, check_option_names_free, format_options_text, parse_options_text, plain_price,
+    sync_item_options,
+)
 from bot.database.methods.product_images import items_with_images, remove_item_image, set_item_image
 from bot.database.methods.orders import set_order_status, confirm_mia_payment
 from bot.misc.services.restock_notifier import notify_restock
@@ -610,7 +614,7 @@ class GoodsForm(Form):
 
 class GoodsAdmin(TranslatedModelView, model=Goods):
     translates_description = True
-    column_list = [Goods.id, Goods.name, Goods.variant_label, "picture", Goods.price, Goods.stock,
+    column_list = [Goods.id, Goods.name, "options_summary", "picture", Goods.price, Goods.stock,
                    Goods.sale_percent, Goods.sale_until, Goods.description, Goods.category_id]
     form_base_class = GoodsForm
     column_searchable_list = [Goods.name, Goods.name_en, Goods.name_ru, Goods.name_ro]
@@ -650,7 +654,8 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
 
     async def _apply_translations(self, data: dict, model: Any, is_created: bool) -> None:
         """One name for every language (an option's name is composed from its head and already set)."""
-        if data.get("variant_of") is None and ("name" in data or is_created):
+        variant_of = data["variant_of"] if "variant_of" in data else getattr(model, "variant_of", None)
+        if variant_of is None and ("name" in data or is_created):
             name = clean_name(data.get("name"))
             if not name:
                 raise ValueError(localize("web.form.name_required_single"))
@@ -664,43 +669,87 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         await super()._apply_translations(data, model, is_created)
 
     async def scaffold_form(self, *args, **kwargs):
-        """The picture controls and the head-product select (heads only), in the request language."""
+        """Category dropdown with subcategory paths, the weight options block and the picture controls."""
         Base = await super().scaffold_form(*args, **kwargs)
-        async with Database().session() as session:
-            heads = (await session.execute(
-                sa_select(Goods).where(Goods.variant_of.is_(None)).order_by(Goods.name)
-            )).scalars().all()
         viewer = _viewer_language()
-        choices = [("", localize("web.form.variant_of_none"))] + [(str(h.id), pick(h, "name", viewer)) for h in heads]
 
-        def coerce(value):
-            return None if value in (None, "", "None") else int(value)
+        # Description of the admin's own language right under the name, then the others.
+        unbound = {lang: getattr(Base, f"description_{lang}") for lang in LANGS if hasattr(Base, f"description_{lang}")}
+        order = [viewer] + [lang for lang in LANGS if lang != viewer]
+        counters = sorted(u.creation_counter for u in unbound.values())
+        for lang, counter in zip([l for l in order if l in unbound], counters):
+            unbound[lang].creation_counter = counter
+
+        async with Database().session() as session:
+            categories = (await session.execute(sa_select(Categories))).scalars().all()
+        by_id = {c.id: c for c in categories}
+        parents = {c.parent_id for c in categories if c.parent_id}
+        choices = []
+        for c in categories:
+            if c.id in parents:        # a category with subcategories holds no products
+                continue
+            label = pick(c, "name", viewer)
+            if c.parent_id in by_id:
+                label = f"{pick(by_id[c.parent_id], 'name', viewer)} \u203a {label}"
+            choices.append((str(c.id), label))
+        choices.sort(key=lambda item: item[1].casefold())
+
+        def coerce_category(value):
+            if value is None or value in ("", "None"):
+                return None
+            return str(getattr(value, "id", value))
+
+        category_field = SelectField(localize("web.col.category"), choices=choices, coerce=coerce_category,
+                                     validate_choice=False, render_kw={"class": "form-select"})
+        category_field.creation_counter = Base.category.creation_counter if hasattr(Base, "category") else 10_000
 
         class LocalizedGoodsForm(Base):
-            variant_of = SelectField(localize("web.col.variant_of"), choices=choices, coerce=coerce,
-                                     validate_choice=False, validators=[WtfOptional()],
-                                     description=localize("web.form.variant_of_hint"),
-                                     render_kw={"class": "form-select"})
-            variant_label = StringField(localize("web.col.variant_label"), validators=[WtfOptional()],
-                                        description=localize("web.form.variant_label_hint"),
-                                        render_kw={"class": "form-control",
-                                                   "placeholder": localize("web.form.variant_label_placeholder")})
+            category = category_field
+            options_text = TextAreaField(localize("web.col.options_text"), validators=[WtfOptional()],
+                                         description=localize("web.form.options_hint"),
+                                         render_kw={"class": "form-control", "rows": 4,
+                                                    "placeholder": localize("web.form.options_placeholder")})
             picture = FileField(localize("web.col.picture"), description=localize("web.form.picture_hint"))
             remove_picture = BooleanField(localize("web.form.remove_picture"),
                                           description=localize("web.form.remove_picture_hint"))
 
         return LocalizedGoodsForm
 
+    def list_query(self, request: Request):
+        """Weight options are managed inside their product, not listed as products of their own."""
+        return sa_select(Goods).where(Goods.variant_of.is_(None))
+
+    async def get_object_for_edit(self, value: Any) -> Any:
+        obj = await super().get_object_for_edit(value)
+        if obj is not None and getattr(obj, "variant_of", None) is None:
+            async with Database().session() as session:
+                options = (await session.execute(
+                    sa_select(Goods).where(Goods.variant_of == obj.id))).scalars().all()
+            obj.options_text = format_options_text(options)
+        return obj
+
     async def list(self, request: Request):
         pagination = await super().list(request)
         with_pictures = await items_with_images()
+        ids = [row.id for row in pagination.rows]
+        summaries: dict[int, list[str]] = {}
+        if ids:
+            async with Database().session() as session:
+                options = (await session.execute(
+                    sa_select(Goods).where(Goods.variant_of.in_(ids)).order_by(Goods.id))).scalars().all()
+            for o in options:
+                summaries.setdefault(o.variant_of, []).append(f"{o.variant_label}: {plain_price(o.price)} / {o.stock}")
         for row in pagination.rows:
             row.picture = row.name in with_pictures
+            row.options_summary = "; ".join(summaries.get(row.id, []))
         return pagination
 
     async def get_list_value(self, obj: Any, prop: str):
         if prop == "name":
             return getattr(obj, "name", None), pick(obj, "name", _viewer_language())
+        if prop == "options_summary":
+            text = getattr(obj, "options_summary", "") or ""
+            return text, text or "\u2014"
         if prop == "picture":
             has = bool(getattr(obj, "picture", False))
             return has, (localize("web.yes") if has else "\u2014")
@@ -721,6 +770,8 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
             for lang in LANGS:
                 data[f"description_{lang}"] = None
 
+        await self._prepare_options(data, model, is_created, request, is_option=head is not None)
+
         # The picture controls are not columns of the product: take them out of `data` so SQLAdmin does not
         # try to set them on the model, and check the upload before anything is saved.
         upload = data.pop("picture", None)
@@ -737,6 +788,21 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
                 raise ValueError(_picture_error(e.code))
         request.state.picture_upload = content or None
         request.state.picture_remove = remove
+
+    async def _prepare_options(self, data: dict, model: Any, is_created: bool, request: Request,
+                               *, is_option: bool) -> None:
+        """Parse and check the options block (it is not a column); it is applied once the product row exists."""
+        text = data.pop("options_text", None)
+        request.state.options_rows = None
+        if text is None or is_option or getattr(model, "variant_of", None) is not None:
+            return
+        try:
+            rows = parse_options_text(text)
+            own_id = None if is_created else getattr(model, "id", None)
+            await check_option_names_free(data.get("name") or getattr(model, "name", ""), own_id, rows)
+        except OptionsError as e:
+            raise ValueError(localize(f"web.form.options_{e.code}", **e.params))
+        request.state.options_rows = rows
 
     async def _validate_variant(self, data: dict, model: Any, is_created: bool) -> dict | None:
         """Check the weight-option fields; returns the head's data when this product is an option.
@@ -842,6 +908,13 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         stock_before = getattr(request.state, "stock_before", None)
         if name and stock_before == 0 and (getattr(model, "stock", 0) or 0) > 0 and _notifier_bot is not None:
             safe_create_task(notify_restock(_notifier_bot, name))
+
+        rows = getattr(request.state, "options_rows", None)
+        if isinstance(rows, list) and getattr(model, "id", None) is not None:
+            result = await sync_item_options(model.id, rows)
+            if _notifier_bot is not None:
+                for option_name in result["restocked"]:
+                    safe_create_task(notify_restock(_notifier_bot, option_name))
 
         await self._apply_picture(model, request)
 
