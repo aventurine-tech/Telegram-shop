@@ -594,3 +594,21 @@ Alembic migrations (upgrade → downgrade → upgrade on a real PostgreSQL 16) o
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE).
+
+## One-time import of the UMBRA catalog
+
+`scripts/umbramd/catalog.json` holds the hookah-tobacco catalog crawled from umbramd.com (54 products,
+73 weight options: Classic / Intense, Solo / Mix, 50 g / 200 g, flavour texts in ro/en/ru); `REPORT.md` lists
+the counts and the site's own inconsistencies. A flavour sold in both strengths becomes two products
+(`SOLO 11` in Classic, `SOLO 11 Intense` in Intense). Pictures are downloaded from the site during the import.
+
+1. Copy `scripts/umbramd/prices.template.csv` to `data/prices.csv` and fill in the price per weight in MDL
+   (add rows such as `intense,SOLO 11,200,320` for exceptions; `*` matches anything, the most specific row wins).
+2. Rebuild so the script is in the image: `docker compose up -d --build`.
+3. Check first: `docker compose exec bot python -m scripts.import_catalog scripts/umbramd/catalog.json --prices data/prices.csv --dry-run`
+4. Import: the same command without `--dry-run`. Use `--top-category "Premium hookah tobacco"` to put the
+   Classic / Intense subcategories under an existing empty category instead of creating a new top category.
+
+Stock is 0 for everything (set it per option in the admin panel). Existing items are never changed, so the
+command can be re-run safely; options without a price are skipped and listed. To refresh the data from the site:
+`python -m scripts.crawl_umbramd`.
