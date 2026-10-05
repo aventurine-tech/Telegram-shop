@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Integer, String, BigInteger, ForeignKey, Text, Boolean,
-    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, func, select
+    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, LargeBinary, func, select
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from bot.database.main import Database
@@ -164,6 +164,22 @@ class Goods(Database.BASE):
 
     def __str__(self):
         return self.name or ""
+
+
+class ProductImages(Database.BASE):
+    """A product's picture, kept apart from `goods` so the bytes never ride along in item lookups
+    or the Redis item cache. `data` is the image exactly as the admin uploaded it; `file_id` is the
+    Telegram reference it earned the first time it was sent (a cache — the bytes are the truth)."""
+    __tablename__ = 'product_images'
+    item_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('goods.id', ondelete="CASCADE"), primary_key=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    file_id: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    def __str__(self):
+        return f"image of item #{self.item_id}"
 
 
 class OrderStatus:

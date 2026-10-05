@@ -135,7 +135,7 @@ async def db_cleanup(setup_test_database):
         ReferralEarnings, Operations, OrderItems, Orders,
         Goods, Categories, User, Role,
         Reviews, CartItems, PromoCodeUsages, PromoCodes,
-        StockSubscriptions,
+        StockSubscriptions, ProductImages,
     )
 
     db = Database()
@@ -150,6 +150,7 @@ async def db_cleanup(setup_test_database):
         await s.execute(delete(OrderItems))
         await s.execute(delete(Orders))
         await s.execute(delete(Operations))
+        await s.execute(delete(ProductImages))
         await s.execute(delete(Goods))
         await s.execute(delete(Categories))
         await s.execute(delete(User))
@@ -184,7 +185,8 @@ def patch_safe_create_task():
             patch('bot.database.methods.update.safe_create_task', side_effect=run_immediately), \
             patch('bot.database.methods.delete.safe_create_task', side_effect=run_immediately), \
             patch('bot.database.methods.transactions.safe_create_task', side_effect=run_immediately), \
-            patch('bot.database.methods.orders.safe_create_task', side_effect=run_immediately):
+            patch('bot.database.methods.orders.safe_create_task', side_effect=run_immediately), \
+            patch('bot.database.methods.product_images.safe_create_task', side_effect=run_immediately):
         yield
 
 

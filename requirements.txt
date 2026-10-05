@@ -23,6 +23,7 @@ itsdangerous==2.2.0
 # Validation & Security
 pydantic==2.5.3
 cryptography==44.0.3
+Pillow==12.3.0
 
 # Utils
 python-dateutil==2.8.2

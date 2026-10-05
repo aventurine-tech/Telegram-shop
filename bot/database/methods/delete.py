@@ -3,7 +3,7 @@ from sqlalchemy import func, select, delete as sa_delete
 from bot.database.methods.read import invalidate_item_cache, invalidate_category_cache
 from bot.database.methods.cache_utils import safe_create_task
 from bot.database.models import Database, Goods, Categories, Role, User
-from bot.database.models.main import PromoCodes, CartItems, Reviews, StockSubscriptions
+from bot.database.models.main import PromoCodes, CartItems, Reviews, StockSubscriptions, ProductImages
 from bot.database.methods.audit import log_audit
 
 
@@ -17,6 +17,7 @@ async def delete_item(item_name: str) -> None:
             category_name = (await s.execute(
                 select(Categories.name).where(Categories.id == item.category_id)
             )).scalar()
+            await s.execute(sa_delete(ProductImages).where(ProductImages.item_id == item.id))
             await s.delete(item)
 
     safe_create_task(invalidate_item_cache(item_name))
@@ -43,6 +44,9 @@ async def delete_category(category_name: str) -> None:
                 details=f"deleted items: {item_names}",
                 session=s,
             )
+        await s.execute(sa_delete(ProductImages).where(
+            ProductImages.item_id.in_(select(Goods.id).where(Goods.category_id == cat.id))
+        ))
         await s.delete(cat)
 
     safe_create_task(invalidate_category_cache(category_name))

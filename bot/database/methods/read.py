@@ -572,6 +572,7 @@ async def invalidate_item_cache(item_name: str, category_name: str = None):
         keys = [
             f"item_info:{item_name}",
             f"item_values:{item_name}",
+            f"item_image:{item_name}",
             f"avg_rating:{item_name}",
             f"count:reviews:{item_name}",
         ]
