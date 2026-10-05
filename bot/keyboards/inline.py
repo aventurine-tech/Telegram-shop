@@ -270,6 +270,22 @@ def checkout_fulfillment_keyboard(kinds: Iterable[str]) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def checkout_shipping_keyboard(methods: list[dict], goods_total, currency: str) -> InlineKeyboardMarkup:
+    """The shop's delivery methods with their price for this cart (free above a method's threshold)."""
+    from bot.database.methods.shipping import delivery_fee
+    from bot.misc.localized import pick
+    kb = InlineKeyboardBuilder()
+    for m in methods:
+        fee = delivery_fee(m, goods_total)
+        name = pick(m, "name")
+        text = (localize("btn.checkout.ship", name=name, fee=fee, currency=currency) if fee > 0
+                else localize("btn.checkout.ship_free", name=name))
+        kb.button(text=text, callback_data=f"co_ship:{m['id']}")
+    kb.button(text=localize("btn.checkout.cancel"), callback_data="co_cancel")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 def checkout_name_keyboard(first_name: str | None) -> InlineKeyboardMarkup:
     """Offer the Telegram first name as the order name, plus a way out."""
     kb = InlineKeyboardBuilder()

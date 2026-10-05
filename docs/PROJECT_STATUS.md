@@ -7,7 +7,7 @@ _Last updated: 2026-10-05 (after PR #20). Branch of record: `development`; `main
 A Telegram shop bot for physical goods (MIA transfer verified by staff, or cash on delivery / pickup), with a
 catalog of categories → subcategories → products → weight options, order tracking, staff roles, a multi-account web
 panel, and English / Russian / Romanian everywhere. Everything below is **built, merged into `development` and
-covered by automated tests** (2009 passing). Nothing has been signed off in a live shop yet: the owner is testing the
+covered by automated tests** (2055 passing). Nothing has been signed off in a live shop yet: the owner is testing the
 deployed bot and reporting issues from screenshots.
 
 ## What exists
@@ -51,6 +51,9 @@ deployed bot and reporting issues from screenshots.
 | #18 | Docs: CLAUDE.md, status, README, run-and-test |
 | #19 | Web sidebar in groups (Orders, Clients, Payments, Catalog, Marketing, Settings, Log out) + "Payments to verify" |
 | #20 | **Mailings** (web): editor with toolbar/placeholders/live preview, picture, audiences, schedule, delivery report, test to myself |
+| #21 | Web panel fully translated (list/form/dialog chrome, validation), Romanian "Campanii" |
+| #22 | Client profiles (names, @username, phone, address, order history in web) |
+| #23 | Shipping methods (price, free-from threshold, chosen at checkout, fee on the order) |
 
 ## Mailings (PR #20) — how it works
 

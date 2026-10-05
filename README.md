@@ -478,6 +478,15 @@ searches by id, name, username, phone and address and exports to CSV; the detail
 (each order links to its page) with the total. Nothing is imported: existing customers get their phone and address
 from their past orders when the migration runs, and names as soon as they next use the bot.
 
+### Shipping (Catalog → Shipping)
+
+Delivery methods with a price: name in each language, **price**, optional **free from** (delivery is free when the goods
+cost at least that much), active flag and position. When at least one method is active, a customer who chooses *Delivery*
+picks one after typing the address (a single method is taken automatically); its price is added to the order total, shown
+on the confirmation, the order card and the web order page (*Shipping method*, *Delivery fee*). Pickup never pays
+delivery. **With no active method, delivery stays free and unpriced** (as before), so nothing changes until you add one.
+`DELIVERY_ENABLED` still switches delivery on or off as a whole.
+
 ### Mailings (Marketing → Mailings)
 
 Mass messages written in the browser (Admin role): a title, a **group** (all customers, Romanian / Russian / English
@@ -617,7 +626,7 @@ Balances, referrals, promo codes, reviews and carts are kept.
 
 ## 🧪 Testing
 
-**2009 tests** (`pytest`, ~95 s). The data layer runs against a real in-memory async SQLite database
+**2055 tests** (`pytest`, ~95 s). The data layer runs against a real in-memory async SQLite database
 (real SQL, transactions, and constraints) — only external services (Telegram Bot API, Redis)
 are mocked. What's covered:
 

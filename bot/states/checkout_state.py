@@ -7,6 +7,7 @@ class CheckoutFSM(StatesGroup):
     waiting_name = State()
     waiting_phone = State()
     waiting_address = State()
+    choosing_shipping = State()
     waiting_comment = State()
     choosing_payment = State()
     confirming = State()

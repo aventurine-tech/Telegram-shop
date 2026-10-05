@@ -88,7 +88,7 @@ class LoginRateLimiter:
 _login_limiter = LoginRateLimiter()
 from bot.database.main import Database
 from bot.database.models.main import (
-    User, Role, Categories, Goods, Orders, OrderItems, Operations, ReferralEarnings,
+    User, Role, Categories, Goods, Orders, OrderItems, Operations, ReferralEarnings, ShippingMethods,
     AuditLog, PromoCodes, CartItems, Reviews, promo_scope_for,
     OrderStatus, PaymentMethod, PaymentStatus, WebRole,
 )
@@ -1192,6 +1192,64 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         await self._invalidate(model)
 
 
+class ShippingAdmin(TranslatedModelView, model=ShippingMethods):
+    """Delivery methods: what the customer can choose when they want delivery, and what it costs.
+
+    With no active method delivery stays free and unpriced; with some, the customer picks one at checkout and
+    its price (free above the method's threshold) is added to the order."""
+    column_list = [ShippingMethods.name, ShippingMethods.price, ShippingMethods.free_from,
+                   ShippingMethods.is_active, ShippingMethods.position]
+    column_searchable_list = [ShippingMethods.name, ShippingMethods.name_en, ShippingMethods.name_ru,
+                              ShippingMethods.name_ro]
+    column_sortable_list = [ShippingMethods.name, ShippingMethods.price, ShippingMethods.position]
+    column_default_sort = (ShippingMethods.position, False)
+    form_columns = _translation_fields(False) + ["price", "free_from", "is_active", "position"]
+    name = Localized("web.model.shipping.one")
+    name_plural = Localized("web.model.shipping.many")
+    icon = "fa-solid fa-truck"
+    category = "catalog"
+
+    @property
+    def form_args(self) -> dict:
+        return {**_translation_form_args(False),
+                "price": {"description": localize("web.shipping.price_hint")},
+                "free_from": {"description": localize("web.shipping.free_from_hint"),
+                              "validators": [WtfOptional()]},
+                "position": {"description": localize("web.shipping.position_hint")},
+                "is_active": {"description": localize("web.shipping.active_hint")}}
+
+    @property
+    def form_widget_args(self) -> dict:
+        return _translation_widget_args(False)
+
+    async def scaffold_form(self, *args, **kwargs):
+        Base = await super().scaffold_form(*args, **kwargs)
+        _own_language_first(Base, ("name",), _viewer_language())
+        return Base
+
+    async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
+        await self._apply_translations(data, model, is_created)
+
+        def money(key: str, *, required: bool):
+            raw = data.get(key)
+            if raw in (None, ""):
+                if required:
+                    raise ValueError(localize("web.shipping.err.price_required"))
+                return None
+            try:
+                value = Decimal(str(raw))
+            except (InvalidOperation, TypeError):
+                raise ValueError(localize("web.shipping.err.not_number"))
+            if value < 0 or not value.is_finite():
+                raise ValueError(localize("web.shipping.err.negative"))
+            return value.quantize(Decimal("0.01"))
+
+        data["price"] = money("price", required=True)
+        data["free_from"] = money("free_from", required=False)
+        if data.get("position") in (None, ""):
+            data["position"] = 0
+
+
 async def apply_order_action(action_name: str, order_id: int) -> tuple[bool, str]:
     """Run one order action through the same code as the bot, then tell the customer.
 
@@ -1226,8 +1284,8 @@ class OrderAdmin(LocalizedModelView, model=Orders):
                    Orders.balance_used, Orders.created_at]
     column_details_list = [Orders.id, Orders.user_id, Orders.status, Orders.payment_method,
                            Orders.payment_status, Orders.fulfillment, Orders.customer_name,
-                           Orders.phone, Orders.address, Orders.comment, Orders.total,
-                           Orders.balance_used, Orders.pay_by, Orders.created_at, Orders.updated_at,
+                           Orders.phone, Orders.address, Orders.comment, Orders.shipping_name,
+                           Orders.delivery_fee, Orders.total, Orders.balance_used, Orders.pay_by, Orders.created_at, Orders.updated_at,
                            Orders.items]
     # status / payment_status / payment_method are searchable too, which doubles as the filter.
     column_searchable_list = [Orders.customer_name, Orders.phone, Orders.user_id, Orders.status,
@@ -1684,6 +1742,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     admin.add_view(OperationsAdmin)
     admin.add_view(GoodsAdmin)
     admin.add_view(CategoryAdmin)
+    admin.add_view(ShippingAdmin)
     admin.add_view(MailingAdmin)
     admin.add_view(PromoCodeAdmin)
     if EnvKeys.REVIEWS_ENABLED == "1":

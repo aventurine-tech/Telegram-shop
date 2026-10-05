@@ -12,10 +12,11 @@ from bot.database.methods.orders import (
     available_fulfillments, available_payment_methods,
 )
 from bot.database.methods.read import check_user
+from bot.database.methods.shipping import active_methods, delivery_fee, get_active_method
 from bot.database.models.main import Fulfillment, PaymentMethod, PaymentStatus, OrderStatus
 from bot.handlers.user.cart import _cart_view_data, _show_cart
 from bot.keyboards.inline import (
-    checkout_fulfillment_keyboard, checkout_name_keyboard, checkout_cancel_keyboard, checkout_comment_keyboard,
+    checkout_fulfillment_keyboard, checkout_shipping_keyboard, checkout_name_keyboard, checkout_cancel_keyboard, checkout_comment_keyboard,
     checkout_payment_keyboard, checkout_confirm_keyboard, mia_keyboard, simple_buttons, back,
 )
 from bot.logger_mesh import logger
@@ -23,7 +24,7 @@ from bot.misc import (
     EnvKeys, validate_customer_name, validate_phone, clean_text, ADDRESS_MAX_LEN, COMMENT_MAX_LEN,
 )
 from bot.misc.metrics import get_metrics
-from bot.misc.services.order_view import format_order, method_label, notify_new_order, notify_mia_claim, fmt_dt
+from bot.misc.services.order_view import format_order, method_label, delivery_lines, notify_new_order, notify_mia_claim, fmt_dt
 from bot.i18n import localize, esc
 from bot.misc.localized import pick
 from bot.database.methods.translations import item_labels
@@ -112,6 +113,29 @@ async def _ask_address(msg: Message, state: FSMContext, edit: bool = False) -> N
     await _show(msg, text, checkout_cancel_keyboard(), edit)
 
 
+async def _after_address(msg: Message, state: FSMContext, user_id: int, edit: bool = False) -> None:
+    """Delivery: let the customer pick one of the shop's shipping methods (a single one is taken as is)."""
+    methods = await active_methods()
+    if not methods:
+        await _ask_comment(msg, state, edit)
+        return
+    if len(methods) == 1:
+        await _apply_shipping(state, user_id, methods[0])
+        await _ask_comment(msg, state, edit)
+        return
+    _items, _info, _lines, goods_total = await _cart_view_data(user_id)
+    await state.set_state(CheckoutFSM.choosing_shipping)
+    await _show(msg, localize("checkout.shipping_prompt"),
+                checkout_shipping_keyboard(methods, goods_total, EnvKeys.PAY_CURRENCY), edit)
+
+
+async def _apply_shipping(state: FSMContext, user_id: int, method: dict) -> None:
+    """Remember the chosen method and fold its price into the total the rest of the checkout works with."""
+    _items, _info, _lines, goods_total = await _cart_view_data(user_id)
+    fee = delivery_fee(method, goods_total)
+    await state.update_data(co_ship=method["id"], co_total=str(goods_total + fee))
+
+
 async def _ask_comment(msg: Message, state: FSMContext, edit: bool = False) -> None:
     await state.set_state(CheckoutFSM.waiting_comment)
     await _show(msg, localize("checkout.comment_prompt"), checkout_comment_keyboard(), edit)
@@ -160,6 +184,17 @@ async def _ask_summary(msg: Message, state: FSMContext, user_id: int, edit: bool
         await _expired(msg, state, edit)
         return
 
+    # Delivery with shipping methods: the chosen method's price joins the total (recomputed from the live cart).
+    shipping = None
+    fee = Decimal("0.00")
+    if data["co_ful"] == Fulfillment.DELIVERY and await active_methods():
+        shipping = await get_active_method(int(data["co_ship"])) if data.get("co_ship") else None
+        if shipping is None:                      # none chosen yet, or the chosen one was switched off meanwhile
+            await _after_address(msg, state, user_id, edit)
+            return
+        fee = delivery_fee(shipping, total)
+    total = total + fee
+
     balance = await _balance_of(user_id)
     applied = min(balance, total) if data.get("co_use_balance") and balance > 0 else Decimal("0.00")
     due = total - applied
@@ -180,6 +215,7 @@ async def _ask_summary(msg: Message, state: FSMContext, user_id: int, edit: bool
             total=ld["line_total"], currency=cur,
         ))
     lines.append("")
+    lines.extend(delivery_lines({"shipping_name": shipping["name"] if shipping else None, "delivery_fee": fee}, cur))
     lines.append(localize("order.line.total", total=total, currency=cur))
     if applied > 0:
         lines.append(localize("order.line.balance_used", amount=applied, currency=cur))
@@ -321,7 +357,22 @@ async def address_handler(message: Message, state: FSMContext):
         )
         return
     await state.update_data(co_address=address)
-    await _ask_comment(message, state)
+    await _after_address(message, state, message.from_user.id)
+
+
+@router.callback_query(F.data.startswith("co_ship:"), CheckoutFSM.choosing_shipping)
+async def shipping_chosen_handler(call: CallbackQuery, state: FSMContext):
+    try:
+        method = await get_active_method(int(call.data.split(":", 1)[1]))
+    except ValueError:
+        method = None
+    if method is None:
+        await call.answer(localize("checkout.fail.invalid_shipping"), show_alert=True)
+        await _after_address(call.message, state, call.from_user.id, edit=True)
+        return
+    await call.answer()
+    await _apply_shipping(state, call.from_user.id, method)
+    await _ask_comment(call.message, state, edit=True)
 
 
 async def _comment_done(msg: Message, state: FSMContext, user_id: int, edit: bool) -> None:
@@ -409,6 +460,8 @@ async def _fail_text(code: str, data: dict | None) -> str:
         "invalid_payment_method": "checkout.fail.invalid_payment_method",
         "invalid_fulfillment": "checkout.fail.invalid_fulfillment",
         "address_required": "checkout.fail.address_required",
+        "shipping_required": "checkout.fail.shipping_required",
+        "invalid_shipping": "checkout.fail.invalid_shipping",
         "user_not_found": "checkout.fail.user_not_found",
     }
     return localize(known.get(code, "errors.something_wrong"))
@@ -437,6 +490,7 @@ async def confirm_order_handler(call: CallbackQuery, state: FSMContext):
         payment_method=method,
         use_balance=bool(data.get("co_use_balance")),
         expected_total=_money(data["co_total"]),
+        shipping_method_id=data.get("co_ship"),
     )
 
     if not success:
