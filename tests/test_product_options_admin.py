@@ -354,14 +354,17 @@ class TestWebDeleteAndList:
         await GoodsAdmin().on_model_delete(opt, _request())
         assert await _goods("WebDelOpt") is not None
 
-    async def test_list_has_a_label_column(self):
+    async def test_list_has_an_options_column_and_hides_the_options_themselves(self):
         await _head("WebList", [("50 g", 10, 1)])
         view = GoodsAdmin()
-        assert "variant_label" in view._list_prop_names
-        assert view._column_labels["variant_label"] == "Option label"
-        opt, head = await _goods("WebList · 50 g"), await _goods("WebList")
-        assert await _value(view, opt) == "50 g"
-        assert not await _value(view, head)
+        assert "options_summary" in view._list_prop_names
+        assert view._column_labels["options_summary"] == "Options"
+        head = await _goods("WebList")
+        head.options_summary = "50 g: 10 / 1"
+        assert (await view.get_list_value(head, "options_summary"))[1] == "50 g: 10 / 1"
+        async with Database().session() as s:
+            names = (await s.execute(view.list_query(None))).scalars().all()
+        assert "WebList" in [g.name for g in names] and "WebList \u00b7 50 g" not in [g.name for g in names]
 
     async def test_form_has_the_label_field_and_head_select(self):
         view = GoodsAdmin()

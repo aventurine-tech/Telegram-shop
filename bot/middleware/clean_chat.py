@@ -57,6 +57,9 @@ class ScreenTracker:
 
 
 tracker = ScreenTracker()
+# chat_id -> id of the message that currently carries the bottom keyboard. Telegram drops a reply keyboard
+# when the message that set it is deleted, so that message must stay until a newer one replaces it.
+carrier_tracker = ScreenTracker()
 
 
 class CleanChatRequestMiddleware(BaseRequestMiddleware):

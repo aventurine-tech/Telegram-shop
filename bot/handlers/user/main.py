@@ -21,7 +21,7 @@ from bot.handlers.other import check_sub_channel, _parse_channel_username
 from bot.keyboards import main_menu, back, profile_keyboard, check_sub
 from bot.keyboards.inline import MENU_CATEGORY_LIMIT
 from bot.keyboards.reply import bottom_nav_keyboard
-from bot.middleware.clean_chat import outside_screen
+from bot.middleware.clean_chat import carrier_tracker, outside_screen
 from bot.handlers.user._screen import edit_screen
 from bot.misc import EnvKeys
 from bot.misc.metrics import get_metrics
@@ -164,20 +164,27 @@ async def open_main_menu(message: Message, user_id: int, role_data: int) -> None
     await message.answer(localize("menu.title"), reply_markup=markup)
 
 
-# One character: Telegram rejects an empty message, and the carrier is deleted straight after sending.
+# One character: Telegram rejects an empty message. This message must stay in the chat (Telegram drops the
+# keyboard when the message that carries it is deleted); it is replaced, never removed.
 _KEYBOARD_CARRIER = "👇"
 
 
 async def send_bottom_nav(message: Message) -> None:
     """(Re)send the persistent Catalog / Cart / Profile keyboard in the current language.
 
-    Telegram attaches a reply keyboard to a message, so a one-character carrier is sent and removed
-    at once: the keyboard stays, the chat shows no text for it. The carrier is kept out of the clean-chat
-    screen tracking so it never replaces the screen the user is looking at."""
+    The keyboard rides on a one-character message that is kept out of the clean-chat screen tracking (so it
+    never replaces the screen the user is looking at). A newer carrier replaces the previous one: the old
+    message is deleted only after the new keyboard is in place."""
     with outside_screen():
         sent = await message.answer(_KEYBOARD_CARRIER, reply_markup=bottom_nav_keyboard())
-    with contextlib.suppress(Exception):  # cosmetic: a carrier that lingers is harmless
-        await sent.delete()
+    new_id = getattr(sent, "message_id", None)
+    chat_id = message.chat.id
+    previous = carrier_tracker.get(chat_id)
+    if isinstance(new_id, int):
+        carrier_tracker.set(chat_id, new_id)
+        if previous and previous != new_id:
+            with contextlib.suppress(Exception):  # cosmetic: a stale carrier is harmless
+                await message.bot.delete_message(chat_id=chat_id, message_id=previous)
 
 
 def start_payload(text: str | None) -> str | None:

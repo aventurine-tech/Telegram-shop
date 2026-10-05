@@ -285,12 +285,32 @@ class TestProducts:
             select = re.search(r'<select[^>]*name="category".*?</select>', page, re.S).group(0)
             assert shown in select
 
-    async def test_option_fields_sit_together_after_the_main_fields_and_are_styled(self, boss, category_factory):
+    async def test_options_block_follows_the_sale_fields_and_the_old_option_fields_are_gone(self, boss, category_factory):
         await category_factory("Furniture")
         page = (await boss.get(f"/admin/{GOODS}/create")).text
-        assert page.index('name="sale_until"') < page.index('name="variant_of"') < page.index('name="variant_label"')
-        assert re.search(r'<select[^>]*class="[^"]*form-select[^"]*"[^>]*name="variant_of"|'
-                         r'<select[^>]*name="variant_of"[^>]*class="[^"]*form-select', page)
+        assert page.index('name="sale_until"') < page.index('name="options_text"')
+        assert re.search(r'<textarea[^>]*name="options_text"', page)
+        assert 'name="variant_of"' not in page and 'name="variant_label"' not in page
+
+    async def test_descriptions_start_with_the_viewers_language_right_after_the_name(self, boss, category_factory):
+        await category_factory("Furniture")
+        for lang in ("en", "ru", "ro"):
+            boss.cookies.set(LANG_COOKIE, lang)
+            page = (await boss.get(f"/admin/{GOODS}/create")).text
+            names = re.findall(r'name="(name|description_en|description_ru|description_ro)"', page)
+            assert names[0] == "name" and names[1] == f"description_{lang}"
+            assert sorted(names[1:4]) == ["description_en", "description_ro", "description_ru"]
+
+    async def test_category_dropdown_shows_subcategories_under_their_parent(self, boss, category_factory):
+        from bot.database.methods.create import create_category, create_subcategory
+        await create_category("Tobacco", names={"en": "Hookah tobacco"})
+        await create_subcategory("Classic", "Tobacco")
+        await create_category("Tools")
+        boss.cookies.set(LANG_COOKIE, "en")
+        page = (await boss.get(f"/admin/{GOODS}/create")).text
+        select = re.search(r'<select[^>]*name="category".*?</select>', page, re.S).group(0)
+        assert "Hookah tobacco \u203a Classic" in select and ">Tools<" in select
+        assert ">Hookah tobacco<" not in select          # a parent with subcategories holds no products
 
     async def test_create_with_one_name(self, boss, category_factory, caches):
         await category_factory("Furniture")
@@ -431,28 +451,105 @@ class TestAccountsAndLabels:
         assert {"en": "Russian", "ru": "русский", "ro": "rusă"}[lang] in resp.text  # the main language
 
 
-class TestWebOptionCreation:
-    """Creating a weight option from the product form: only the head and the label are needed."""
+class TestWebOptionsBlock:
+    """Weight options live inside their product: one ``label | price | stock`` line each."""
 
-    async def test_option_needs_only_head_label_price_and_stock(self, boss, category_factory, caches):
-        from bot.database.methods.create import create_item
+    async def _create(self, boss, cat, options, **extra):
+        return await boss.post(f"/admin/{GOODS}/create", data=product_form(
+            cat.id, options_text=options, description_en="d", **extra))
+
+    async def test_create_a_product_with_options(self, boss, category_factory, caches):
         from bot.database.methods.read import get_item_family
         await category_factory("Furniture")
-        await create_item("Sofa", "Comfy", 0, "Furniture", names={"ro": "Canapea"})
-        head = await goods("Sofa")
-        boss.cookies.set(LANG_COOKIE, "ro")
-        resp = await boss.post(f"/admin/{GOODS}/create", data={
-            "name": "", "variant_of": str(head.id), "variant_label": "200 g", "price": "300", "stock": "0",
-            "category": str(head.category_id), "sale_percent": "", "sale_until": ""})
-        assert resp.status_code == 302, resp.text[:600]
-        fam = await get_item_family("Sofa")
-        assert [(o["name"], o["variant_label"], o["name_ro"]) for o in fam["options"]] == [
-            ("Sofa · 200 g", "200 g", "Canapea · 200 g")]
-        assert fam["options"][0]["category_id"] == head.category_id
+        cat = await category("Furniture")
+        resp = await self._create(boss, cat, "50 g | 150 | 200\n200 g | 255,5 | 100")
+        assert resp.status_code == 302, resp.text[:500]
+        fam = await get_item_family("Chair")
+        assert [(o["name"], o["variant_label"], float(o["price"]), o["stock"]) for o in fam["options"]] == [
+            ("Chair \u00b7 50 g", "50 g", 150.0, 200), ("Chair \u00b7 200 g", "200 g", 255.5, 100)]
+        assert all(o["category_id"] == cat.id and o["description"] == "" for o in fam["options"])
 
-    async def test_label_without_a_head_is_a_visible_error(self, boss, category_factory, caches):
+    async def test_edit_updates_adds_and_removes_options(self, boss, category_factory, caches):
+        from bot.database.methods.read import get_item_family
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await self._create(boss, cat, "50 g | 150 | 200\n200 g | 255 | 100")
+        head = await goods("Chair")
+        resp = await boss.post(f"/admin/{GOODS}/edit/{head.id}", data=product_form(
+            cat.id, options_text="50 g | 160 | 5\n1 kg | 900"))
+        assert resp.status_code == 302, resp.text[:500]
+        fam = await get_item_family("Chair")
+        assert [(o["variant_label"], float(o["price"]), o["stock"]) for o in fam["options"]] == [
+            ("50 g", 160.0, 5), ("1 kg", 900.0, 0)]
+        assert await goods("Chair \u00b7 200 g") is None
+
+    async def test_renaming_the_product_renames_its_options(self, boss, category_factory, caches):
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await self._create(boss, cat, "50 g | 150 | 2")
+        head = await goods("Chair")
+        resp = await boss.post(f"/admin/{GOODS}/edit/{head.id}", data=product_form(
+            cat.id, name="Sofa", options_text="50 g | 150 | 2"))
+        assert resp.status_code == 302, resp.text[:500]
+        option = await goods("Sofa \u00b7 50 g")
+        assert option is not None and option.name_ru == "Sofa \u00b7 50 g" and await goods("Chair \u00b7 50 g") is None
+
+    async def test_edit_form_is_prefilled_with_the_options(self, boss, category_factory, caches):
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await self._create(boss, cat, "50 g | 150 | 200\n200 g | 255.50 | 0")
+        head = await goods("Chair")
+        page = (await boss.get(f"/admin/{GOODS}/edit/{head.id}")).text
+        text = re.search(r'<textarea[^>]*name="options_text"[^>]*>(.*?)</textarea>', page, re.S).group(1).strip()
+        assert text == "50 g | 150 | 200\n200 g | 255.50 | 0"
+
+    async def test_list_hides_options_and_summarizes_them_on_the_product(self, boss, category_factory, caches):
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await self._create(boss, cat, "50 g | 150 | 200\n200 g | 255 | 100")
+        page = (await boss.get(f"/admin/{GOODS}/list")).text
+        assert "Chair \u00b7 50 g" not in page and "Chair \u00b7 200 g" not in page
+        assert "50 g: 150 / 200; 200 g: 255 / 100" in page
+
+    @pytest.mark.parametrize("text,fragment", [
+        ("50 g", "line 1"),
+        ("50 g | abc | 1", "line 1"),
+        ("50 g | 10 | -1", "line 1"),
+        ("a | 1\nA | 2", "line 2"),
+        ("a\u00b7b | 1", "line 1"),
+    ])
+    async def test_bad_lines_are_rejected_with_a_translated_error(self, boss, category_factory, caches, text, fragment):
         await category_factory("Furniture")
         cat = await category("Furniture")
         boss.cookies.set(LANG_COOKIE, "en")
-        resp = await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, variant_label="50 g"))
-        assert resp.status_code == 400 and "only be set together" in resp.text
+        resp = await self._create(boss, cat, text)
+        assert resp.status_code == 400 and fragment in resp.text
+        assert await goods("Chair") is None
+
+    async def test_option_name_clash_is_refused(self, boss, item_factory, category_factory, caches):
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await item_factory(name="Chair \u00b7 50 g", price=1, stock=1)
+        boss.cookies.set(LANG_COOKIE, "en")
+        resp = await self._create(boss, cat, "50 g | 150 | 2")
+        assert resp.status_code == 400 and "already exists" in resp.text
+
+    async def test_deleting_the_product_deletes_its_options(self, boss, category_factory, caches):
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await self._create(boss, cat, "50 g | 150 | 2")
+        head = await goods("Chair")
+        resp = await boss.delete(f"/admin/{GOODS}/delete?pks={head.id}")
+        assert resp.status_code == 200
+        assert await goods("Chair \u00b7 50 g") is None
+
+
+class TestOptionsTextHelpers:
+
+    def test_parse_and_format_roundtrip(self):
+        from bot.database.methods.item_options import format_options_text, parse_options_text
+        rows = parse_options_text(" 50 g | 150 | 200 \n\n200 g|255,50")
+        assert rows[0][0] == "50 g" and rows[1][1] == __import__("decimal").Decimal("255.50") and rows[1][2] == 0
+        text = format_options_text([{"id": 2, "variant_label": "200 g", "price": rows[1][1], "stock": 0},
+                                    {"id": 1, "variant_label": "50 g", "price": rows[0][1], "stock": 200}])
+        assert text == "50 g | 150 | 200\n200 g | 255.50 | 0"

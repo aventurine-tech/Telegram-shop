@@ -170,8 +170,8 @@ class TestSending:
         calls = msg.answer.await_args_list
         assert [c.args[0] for c in calls] == ["👇", "menu.title"]
         assert isinstance(calls[0].kwargs["reply_markup"], ReplyKeyboardMarkup)
-        # The carrier is removed again: the chat shows no text for the keyboard.
-        msg.answer.return_value.delete.assert_awaited_once()
+        # The carrier must stay: Telegram drops the keyboard when the message that carries it is deleted.
+        msg.answer.return_value.delete.assert_not_awaited()
         assert not isinstance(calls[1].kwargs["reply_markup"], ReplyKeyboardMarkup)
 
     async def test_not_sent_with_subscription_prompt(self, make_message, env_menu):
@@ -202,3 +202,20 @@ class TestRouterOrder:
         order = list(dp.sub_routers)
         assert order.index(language_router) < order.index(bottom_nav.router) < order.index(admin_router)
         assert order.index(bottom_nav.router) < order.index(user_router)
+
+
+class TestCarrierReplacement:
+
+    async def test_a_new_carrier_replaces_the_old_one_after_it_is_sent(self, make_message):
+        from bot.handlers.user.main import send_bottom_nav
+        from bot.middleware.clean_chat import carrier_tracker
+        msg = make_message(text="/start", user_id=910020)
+        msg.chat.id = 910020
+        msg.bot.delete_message = AsyncMock()
+        msg.answer.return_value = MagicMock(message_id=101)
+        await send_bottom_nav(msg)
+        assert carrier_tracker.get(910020) == 101 and not msg.bot.delete_message.await_count
+        msg.answer.return_value = MagicMock(message_id=205)
+        await send_bottom_nav(msg)
+        msg.bot.delete_message.assert_awaited_once_with(chat_id=910020, message_id=101)
+        assert carrier_tracker.get(910020) == 205
