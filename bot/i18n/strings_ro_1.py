@@ -27,6 +27,7 @@ TRANSLATIONS = {"ro": {
 
     # === Titles / Generic Texts ===
     "menu.title": "⛩️ Meniu principal",
+    "menu.welcome": "Bun venit la UMBRA",
     "profile.caption": "👤 <b>Profil</b> — <a href='tg://user?id={id}'>{name}</a>",
     "rules.not_set": "❌ Regulile nu au fost adăugate",
 
