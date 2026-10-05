@@ -103,7 +103,8 @@ class TestForms:
         for other, text in others.items():
             assert label(page, f"name_{other}") == text
         assert 'name="name"' not in page
-        assert page.index('name="name_en"') < page.index('name="name_ru"') < page.index('name="name_ro"')
+        order = [lang for lang in re.findall(r'name="name_(en|ru|ro)"', page)]
+        assert order[0] == lang and sorted(order) == ["en", "ro", "ru"]     # the admin's own language first
 
     @pytest.mark.parametrize("lang,descr_own", [("en", "Description"), ("ru", "Описание"), ("ro", "Descriere")])
     async def test_product_form_description_labels_and_textareas(self, boss, category_factory, lang, descr_own):
@@ -553,3 +554,22 @@ class TestOptionsTextHelpers:
         text = format_options_text([{"id": 2, "variant_label": "200 g", "price": rows[1][1], "stock": 0},
                                     {"id": 1, "variant_label": "50 g", "price": rows[0][1], "stock": 200}])
         assert text == "50 g | 150 | 200\n200 g | 255.50 | 0"
+
+
+class TestOptionsRowsWidget:
+
+    async def test_renders_rows_script_and_keeps_the_posted_textarea(self, boss, category_factory):
+        await category_factory("Furniture")
+        boss.cookies.set(LANG_COOKIE, "ru")
+        page = (await boss.get(f"/admin/{GOODS}/create")).text
+        assert re.search(r'<textarea[^>]*name="options_text"', page)
+        assert "Добавить вариант" in page and "Вариант" in page and "opt-row" in page
+        assert "document.getElementById(" in page
+
+    async def test_edit_page_passes_the_existing_options_to_the_rows(self, boss, category_factory, caches):
+        await category_factory("Furniture")
+        cat = await category("Furniture")
+        await boss.post(f"/admin/{GOODS}/create", data=product_form(cat.id, options_text="50 g | 150 | 200"))
+        head = await goods("Chair")
+        page = (await boss.get(f"/admin/{GOODS}/edit/{head.id}")).text
+        assert re.search(r'<textarea[^>]*name="options_text"[^>]*>\s*50 g \| 150 \| 200\s*</textarea>', page)

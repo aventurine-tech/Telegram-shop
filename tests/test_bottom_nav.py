@@ -168,7 +168,7 @@ class TestSending:
         await start(msg, fsm_context)
 
         calls = msg.answer.await_args_list
-        assert [c.args[0] for c in calls] == ["👇", "menu.title"]
+        assert [c.args[0] for c in calls] == ["\u2800", "menu.title"]
         assert isinstance(calls[0].kwargs["reply_markup"], ReplyKeyboardMarkup)
         # The carrier must stay: Telegram drops the keyboard when the message that carries it is deleted.
         msg.answer.return_value.delete.assert_not_awaited()
@@ -187,7 +187,7 @@ class TestSending:
         call = make_callback_query(data="lang:ru", user_id=910012)
         await lang_h.choose_language(call, fsm_context)
         sent = call.message.answer.await_args
-        assert sent.args[0] == "👇"
+        assert sent.args[0] == "\u2800"
         assert isinstance(sent.kwargs["reply_markup"], ReplyKeyboardMarkup)
 
 
