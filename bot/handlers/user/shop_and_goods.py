@@ -1,11 +1,12 @@
 import asyncio
+import contextlib
 from decimal import Decimal
 from functools import partial
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramAPIError
 from pydantic import ValidationError
 
 from bot.database.methods import (
@@ -25,10 +26,14 @@ from bot.database.methods.lazy_queries import (
 from bot.database.methods.transactions import redeem_balance_promo
 from bot.database.methods.audit import log_audit_bg
 from bot.database.methods.cache_utils import safe_create_task
+from bot.database.methods.product_images import (
+    get_item_image_ref, get_item_image_bytes, store_image_file_id,
+)
 from bot.keyboards import item_info, back, lazy_paginated_keyboard, order_keyboard
 from bot.keyboards.inline import simple_buttons, rating_keyboard
 from aiogram.types import InlineKeyboardButton
 from bot.i18n import localize, esc
+from bot.handlers.user._screen import edit_screen, is_photo_message
 from bot.misc import EnvKeys, LazyPaginator, ReviewRequest
 from bot.misc.metrics import get_metrics
 from bot.misc.services.order_view import format_order
@@ -38,6 +43,8 @@ from bot.states.review_state import ReviewFSM
 from bot.states.promo_state import PromoFSM
 
 router = Router()
+
+CAPTION_LIMIT = 1024    # Telegram's cap on a photo caption
 
 
 def _browsing_state_for(back_data: str):
@@ -60,10 +67,12 @@ def _page_arg(raw: str) -> int | None:
 
 # --- Shared helper: render item page ---
 
-async def _render_item_page(target, state: FSMContext, item_name: str, back_data: str = None, user_id: int = None):
+async def _render_item_page(target, state: FSMContext, item_name: str, back_data: str = None,
+                            user_id: int = None, replace: bool = False):
     """
     Render the item detail page with optional promo discount.
-    `target` can be CallbackQuery or Message.
+    `target` can be CallbackQuery or Message. With a picture the card is a photo message with the
+    text as caption; `replace` forces a fresh message instead of editing the caption in place.
     """
     data = await state.get_data()
     if not back_data:
@@ -142,25 +151,93 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
         out_of_stock=out_of_stock, subscribed=subscribed,
     )
 
-    text_lines = [
-        localize("shop.item.title", name=esc(item_name)),
-        localize("shop.item.description", description=esc(item_info_data["description"])),
-        price_line,
-        quantity_line,
-    ]
-    if reviews_enabled and avg_rating is not None:
-        text_lines.append(localize("review.avg_rating", rating=avg_rating, count=review_count_val))
+    description = item_info_data["description"]
 
-    text = "\n".join(text_lines)
+    def build_text(desc: str) -> str:
+        lines = [
+            localize("shop.item.title", name=esc(item_name)),
+            localize("shop.item.description", description=esc(desc)),
+            price_line,
+            quantity_line,
+        ]
+        if reviews_enabled and avg_rating is not None:
+            lines.append(localize("review.avg_rating", rating=avg_rating, count=review_count_val))
+        return "\n".join(lines)
+
+    text = build_text(description)
+
+    image_ref = await get_item_image_ref(item_name)
+    message = target.message if hasattr(target, 'message') else None
+    on_photo = is_photo_message(message)
+
+    if image_ref is not None:
+        caption = _fit_caption(build_text, description)
+        try:
+            if on_photo and not replace:
+                # Same card, same picture: only the caption and keyboard change.
+                await message.edit_caption(caption=caption, reply_markup=markup)
+                return
+            sent = await _send_card_photo(message or target, item_name, image_ref, caption, markup)
+        except TelegramBadRequest as e:
+            if "message is not modified" in str(e):
+                return
+            raise
+        if sent:
+            if message is not None:
+                with contextlib.suppress(TelegramAPIError):
+                    await message.delete()
+            return
+        # The picture is gone: show the plain text card instead.
 
     try:
-        if hasattr(target, 'message') and hasattr(target.message, 'edit_text'):
-            await target.message.edit_text(text, reply_markup=markup)
+        if message is not None:
+            await edit_screen(target, text, reply_markup=markup)
         else:
             await target.answer(text, reply_markup=markup)
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
+
+
+def _fit_caption(build_text, description: str) -> str:
+    """The card text, with the description trimmed (ellipsis) so it fits a photo caption."""
+    text = build_text(description)
+    if len(text) <= CAPTION_LIMIT:
+        return text
+    lo, hi = 0, len(description)
+    while lo < hi:                                  # longest description prefix that still fits
+        mid = (lo + hi + 1) // 2
+        if len(build_text(description[:mid].rstrip() + "…")) <= CAPTION_LIMIT:
+            lo = mid
+        else:
+            hi = mid - 1
+    return build_text(description[:lo].rstrip() + "…")[:CAPTION_LIMIT]
+
+
+async def _send_card_photo(target, item_name: str, ref: dict, caption: str, markup):
+    """Send the item card as a photo. True on success, False if the picture is gone.
+
+    A cached `file_id` is tried first; if Telegram refuses it, the stale id is cleared and the
+    stored bytes are uploaded instead, and the new id is remembered.
+    """
+    file_id = ref.get("file_id")
+    if file_id:
+        try:
+            await target.answer_photo(file_id, caption=caption, reply_markup=markup)
+            return True
+        except TelegramBadRequest:
+            await store_image_file_id(item_name, None)
+
+    data = await get_item_image_bytes(item_name)
+    if not data:
+        return False
+    sent = await target.answer_photo(
+        BufferedInputFile(data, filename="item.jpg"), caption=caption, reply_markup=markup,
+    )
+    photos = getattr(sent, 'photo', None)
+    if isinstance(photos, list) and photos:
+        await store_image_file_id(item_name, photos[-1].file_id)
+    return True
 
 
 # --- Shop / categories / items ---
@@ -185,7 +262,7 @@ async def _show_categories_page(call: CallbackQuery, state: FSMContext, page: in
         )]],
     )
 
-    await call.message.edit_text(localize("shop.categories.title"), reply_markup=markup)
+    await edit_screen(call, localize("shop.categories.title"), reply_markup=markup)
     await state.update_data(
         category_page_items=list(page_items),
         category_page_num=page,
@@ -230,7 +307,7 @@ async def _show_goods_page(call: CallbackQuery, state: FSMContext,
         nav_cb_prefix="gp_",
     )
 
-    await call.message.edit_text(localize("shop.goods.choose"), reply_markup=markup)
+    await edit_screen(call, localize("shop.goods.choose"), reply_markup=markup)
     await state.update_data(
         current_category=category_name,
         goods_page_items=list(page_items),
@@ -317,11 +394,13 @@ async def _open_item(call: CallbackQuery, state: FSMContext, item_name: str, bac
 
     # Save item name and back_data in state
     updates = {"csrf_item": item_name, "item_back_data": back_data}
-    if (await state.get_data()).get('csrf_item') != item_name:
+    switched = (await state.get_data()).get('csrf_item') != item_name
+    if switched:
         updates["applied_promo"] = None
     await state.update_data(**updates)
 
-    await _render_item_page(call, state, item_name, back_data, user_id=call.from_user.id)
+    # A photo card of another item cannot have its caption reused: send a fresh message.
+    await _render_item_page(call, state, item_name, back_data, user_id=call.from_user.id, replace=switched)
 
 
 @router.callback_query(F.data.startswith('itm:'))
@@ -361,7 +440,7 @@ async def _show_search_page(target, state: FSMContext, query: str, page: int):
 
     async def _render(text, markup):
         if isinstance(target, CallbackQuery):
-            await target.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
+            await edit_screen(target, text, reply_markup=markup, parse_mode="HTML")
         else:
             await target.answer(text, reply_markup=markup, parse_mode="HTML")
 
@@ -394,7 +473,7 @@ async def _show_search_page(target, state: FSMContext, query: str, page: int):
 @router.callback_query(F.data == "shop_search")
 async def shop_search_handler(call: CallbackQuery, state: FSMContext):
     """Prompt for a search query."""
-    await call.message.edit_text(localize("shop.search.prompt"), reply_markup=back("shop"))
+    await edit_screen(call, localize("shop.search.prompt"), reply_markup=back("shop"))
     await state.set_state(ShopStates.waiting_search_query)
 
 
@@ -489,7 +568,7 @@ async def _leave_promo_input(state: FSMContext) -> None:
 
 @router.callback_query(F.data == "apply_promo")
 async def apply_promo_handler(call: CallbackQuery, state: FSMContext):
-    await call.message.edit_text(localize("promo.enter_code"), reply_markup=back("back_to_item"))
+    await edit_screen(call, localize("promo.enter_code"), reply_markup=back("back_to_item"))
     await state.update_data(pre_promo_state=await state.get_state())
     await state.set_state(PromoFSM.waiting_item_code)
 
@@ -538,7 +617,8 @@ async def back_to_item_handler(call: CallbackQuery, state: FSMContext):
     item_name = data.get('csrf_item')
     if not item_name:
         # Fallback
-        await call.message.edit_text(
+        await edit_screen(
+            call,
             localize("shop.item.not_found"),
             reply_markup=back("back_to_menu"),
         )
@@ -551,7 +631,7 @@ async def back_to_item_handler(call: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "redeem_promo")
 async def redeem_promo_handler(call: CallbackQuery, state: FSMContext):
-    await call.message.edit_text(localize("promo.enter_redeem_code"), reply_markup=back("profile"))
+    await edit_screen(call, localize("promo.enter_redeem_code"), reply_markup=back("profile"))
     await state.set_state(PromoFSM.waiting_redeem_code)
 
 
@@ -601,7 +681,8 @@ async def start_review_handler(call: CallbackQuery, state: FSMContext):
         return
 
     await state.update_data(review_item_name=item_name)
-    await call.message.edit_text(
+    await edit_screen(
+        call,
         localize("review.prompt_rating", name=esc(item_name)),
         reply_markup=rating_keyboard(),
     )
@@ -622,7 +703,8 @@ async def receive_rating_handler(call: CallbackQuery, state: FSMContext):
         (localize("btn.skip_review_text"), "skip_review_text"),
         (localize("btn.back"), "back_to_menu"),
     ]
-    await call.message.edit_text(
+    await edit_screen(
+        call,
         localize("review.prompt_text"),
         reply_markup=simple_buttons(buttons),
     )
@@ -652,7 +734,8 @@ async def _submit_review(user_id: int, state: FSMContext, text: str | None) -> b
 @router.callback_query(F.data == "skip_review_text", ReviewFSM.waiting_text)
 async def skip_review_text_handler(call: CallbackQuery, state: FSMContext):
     ok = await _submit_review(call.from_user.id, state, None)
-    await call.message.edit_text(
+    await edit_screen(
+        call,
         localize("review.created" if ok else "errors.something_wrong"),
         reply_markup=back("back_to_menu"),
     )
@@ -696,7 +779,8 @@ async def view_reviews_handler(call: CallbackQuery, state: FSMContext):
     total_pages = await paginator.get_total_pages()
 
     if not reviews:
-        await call.message.edit_text(
+        await edit_screen(
+            call,
             localize("review.list_empty"),
             reply_markup=back("back_to_item"),
         )
@@ -727,7 +811,7 @@ async def view_reviews_handler(call: CallbackQuery, state: FSMContext):
         kb.row(*nav_buttons)
     kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="back_to_item"))
 
-    await call.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
+    await edit_screen(call, "\n".join(lines), reply_markup=kb.as_markup())
 
 
 # --- My orders ---

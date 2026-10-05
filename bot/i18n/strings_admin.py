@@ -25,6 +25,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.goods.position.not_found": "❌ Такого товара не существует",
         "admin.goods.channel.arrival": "📦 Поступление на склад: <b>{name}</b>\nВ наличии: <b>{qty}</b> шт.",
 
+        # === Admin: product pictures ===
+        "admin.goods.add.prompt.photo": "Отправьте фото товара (можно файлом — так сохранится исходное качество) или нажмите «Пропустить».",
+        "admin.goods.photo.btn.skip": "⏭ Пропустить",
+        "admin.goods.photo.btn.change": "🖼 Изменить фото",
+        "admin.goods.photo.btn.remove": "🗑 Удалить фото",
+        "admin.goods.photo.status.yes": "🖼 Фото: есть",
+        "admin.goods.photo.status.no": "🖼 Фото: нет",
+        "admin.goods.photo.prompt.change": "Отправьте новое фото товара (можно файлом — так сохранится исходное качество):",
+        "admin.goods.photo.reprompt": "⚠️ Отправьте фото или изображение файлом.",
+        "admin.goods.photo.too_large": "⚠️ Файл слишком большой (не более 10 МБ). Отправьте другой.",
+        "admin.goods.photo.invalid": "⚠️ Не удалось прочитать изображение. Отправьте другой файл.",
+        "admin.goods.photo.unsupported": "⚠️ Поддерживаются только JPEG, PNG и WEBP. Отправьте другой файл.",
+        "admin.goods.photo.download_failed": "⚠️ Не удалось загрузить файл из Telegram. Попробуйте ещё раз.",
+        "admin.goods.photo.updated": "✅ Фото товара сохранено.",
+        "admin.goods.photo.removed": "✅ Фото товара удалено.",
+        "admin.goods.photo.none": "ℹ️ У товара нет фото.",
+        "admin.goods.photo.remove.confirm": "Удалить фото товара «{name}»?",
+        "admin.goods.photo.remove.yes": "✅ Да, удалить",
+        "admin.goods.photo.remove.no": "↩️ Отмена",
+
         # === Admin: Stock screen ===
         "admin.goods.stock.card": (
             "📦 <b>{name}</b>\n"
@@ -159,6 +179,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.goods.prompt.enter_item_name": "Enter the product name",
         "admin.goods.position.not_found": "❌ This product doesn't exist",
         "admin.goods.channel.arrival": "📦 New arrival: <b>{name}</b>\nIn stock: <b>{qty}</b> pcs.",
+
+        # === Admin: product pictures ===
+        "admin.goods.add.prompt.photo": "Send the product photo (you can send it as a file to keep the original quality) or tap Skip.",
+        "admin.goods.photo.btn.skip": "⏭ Skip",
+        "admin.goods.photo.btn.change": "🖼 Change photo",
+        "admin.goods.photo.btn.remove": "🗑 Remove photo",
+        "admin.goods.photo.status.yes": "🖼 Photo: yes",
+        "admin.goods.photo.status.no": "🖼 Photo: none",
+        "admin.goods.photo.prompt.change": "Send the new product photo (you can send it as a file to keep the original quality):",
+        "admin.goods.photo.reprompt": "⚠️ Please send a photo or an image file.",
+        "admin.goods.photo.too_large": "⚠️ The file is too large (10 MB at most). Please send another one.",
+        "admin.goods.photo.invalid": "⚠️ The image could not be read. Please send another file.",
+        "admin.goods.photo.unsupported": "⚠️ Only JPEG, PNG and WEBP are supported. Please send another file.",
+        "admin.goods.photo.download_failed": "⚠️ The file could not be downloaded from Telegram. Please try again.",
+        "admin.goods.photo.updated": "✅ Product photo saved.",
+        "admin.goods.photo.removed": "✅ Product photo removed.",
+        "admin.goods.photo.none": "ℹ️ This product has no photo.",
+        "admin.goods.photo.remove.confirm": "Remove the photo of “{name}”?",
+        "admin.goods.photo.remove.yes": "✅ Yes, remove",
+        "admin.goods.photo.remove.no": "↩️ Cancel",
 
         # === Admin: Stock screen ===
         "admin.goods.stock.card": (

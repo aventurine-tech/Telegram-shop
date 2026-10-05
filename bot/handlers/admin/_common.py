@@ -1,8 +1,12 @@
+import io
 from html import escape as _esc
+
+from aiogram import F
 
 from bot.i18n import localize
 from bot.logger_mesh import logger
 from bot.misc import EnvKeys
+from bot.misc.images import ImageError, MAX_IMAGE_BYTES
 
 # Numeric(12, 2) leaves 10 integer digits; anything larger is a DB error. Shared by the add and the update flows so they cannot drift.
 MAX_ITEM_PRICE = 99_999_999
@@ -93,3 +97,42 @@ def user_profile_lines(user, first_name, target_id, *, overall_balance,
         localize('profile.registration_date', dt=user.get('registration_date')),
     ]
     return lines
+
+
+# Messages the photo steps accept: a regular photo, or an image sent as a file (keeps the original quality).
+IMAGE_MESSAGE = F.photo | (F.document & F.document.mime_type.startswith("image/"))
+
+_IMAGE_ERROR_KEYS = {
+    "too_large": "admin.goods.photo.too_large",
+    "invalid_image": "admin.goods.photo.invalid",
+    "unsupported_format": "admin.goods.photo.unsupported",
+    "download_failed": "admin.goods.photo.download_failed",
+    "item_not_found": "admin.goods.position.not_found",
+}
+
+
+def image_error_text(code: str) -> str:
+    """Localized text for a ``set_item_image`` / ``validate_image`` error code."""
+    return localize(_IMAGE_ERROR_KEYS.get(code, "admin.goods.photo.invalid"))
+
+
+async def download_message_image(message) -> bytes | None:
+    """Download the photo (largest size) or image document of ``message``; None if there is none.
+
+    Raises ``ImageError`` ("too_large" before downloading when Telegram already reports an oversize file, or "download_failed").
+    """
+    if getattr(message, "photo", None):
+        media = message.photo[-1]
+    elif getattr(message, "document", None):
+        media = message.document
+    else:
+        return None
+    if (getattr(media, "file_size", None) or 0) > MAX_IMAGE_BYTES:
+        raise ImageError("too_large")
+    buf = io.BytesIO()
+    try:
+        await message.bot.download(media, destination=buf)
+    except Exception as e:
+        logger.warning("downloading a product picture failed: %s", e)
+        raise ImageError("download_failed")
+    return buf.getvalue()

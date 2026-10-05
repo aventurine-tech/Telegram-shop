@@ -13,13 +13,15 @@ class AddItemFSM(StatesGroup):
     2) description,
     3) price,
     4) category,
-    5) stock quantity (units on hand).
+    5) stock quantity (units on hand),
+    6) optional picture (a photo / image file, or Skip).
     """
     waiting_item_name = State()
     waiting_item_description = State()
     waiting_item_price = State()
     waiting_category = State()
     waiting_stock = State()
+    waiting_photo = State()
 
 
 class StockFSM(StatesGroup):
@@ -27,11 +29,13 @@ class StockFSM(StatesGroup):
     FSM for the stock screen of a product:
     1) product name,
     2) the product card is open (set / add / remove buttons),
-    3) the quantity for the chosen action.
+    3) the quantity for the chosen action,
+    4) a new picture for the product.
     """
     waiting_item_name = State()
     card = State()
     waiting_quantity = State()
+    waiting_photo = State()
 
 
 class UpdateItemFSM(StatesGroup):

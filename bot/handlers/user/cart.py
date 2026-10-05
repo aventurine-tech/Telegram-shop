@@ -13,6 +13,7 @@ from bot.keyboards.inline import back, cart_keyboard
 from bot.database.methods.pricing import apply_promo_discount
 from bot.misc import EnvKeys
 from bot.i18n import localize, esc
+from bot.handlers.user._screen import edit_screen
 
 router = Router()
 
@@ -82,7 +83,8 @@ async def _show_cart(call: CallbackQuery):
     items, info_map, line_data, real_total = await _cart_view_data(user_id)
 
     if not items:
-        await call.message.edit_text(
+        await edit_screen(
+            call,
             localize("cart.title") + "\n\n" + localize("cart.empty"),
             reply_markup=back("profile"),
         )
@@ -143,7 +145,8 @@ async def _show_cart(call: CallbackQuery):
     lines.append(localize("cart.total", total=real_total, currency=EnvKeys.PAY_CURRENCY))
 
     try:
-        await call.message.edit_text(
+        await edit_screen(
+            call,
             "\n".join(lines),
             reply_markup=cart_keyboard(items),
             parse_mode="HTML",

@@ -97,3 +97,13 @@ async def items_with_images() -> set[str]:
             select(Goods.name).join(ProductImages, ProductImages.item_id == Goods.id)
         )
         return {r[0] for r in rows.all()}
+
+
+async def has_item_image(item_name: str) -> bool:
+    """Uncached "does this product have a picture" check (admin screens must never show a stale answer)."""
+    async with Database().session() as s:
+        return (await s.execute(
+            select(ProductImages.item_id)
+            .join(Goods, Goods.id == ProductImages.item_id)
+            .where(Goods.name == item_name)
+        )).first() is not None

@@ -1,14 +1,20 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.database.models import Permission
-from bot.database.methods import check_category_cached, get_item_info_cached, create_item
-from bot.handlers.other import is_safe_item_name, caller_name
-from bot.handlers.admin._common import _notify_restock_safe, announce_arrival, parse_price, parse_quantity
+from bot.database.methods import check_category_cached, get_item_info, get_item_info_cached, create_item
+from bot.database.methods.product_images import set_item_image
+from bot.handlers.other import is_safe_item_name
+from bot.handlers.admin._common import (
+    _notify_restock_safe, announce_arrival, parse_price, parse_quantity,
+    IMAGE_MESSAGE, download_message_image, image_error_text,
+)
 from bot.keyboards.inline import back
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.misc import EnvKeys
+from bot.misc.images import ImageError, validate_image
 from bot.i18n import localize, esc
 from bot.states import AddItemFSM
 
@@ -94,21 +100,47 @@ async def check_category_for_add_item(message: Message, state):
     await state.set_state(AddItemFSM.waiting_stock)
 
 
+def _photo_prompt_markup():
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text=localize('admin.goods.photo.btn.skip'), callback_data='add_item_skip_photo'))
+    kb.row(InlineKeyboardButton(text=localize('btn.back'), callback_data='goods_management'))
+    return kb.as_markup()
+
+
 @router.message(AddItemFSM.waiting_stock, F.text)
 async def add_item_stock(message: Message, state):
     """
-    Validate the stock quantity, create the product, announce it if it is in stock.
+    Validate the stock quantity and ask for the optional picture; the product is created after that step.
     """
     stock = parse_quantity(message.text)
     if stock is None:
         await message.answer(localize('admin.goods.stock.invalid'), reply_markup=back('goods_management'))
         return
 
+    await state.update_data(item_stock=stock)
+    await message.answer(localize('admin.goods.add.prompt.photo'), reply_markup=_photo_prompt_markup())
+    await state.set_state(AddItemFSM.waiting_photo)
+
+
+async def _create_product(message: Message, user, state, image: bytes | None = None) -> None:
+    """
+    Create the product from the collected answers, store its picture (if any), announce it if it is in stock.
+    ``message`` is where replies go, ``user`` is the admin who acted.
+    """
     data = await state.get_data()
     item_name = data.get('item_name')
+    stock = data.get('item_stock') or 0
 
     await create_item(item_name, data.get('item_description'), data.get('item_price'),
                       data.get('item_category'), stock=stock)
+
+    created = await get_item_info(item_name)    # uncached: the name step may have cached a miss
+    photo_ok = None
+    if image is not None and created:
+        # Only a product that really exists gets a picture.
+        photo_ok, code = await set_item_image(item_name, image)
+        if not photo_ok:
+            await message.answer(image_error_text(code), reply_markup=back('goods_management'))
 
     await message.answer(
         localize('admin.goods.add.result.created', name=esc(item_name), qty=stock),
@@ -120,8 +152,43 @@ async def add_item_stock(message: Message, state):
         await _notify_restock_safe(message.bot, item_name)
         await announce_arrival(message.bot, item_name, stock)
 
-    admin_name = caller_name(message)
-    await log_audit("create_item", user_id=message.from_user.id, resource_type="Item", resource_id=item_name,
-                    details=f"admin={admin_name}, stock={stock}")
+    admin_name = user.first_name or str(user.id)
+    await log_audit("create_item", user_id=user.id, resource_type="Item", resource_id=item_name,
+                    details=f"admin={admin_name}, stock={stock}, photo={'yes' if photo_ok else 'no'}")
 
     await state.clear()
+
+
+@router.message(AddItemFSM.waiting_photo, IMAGE_MESSAGE)
+async def add_item_photo(message: Message, state):
+    """
+    Take the product picture (photo or image file). A bad file is refused and the admin may retry or skip.
+    """
+    try:
+        image = await download_message_image(message)
+        if image is None:
+            raise ImageError("invalid_image")
+        validate_image(image)
+    except ImageError as e:
+        await message.answer(image_error_text(e.code), reply_markup=_photo_prompt_markup())
+        return
+
+    await _create_product(message, message.from_user, state, image)
+
+
+@router.callback_query(F.data == 'add_item_skip_photo', AddItemFSM.waiting_photo,
+                       HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_item_skip_photo(call: CallbackQuery, state):
+    """
+    Create the product without a picture.
+    """
+    await call.answer()
+    await _create_product(call.message, call.from_user, state)
+
+
+@router.message(AddItemFSM.waiting_photo)
+async def add_item_photo_reprompt(message: Message):
+    """
+    Anything but a photo / image file at the photo step: ask again.
+    """
+    await message.answer(localize('admin.goods.photo.reprompt'), reply_markup=_photo_prompt_markup())

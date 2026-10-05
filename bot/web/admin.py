@@ -15,7 +15,7 @@ from starlette.routing import Route
 from sqlalchemy import text
 
 from markupsafe import Markup, escape
-from wtforms import SelectField
+from wtforms import BooleanField, FileField, Form, SelectField
 from wtforms.validators import Optional as WtfOptional
 from sqlalchemy import select as sa_select
 
@@ -82,12 +82,14 @@ from bot.database.models.main import (
     AuditLog, PromoCodes, CartItems, Reviews, promo_scope_for,
     OrderStatus,
 )
+from bot.misc.images import ImageError, validate_image
 from bot.misc.metrics import get_metrics
 from bot.misc.caching import get_cache_manager
 from bot.database.methods.read import (
     invalidate_user_cache, invalidate_item_cache, invalidate_rating_cache, get_item_name_by_id,
 )
 from bot.database.methods.cache_utils import safe_create_task
+from bot.database.methods.product_images import items_with_images, remove_item_image, set_item_image
 from bot.database.methods.orders import set_order_status, confirm_mia_payment
 from bot.misc.services.restock_notifier import notify_restock
 from bot.misc.services.order_view import notify_customer
@@ -290,9 +292,33 @@ class CategoryAdmin(AuditModelView, model=Categories):
     icon = "fa-solid fa-folder"
 
 
+_PICTURE_ERRORS = {
+    "too_large": "The picture is too large (10 MB at most).",
+    "invalid_image": "The picture could not be read as an image.",
+    "unsupported_format": "Only JPEG, PNG and WEBP pictures are supported.",
+    "item_not_found": "The product no longer exists, so the picture was not saved.",
+}
+
+# SQLAdmin looks the upload field up on the edited object when the file input is left empty; the picture
+# lives in its own table, so the product only needs a harmless placeholder for that lookup.
+Goods.picture = None
+
+
+class GoodsForm(Form):
+    """Picture controls added to the generated product form (SQLAdmin has no extra-fields hook)."""
+    picture = FileField(
+        "Picture",
+        description="JPEG, PNG or WEBP, up to 10 MB. Stored as uploaded; shown on the product card in the bot. "
+                    "Leave empty to keep the current picture.",
+    )
+    remove_picture = BooleanField("Remove picture", description="Tick to delete the product's current picture.")
+
+
 class GoodsAdmin(AuditModelView, model=Goods):
-    column_list = [Goods.id, Goods.name, Goods.price, Goods.stock, Goods.sale_percent,
+    column_list = [Goods.id, Goods.name, "picture", Goods.price, Goods.stock, Goods.sale_percent,
                    Goods.sale_until, Goods.description, Goods.category_id]
+    column_labels = {"picture": "Picture"}
+    form_base_class = GoodsForm
     column_searchable_list = [Goods.name]
     column_sortable_list = [Goods.id, Goods.name, Goods.price, Goods.stock]
     name = "Product"
@@ -319,9 +345,39 @@ class GoodsAdmin(AuditModelView, model=Goods):
         },
     }
 
+    async def list(self, request: Request):
+        pagination = await super().list(request)
+        with_pictures = await items_with_images()
+        for row in pagination.rows:
+            row.picture = row.name in with_pictures
+        return pagination
+
+    async def get_list_value(self, obj: Any, prop: str):
+        if prop == "picture":
+            has = bool(getattr(obj, "picture", False))
+            return has, ("yes" if has else "\u2014")
+        return await super().get_list_value(obj, prop)
+
     async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         # The model still holds the stock from before the edit here; remember it for the restock check.
         request.state.stock_before = 0 if is_created else int(getattr(model, "stock", 0) or 0)
+
+        # The picture controls are not columns of the product: take them out of `data` so SQLAdmin does not
+        # try to set them on the model, and check the upload before anything is saved.
+        upload = data.pop("picture", None)
+        remove = bool(data.pop("remove_picture", False))
+        content = b""
+        if upload is not None and hasattr(upload, "read"):
+            content = await upload.read()
+        if content and remove:
+            raise ValueError("Upload a new picture or tick \"Remove picture\", not both.")
+        if content:
+            try:
+                validate_image(content)
+            except ImageError as e:
+                raise ValueError(_PICTURE_ERRORS.get(e.code, _PICTURE_ERRORS["invalid_image"]))
+        request.state.picture_upload = content or None
+        request.state.picture_remove = remove
 
     async def _invalidate(self, model: Any) -> None:
         name = getattr(model, "name", None)
@@ -336,6 +392,30 @@ class GoodsAdmin(AuditModelView, model=Goods):
         stock_before = getattr(request.state, "stock_before", None)
         if name and stock_before == 0 and (getattr(model, "stock", 0) or 0) > 0 and _notifier_bot is not None:
             safe_create_task(notify_restock(_notifier_bot, name))
+
+        await self._apply_picture(model, request)
+
+    async def _apply_picture(self, model: Any, request: Request) -> None:
+        """Store or drop the picture once the product row exists (a new product has no id before the commit)."""
+        name = getattr(model, "name", None)
+        upload = getattr(request.state, "picture_upload", None)
+        remove = getattr(request.state, "picture_remove", False) is True
+        if not isinstance(upload, bytes):
+            upload = None
+        if not name or not (upload or remove):
+            return
+        if upload:
+            ok, code = await set_item_image(name, upload)
+            if not ok:
+                raise ValueError(_PICTURE_ERRORS.get(code, _PICTURE_ERRORS["invalid_image"]))
+            action = "set"
+        else:
+            action = "remove" if await remove_item_image(name) else None
+        if action:
+            await log_audit(
+                "sqladmin_update_item_photo", resource_type=self.name, resource_id=str(getattr(model, "id", name)),
+                details=f"item={name}, action={action}", ip_address=_client_ip(request),
+            )
 
     async def after_model_delete(self, model: Any, request: Request) -> None:
         await super().after_model_delete(model, request)

@@ -22,6 +22,26 @@ TRANSLATIONS = {"ro": {
         "admin.goods.position.not_found": "❌ Acest produs nu există",
         "admin.goods.channel.arrival": "📦 Produs nou: <b>{name}</b>\nÎn stoc: <b>{qty}</b> buc.",
 
+        # === Admin: product pictures ===
+        "admin.goods.add.prompt.photo": "Trimiteți fotografia produsului (o puteți trimite ca fișier, pentru a păstra calitatea originală) sau apăsați «Omite».",
+        "admin.goods.photo.btn.skip": "⏭ Omite",
+        "admin.goods.photo.btn.change": "🖼 Schimbă fotografia",
+        "admin.goods.photo.btn.remove": "🗑 Șterge fotografia",
+        "admin.goods.photo.status.yes": "🖼 Fotografie: da",
+        "admin.goods.photo.status.no": "🖼 Fotografie: nu",
+        "admin.goods.photo.prompt.change": "Trimiteți noua fotografie a produsului (o puteți trimite ca fișier, pentru a păstra calitatea originală):",
+        "admin.goods.photo.reprompt": "⚠️ Vă rugăm să trimiteți o fotografie sau o imagine ca fișier.",
+        "admin.goods.photo.too_large": "⚠️ Fișierul este prea mare (cel mult 10 MB). Vă rugăm să trimiteți altul.",
+        "admin.goods.photo.invalid": "⚠️ Imaginea nu a putut fi citită. Vă rugăm să trimiteți alt fișier.",
+        "admin.goods.photo.unsupported": "⚠️ Sunt acceptate doar JPEG, PNG și WEBP. Vă rugăm să trimiteți alt fișier.",
+        "admin.goods.photo.download_failed": "⚠️ Fișierul nu a putut fi descărcat din Telegram. Vă rugăm să încercați din nou.",
+        "admin.goods.photo.updated": "✅ Fotografia produsului a fost salvată.",
+        "admin.goods.photo.removed": "✅ Fotografia produsului a fost ștearsă.",
+        "admin.goods.photo.none": "ℹ️ Produsul nu are fotografie.",
+        "admin.goods.photo.remove.confirm": "Ștergeți fotografia produsului „{name}”?",
+        "admin.goods.photo.remove.yes": "✅ Da, șterge",
+        "admin.goods.photo.remove.no": "↩️ Anulează",
+
         # === Admin: Stock screen ===
         "admin.goods.stock.card": (
             "📦 <b>{name}</b>\n"
