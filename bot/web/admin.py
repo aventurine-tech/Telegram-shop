@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import time
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -22,6 +23,7 @@ from sqlalchemy import select as sa_select
 from bot.misc import EnvKeys
 from bot.database.methods.audit import log_audit
 from bot.database.methods.web_users import get_web_user_auth, record_web_login
+from bot.i18n import main as i18n_main
 from bot.i18n.main import LANGUAGES, current_language, localize, set_language
 from bot.web.language import LanguageMiddleware, LazyText, Localized, cookie_language, error_text
 from bot.web.passwords import DUMMY_HASH, verify_password
@@ -88,7 +90,9 @@ from bot.database.models.main import (
     OrderStatus, WebRole,
 )
 from bot.misc.images import ImageError, validate_image
-from bot.misc.localized import LANGS, MAX_DESCRIPTION_LEN, MAX_NAME_LEN, clean_description, clean_name
+from bot.misc.localized import (
+    LANGS, MAX_DESCRIPTION_LEN, MAX_NAME_LEN, clean_description, clean_name, derive_canonical, pick,
+)
 from bot.misc.metrics import get_metrics
 from bot.misc.caching import get_cache_manager
 from bot.database.methods.read import (
@@ -207,6 +211,10 @@ class LocalizedModelView(ModelView):
         for prop in names:
             key = f"web.col.{prop}"
             text = localize(key)
+            # The language field of the signed-in admin's own language is simply "Name" / "Description".
+            own = re.fullmatch(r"(name|description)_(en|ru|ro)", prop)
+            if own and own.group(2) == current_language():
+                text = localize(f"web.col.{own.group(1)}")
             labels[prop] = given.get(prop, prop) if text == key else text
         return labels
 
@@ -330,6 +338,12 @@ class RoleAdmin(AuditModelView, model=Role):
         await self._flush_role_caches()
 
 
+def _viewer_language() -> str:
+    """The admin's interface language when it is one of the catalog languages, else the shop's main one."""
+    lang = current_language()
+    return lang if lang in LANGS else i18n_main.get_locale()
+
+
 def _translation_fields(descriptions: bool) -> list[str]:
     fields = [f"name_{lang}" for lang in LANGS]
     return fields + ([f"description_{lang}" for lang in LANGS] if descriptions else [])
@@ -348,15 +362,26 @@ def _name_length_validator(lang: str):
     return check
 
 
+def _field_hint(base: str, lang: str) -> str:
+    """The hint under a language field: required for the admin's own language, else what empty means."""
+    language = localize(f"web.form.lang.{lang}")
+    main = i18n_main.get_locale()
+    if lang == _viewer_language():
+        key = f"web.form.{base}_own_main_hint" if lang == main else f"web.form.{base}_own_hint"
+        return localize(key, language=language)
+    if lang == main:
+        return localize(f"web.form.{base}_main_hint", language=language)
+    return localize(f"web.form.{base}_tr_hint", language=language)
+
+
 def _translation_form_args(descriptions: bool) -> dict:
     """Per-language field hints, in the request language."""
     args = {}
     for lang in LANGS:
-        language = localize(f"web.form.lang.{lang}")
-        args[f"name_{lang}"] = {"description": localize("web.form.name_tr_hint", language=language),
+        args[f"name_{lang}"] = {"description": _field_hint("name", lang),
                                 "validators": [_name_length_validator(lang)]}
         if descriptions:
-            args[f"description_{lang}"] = {"description": localize("web.form.description_tr_hint", language=language)}
+            args[f"description_{lang}"] = {"description": _field_hint("description", lang)}
     return args
 
 
@@ -370,26 +395,80 @@ def _translation_widget_args(descriptions: bool) -> dict:
     return args
 
 
-def _normalize_translations(data: dict, descriptions: bool) -> None:
-    """Clean the submitted translations in place: blank -> None, too long -> a translated ValueError."""
-    for lang in LANGS:
-        language = localize(f"web.form.lang.{lang}")
-        for field, cleaner, limit, err in (
-            (f"name_{lang}", clean_name, MAX_NAME_LEN, "web.form.tr_too_long_name"),
-            (f"description_{lang}", clean_description, MAX_DESCRIPTION_LEN, "web.form.tr_too_long_description"),
+class TranslatedModelView(AuditModelView):
+    """Categories and products: three language fields instead of the canonical ``name`` / ``description``.
+
+    The field of the admin's interface language is labelled plain "Name" / "Description". The canonical
+    columns (the unique lookup keys, in the shop's main language) are derived on save with
+    ``derive_canonical`` and are not in the form.
+    """
+    translates_description = False
+
+    def _bases(self) -> tuple[str, ...]:
+        return ("name", "description") if self.translates_description else ("name",)
+
+    async def get_object_for_edit(self, value: Any) -> Any:
+        """Legacy rows have no main-language translation: show the canonical text in that field."""
+        obj = await super().get_object_for_edit(value)
+        if obj is not None:
+            main = i18n_main.get_locale()
+            for base in self._bases():
+                if not (getattr(obj, f"{base}_{main}", None) or "").strip():
+                    setattr(obj, f"{base}_{main}", getattr(obj, base, None))
+        return obj
+
+    async def get_list_value(self, obj: Any, prop: str):
+        if prop in self._bases():
+            return getattr(obj, prop, None), pick(obj, prop, _viewer_language())
+        return await super().get_list_value(obj, prop)
+
+    async def _apply_translations(self, data: dict, model: Any, is_created: bool) -> None:
+        """Clean and check the submitted language fields, then derive the canonical text into ``data``."""
+        main = i18n_main.get_locale()
+        viewer = _viewer_language()
+        for base, cleaner, limit, too_long in (
+            ("name", clean_name, MAX_NAME_LEN, "web.form.tr_too_long_name"),
+            ("description", clean_description, MAX_DESCRIPTION_LEN, "web.form.tr_too_long_description"),
         ):
-            if field not in data or (field.startswith("description_") and not descriptions):
+            if base not in self._bases():
                 continue
-            value = cleaner(data[field])
-            if value is not None and len(value) > limit:
-                raise ValueError(localize(err, language=language, limit=limit))
-            data[field] = value
+            texts: dict[str, str | None] = {}
+            for lang in LANGS:
+                key = f"{base}_{lang}"
+                value = cleaner(data[key]) if key in data else None
+                if value is not None and len(value) > limit:
+                    raise ValueError(localize(too_long, language=localize(f"web.form.lang.{lang}"), limit=limit))
+                if key in data:
+                    data[key] = value
+                texts[lang] = value
+            required = ValueError(localize(f"web.form.{base}_required", language=localize(f"web.form.lang.{viewer}")))
+            if is_created and not texts.get(viewer):
+                raise required
+            old = None if is_created else getattr(model, base, None)
+            # An edit with the main-language field blank must not rename the item.
+            canonical = old if old and not texts.get(main) else derive_canonical(texts, main, viewer)
+            if not canonical:
+                raise required
+            data[base] = canonical
+            data[f"{base}_{main}"] = canonical
+            if base == "name":
+                await self._check_name_free(canonical, model)
+
+    async def _check_name_free(self, name: str, model: Any) -> None:
+        stmt = sa_select(self.model.id).where(self.model.name == name)
+        own_id = getattr(model, "id", None)
+        if own_id is not None:
+            stmt = stmt.where(self.model.id != own_id)
+        async with Database().session() as session:
+            taken = (await session.execute(stmt.limit(1))).first() is not None
+        if taken:
+            raise ValueError(localize("web.form.name_taken", name=name))
 
 
-class CategoryAdmin(AuditModelView, model=Categories):
+class CategoryAdmin(TranslatedModelView, model=Categories):
     column_list = [Categories.name]
     column_searchable_list = [Categories.name, Categories.name_en, Categories.name_ru, Categories.name_ro]
-    form_columns = ["name"] + _translation_fields(False)
+    form_columns = _translation_fields(False)
     name = Localized("web.model.category.one")
     name_plural = Localized("web.model.category.many")
     icon = "fa-solid fa-folder"
@@ -405,7 +484,7 @@ class CategoryAdmin(AuditModelView, model=Categories):
     async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         # On an edit `model` still holds the pre-edit name here; remember it for the cache invalidation.
         request.state.category_old_name = None if is_created else getattr(model, "name", None)
-        _normalize_translations(data, False)
+        await self._apply_translations(data, model, is_created)
 
     async def _invalidate(self, model: Any, old_name: str | None = None) -> None:
         # Every translation rides in the cached `category:<name>` row, so any edit drops it (and the old
@@ -444,15 +523,14 @@ class GoodsForm(Form):
     remove_picture = BooleanField("Remove picture", description="Tick to delete the product's current picture.")
 
 
-class GoodsAdmin(AuditModelView, model=Goods):
+class GoodsAdmin(TranslatedModelView, model=Goods):
+    translates_description = True
     column_list = [Goods.id, Goods.name, "picture", Goods.price, Goods.stock, Goods.sale_percent,
                    Goods.sale_until, Goods.description, Goods.category_id]
     form_base_class = GoodsForm
     column_searchable_list = [Goods.name, Goods.name_en, Goods.name_ru, Goods.name_ro]
     column_sortable_list = [Goods.id, Goods.name, Goods.price, Goods.stock]
-    # Canonical (main-language) fields first, the optional translations after them.
-    form_columns = ["name", "description", "price", "category", "stock", "sale_percent", "sale_until"] \
-        + _translation_fields(True)
+    form_columns = _translation_fields(True) + ["price", "category", "stock", "sale_percent", "sale_until"]
     name = Localized("web.model.product.one")
     name_plural = Localized("web.model.product.many")
     icon = "fa-solid fa-box"
@@ -499,7 +577,7 @@ class GoodsAdmin(AuditModelView, model=Goods):
         request.state.stock_before = 0 if is_created else int(getattr(model, "stock", 0) or 0)
         # Likewise the pre-edit name (model is not mutated yet), so a rename can drop the old name's caches.
         request.state.item_old_name = None if is_created else getattr(model, "name", None)
-        _normalize_translations(data, True)
+        await self._apply_translations(data, model, is_created)
 
         # The picture controls are not columns of the product: take them out of `data` so SQLAdmin does not
         # try to set them on the model, and check the upload before anything is saved.
@@ -992,6 +1070,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     env.globals["languages"] = LANGUAGES
     env.globals["current_language"] = current_language
     env.globals["error_text"] = error_text
+    env.globals["main_language_name"] = lambda: localize(f"web.form.lang.{i18n_main.get_locale()}")
 
     admin.add_view(UserAdmin)
     admin.add_view(RoleAdmin)

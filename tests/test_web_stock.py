@@ -31,10 +31,12 @@ class TestWebPanelStockEdits:
         view = GoodsAdmin()
         model = await self._goods(name)
         scheduled = []
+        # A new product needs its name and description in the admin's language (the form has no other source).
+        data = {"stock": new_stock, **({"name_ru": name, "description_ru": "d"} if is_created else {})}
         with patch('bot.web.admin.safe_create_task', side_effect=scheduled.append):
-            await view.on_model_change({"stock": new_stock}, model, is_created, request)
+            await view.on_model_change(data, model, is_created, request)
             model.stock = new_stock
-            await view.after_model_change({"stock": new_stock}, model, is_created, request)
+            await view.after_model_change(data, model, is_created, request)
         for coro in scheduled:
             await coro
 

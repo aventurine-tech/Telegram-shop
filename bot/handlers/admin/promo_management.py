@@ -11,7 +11,9 @@ from bot.database.methods.create import create_promo_code
 from bot.database.methods.delete import delete_promo_code
 from bot.database.methods.update import toggle_promo_code
 from bot.database.methods.lazy_queries import query_promo_codes
-from bot.database.methods.read import get_promo_code, check_category, get_item_info
+from bot.database.methods.read import (
+    get_promo_code, check_category, get_item_info, resolve_category_name, resolve_item_name,
+)
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.keyboards.inline import back, simple_buttons, lazy_paginated_keyboard
@@ -371,13 +373,15 @@ async def promo_receive_binding_name(message: Message, state: FSMContext):
     name = (message.text or "").strip()
 
     if binding_type == "category":
-        cat = await check_category(name)
+        canonical = await resolve_category_name(name)
+        cat = await check_category(canonical) if canonical else None
         if not cat:
             await message.answer(localize("admin.promo.category_not_found"), reply_markup=back("promo_mgmt"))
             return
         await state.update_data(promo_category_id=cat['id'])
     else:
-        item = await get_item_info(name)
+        canonical = await resolve_item_name(name)
+        item = await get_item_info(canonical) if canonical else None
         if not item:
             await message.answer(localize("admin.promo.item_not_found"), reply_markup=back("promo_mgmt"))
             return

@@ -84,7 +84,7 @@ class TestPictureUpload:
         request = self._request()
         view = GoodsAdmin()
         payload = _png(fmt="WEBP")
-        data = {"name": "BrandNew", "picture": _upload(payload), "remove_picture": False}
+        data = {"name_ru": "BrandNew", "description_ru": "d", "picture": _upload(payload), "remove_picture": False}
         new_model = Goods(name="BrandNew")
 
         await view.on_model_change(data, new_model, True, request)
@@ -215,7 +215,7 @@ class TestPanelEndToEnd:
     async def test_create_with_a_picture_then_edit_and_remove(self, client):
         cat = await self._category_id()
         payload = _png()
-        form = {"name": "E2E Item", "price": "10", "stock": "3", "category": str(cat), "description": "d"}
+        form = {"name_ru": "E2E Item", "price": "10", "stock": "3", "category": str(cat), "description_ru": "d"}
 
         resp = await client.post("/admin/goods/create", data=form,
                                  files={"picture": ("a.png", payload, "image/png")})

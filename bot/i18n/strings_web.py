@@ -183,6 +183,15 @@ TRANSLATIONS = {
         "web.form.description_tr_hint": "Shown to customers whose language is {language}. Leave empty to use the main-language description.",
         "web.form.tr_too_long_name": "The {language} name is too long (at most {limit} characters).",
         "web.form.tr_too_long_description": "The {language} description is too long (at most {limit} characters).",
+        "web.form.name_own_hint": "Required. Customers whose language is {language} see this name.",
+        "web.form.name_own_main_hint": "Required. {language} is the shop's main language: this name identifies the item and is used wherever a translation is left empty.",
+        "web.form.name_main_hint": "The shop's main language ({language}): identifies the item and is used wherever a translation is left empty. Leave empty to use the name from your language (or keep the current one).",
+        "web.form.description_own_hint": "Required. Customers whose language is {language} see this description.",
+        "web.form.description_own_main_hint": "Required. {language} is the shop's main language: this description is used wherever a translation is left empty.",
+        "web.form.description_main_hint": "The shop's main language ({language}): used wherever a translation is left empty. Leave empty to use the description from your language (or keep the current one).",
+        "web.form.name_required": "Enter the name in {language}.",
+        "web.form.description_required": "Enter the description in {language}.",
+        "web.form.name_taken": "An item named \u201c{name}\u201d already exists. Choose a different name.",
         "web.form.lang.en": "English",
         "web.form.lang.ru": "Russian",
         "web.form.lang.ro": "Romanian",
@@ -333,10 +342,10 @@ TRANSLATIONS = {
             "which is often quicker for catalog and role edits.</li>"),
         "web.help.i18n.title": "🌐 Translations",
         "web.help.i18n.body": (
-            "<p>Category names and product names/descriptions can be translated into <b>English, Russian and Romanian</b>. "
-            "Fill the <i>Name (…)</i> and <i>Description (…)</i> fields on the create/edit form; customers see the text in their own language.</p>"
-            "<p class=\"mb-0\">The plain <b>Name</b> and <b>Description</b> are the main-language text and are what the shop identifies items by. "
-            "Any translation left empty falls back to that main-language text, so nothing is ever blank for the customer.</p>"
+            "<p>Category names and product names/descriptions exist in <b>English, Russian and Romanian</b>. "
+            "The create/edit form has one field per language; the one in <i>your</i> interface language is simply called <b>Name</b> (or <b>Description</b>) and is required, the others are labelled <i>Name (…)</i>. Customers see the text in their own language.</p>"
+            "<p class=\"mb-0\">The shop's main language is <b>{main}</b>: that text identifies the item, and it is the fallback for any language left empty, so nothing is ever blank for the customer. "
+            "If you leave the main-language field empty, your own text is used for it.</p>"
         ),
         "web.help.accounts.title": "👥 Web accounts",
         "web.help.accounts.body": (
@@ -495,6 +504,15 @@ TRANSLATIONS = {
         "web.form.description_tr_hint": "Показывается клиентам с языком «{language}». Оставьте пустым, чтобы использовать описание на основном языке.",
         "web.form.tr_too_long_name": "Название ({language}) слишком длинное (не более {limit} символов).",
         "web.form.tr_too_long_description": "Описание ({language}) слишком длинное (не более {limit} символов).",
+        "web.form.name_own_hint": "Обязательно. Клиенты с языком «{language}» увидят это название.",
+        "web.form.name_own_main_hint": "Обязательно. «{language}» — основной язык магазина: это название идентифицирует позицию и используется там, где перевод не заполнен.",
+        "web.form.name_main_hint": "Основной язык магазина («{language}»): идентифицирует позицию и используется там, где перевод не заполнен. Оставьте пустым, чтобы использовать название на вашем языке (или сохранить текущее).",
+        "web.form.description_own_hint": "Обязательно. Клиенты с языком «{language}» увидят это описание.",
+        "web.form.description_own_main_hint": "Обязательно. «{language}» — основной язык магазина: это описание используется там, где перевод не заполнен.",
+        "web.form.description_main_hint": "Основной язык магазина («{language}»): используется там, где перевод не заполнен. Оставьте пустым, чтобы использовать описание на вашем языке (или сохранить текущее).",
+        "web.form.name_required": "Укажите название ({language}).",
+        "web.form.description_required": "Укажите описание ({language}).",
+        "web.form.name_taken": "Позиция с названием «{name}» уже существует. Выберите другое название.",
         "web.form.lang.en": "английский",
         "web.form.lang.ru": "русский",
         "web.form.lang.ro": "румынский",
@@ -640,10 +658,10 @@ TRANSLATIONS = {
             "где правки каталога и ролей часто делаются быстрее.</li>"),
         "web.help.i18n.title": "🌐 Переводы",
         "web.help.i18n.body": (
-            "<p>Названия категорий и названия и описания товаров можно перевести на <b>английский, русский и румынский</b>. "
-            "Заполните поля <i>Название (…)</i> и <i>Описание (…)</i> в форме создания или изменения; клиенты увидят текст на своём языке.</p>"
-            "<p class=\"mb-0\">Обычные <b>Название</b> и <b>Описание</b> — это текст на основном языке, по нему магазин и находит позиции. "
-            "Если перевод не заполнен, показывается текст на основном языке, поэтому у клиента ничего не бывает пустым.</p>"
+            "<p>Названия категорий и названия и описания товаров существуют на <b>английском, русском и румынском</b>. "
+            "В форме создания и изменения по одному полю на язык; поле на <i>вашем</i> языке интерфейса называется просто <b>Название</b> (или <b>Описание</b>) и обязательно, остальные подписаны <i>Название (…)</i>. Клиенты видят текст на своём языке.</p>"
+            "<p class=\"mb-0\">Основной язык магазина — <b>{main}</b>: текст на нём идентифицирует позицию и подставляется, если другой язык не заполнен, поэтому у клиента ничего не бывает пустым. "
+            "Если поле основного языка пусто, для него берётся ваш текст.</p>"
         ),
         "web.help.accounts.title": "👥 Аккаунты панели",
         "web.help.accounts.body": (

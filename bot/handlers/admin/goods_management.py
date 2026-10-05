@@ -12,6 +12,7 @@ from bot.handlers.admin._common import (
 from bot.i18n import localize, esc
 from bot.database.models import Permission
 from bot.database.methods import get_item_info, delete_item
+from bot.database.methods.read import resolve_item_name
 from bot.database.methods.product_images import has_item_image, remove_item_image, set_item_image
 from bot.database.methods.update import set_item_stock, adjust_item_stock
 from bot.keyboards.inline import back, simple_buttons
@@ -60,9 +61,8 @@ async def delete_str_item(message: Message, state):
     """
     Deletes a product by the provided name. Past orders keep their own copy of the name and price.
     """
-    item_name = message.text
-    item = await get_item_info(item_name)
-    if not item:
+    item_name = await resolve_item_name(message.text)
+    if not item_name:
         await message.answer(
             localize('admin.goods.delete.position.not_found'),
             reply_markup=back('goods_management')
@@ -123,8 +123,8 @@ async def show_item_stock(message: Message, state: FSMContext):
     """
     Shows the product's stock with the set / add / remove buttons.
     """
-    item_name = message.text.strip()
-    item = await get_item_info(item_name)
+    item_name = await resolve_item_name(message.text)
+    item = await get_item_info(item_name) if item_name else None
     if not item:
         await message.answer(localize('admin.goods.position.not_found'), reply_markup=back('goods_management'))
         return

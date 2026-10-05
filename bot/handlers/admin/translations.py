@@ -5,12 +5,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.database.methods.audit import log_audit_bg
-from bot.database.methods.read import check_category, get_item_info
+from bot.database.methods.read import check_category, get_item_info, resolve_category_name
 from bot.database.methods.translations import set_category_translations, set_item_translations
 from bot.database.models import Permission
 from bot.filters import HasPermissionFilter
 from bot.handlers.admin._common import (
     main_language, other_languages, language_label, check_translation, translation_limit,
+    admin_language, wizard_languages,
 )
 from bot.handlers.admin.categories_management import categories_callback_handler
 from bot.handlers.admin.goods_management import _render_card
@@ -54,11 +55,12 @@ async def _load(state: FSMContext) -> tuple[str | None, str | None, dict | None]
     return kind, name, row
 
 
-def _card_text(kind: str, name: str, row: dict) -> str:
+def _card_text(kind: str, name: str, row: dict, admin_lang: str | None = None) -> str:
+    """The editor text: the three languages, the admin's own first (``admin_lang``), the main one marked."""
     main = main_language()
     lines = [localize('admin.translations.card.title.category' if kind == 'c'
                       else 'admin.translations.card.title.item', name=esc(name)), '']
-    for lang in LANGS:
+    for lang in wizard_languages(admin_lang):
         is_main = lang == main
         label = language_label(lang)
         if is_main:
@@ -85,10 +87,12 @@ async def _show_card(target: Message, state: FSMContext, *, note: str | None = N
         await (target.edit_text if edit else target.answer)(text, reply_markup=markup)
         return
     await state.set_state(TranslationFSM.card)
-    text = _card_text(kind, name, row)
+    admin_lang = (await state.get_data()).get('tr_admin_lang')
+    text = _card_text(kind, name, row, admin_lang)
     if note:
         text = f"{note}\n\n{text}"
-    markup = editor_keyboard(other_languages(), with_description=kind == 'i')
+    markup = editor_keyboard([c for c in wizard_languages(admin_lang) if c in other_languages()],
+                             with_description=kind == 'i')
     await (target.edit_text if edit else target.answer)(text, parse_mode='HTML', reply_markup=markup)
 
 
@@ -105,13 +109,14 @@ async def translations_category_start(call: CallbackQuery, state: FSMContext):
 @router.message(TranslationFSM.waiting_category_name, F.text, _PERM)
 async def translations_category_name(message: Message, state: FSMContext):
     """Opens the editor of the category with that name."""
-    name = (message.text or '').strip()
+    name = await resolve_category_name(message.text)
     category = await check_category(name) if name else None
     if not category:
         await message.answer(localize('admin.translations.err.category_not_found'),
                              reply_markup=back('categories_management'))
         return
-    await state.update_data(tr_kind='c', tr_name=category['name'])
+    await state.update_data(tr_kind='c', tr_name=category['name'],
+                            tr_admin_lang=await admin_language(message.from_user.id))
     await _show_card(message, state)
 
 
@@ -119,7 +124,8 @@ async def translations_category_name(message: Message, state: FSMContext):
 async def translations_item_start(call: CallbackQuery, state: FSMContext):
     """Opens the editor of the product whose stock card is shown."""
     data = await state.get_data()
-    await state.update_data(tr_kind='i', tr_name=data.get('stock_item_name'))
+    await state.update_data(tr_kind='i', tr_name=data.get('stock_item_name'),
+                            tr_admin_lang=await admin_language(call.from_user.id))
     await call.answer()
     await _show_card(call.message, state, edit=True)
 

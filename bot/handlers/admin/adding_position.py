@@ -4,13 +4,14 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.database.models import Permission
-from bot.database.methods import check_category_cached, get_item_info, get_item_info_cached, create_item
+from bot.database.methods import get_item_info, create_item
+from bot.database.methods.read import resolve_category_name, resolve_item_name
 from bot.database.methods.product_images import set_item_image
 from bot.handlers.other import is_safe_item_name
 from bot.handlers.admin._common import (
     _notify_restock_safe, announce_arrival, parse_price, parse_quantity,
     IMAGE_MESSAGE, download_message_image, image_error_text,
-    other_languages, language_label, check_translation, translation_limit,
+    admin_language, main_language, wizard_languages, language_label, check_translation, translation_limit,
 )
 from bot.keyboards.inline import back
 from bot.keyboards.translations import skip_keyboard
@@ -18,7 +19,7 @@ from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.misc import EnvKeys
 from bot.misc.images import ImageError, validate_image
-from bot.misc.localized import MAX_DESCRIPTION_LEN
+from bot.misc.localized import MAX_DESCRIPTION_LEN, derive_canonical
 from bot.i18n import localize, esc
 from bot.states import AddItemFSM
 
@@ -28,16 +29,19 @@ router = Router()
 @router.callback_query(F.data == 'add_item', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
 async def add_item_callback_handler(call: CallbackQuery, state):
     """
-    Ask administrator for a new position name.
+    Ask administrator for a new position name, first in the admin's own language.
     """
-    await call.message.edit_text(localize('admin.goods.add.prompt.name'), reply_markup=back("goods_management"))
+    admin_lang = wizard_languages(await admin_language(call.from_user.id))[0]
+    await call.message.edit_text(localize('admin.goods.add.prompt.name', language=language_label(admin_lang)),
+                                 reply_markup=back("goods_management"))
     await state.set_state(AddItemFSM.waiting_item_name)
 
 
 @router.message(AddItemFSM.waiting_item_name, F.text)
 async def check_item_name_for_add(message: Message, state):
     """
-    If position already exists — inform the user; otherwise save name and ask for description.
+    The name in the admin's own language (required). If a product with that name (canonical or any
+    translation) already exists — inform the user; otherwise ask for the other languages (each skippable).
     """
     item_name = (message.text or "").strip()
     if not is_safe_item_name(item_name):
@@ -46,15 +50,16 @@ async def check_item_name_for_add(message: Message, state):
             reply_markup=back('goods_management'),
         )
         return
-    item = await get_item_info_cached(item_name)
-    if item:
+    if await resolve_item_name(item_name):
         await message.answer(
             localize('admin.goods.add.name.exists'),
             reply_markup=back('goods_management')
         )
         return
 
-    await state.update_data(item_name=item_name, item_names={}, item_name_queue=other_languages())
+    languages = wizard_languages(await admin_language(message.from_user.id))
+    await state.update_data(item_name_lang=languages[0], item_names={languages[0]: item_name},
+                            item_name_queue=languages[1:])
     await _next_name_translation(message, state)
 
 
@@ -63,7 +68,9 @@ async def _next_name_translation(target: Message, state):
     data = await state.get_data()
     queue = list(data.get('item_name_queue') or [])
     if not queue:
-        await target.answer(localize('admin.goods.add.prompt.description'), reply_markup=back('goods_management'))
+        admin_lang = wizard_languages(data.get('item_name_lang'))[0]
+        await target.answer(localize('admin.goods.add.prompt.description', language=language_label(admin_lang)),
+                            reply_markup=back('goods_management'))
         await state.set_state(AddItemFSM.waiting_item_description)
         return
     await target.answer(
@@ -103,6 +110,10 @@ async def add_item_name_translation(message: Message, state):
     value, error = check_translation('name', message.text)
     if error:
         await message.answer(localize(error, max=translation_limit('name')),
+                             reply_markup=skip_keyboard('add_item_skip_tr', 'goods_management'))
+        return
+    if await resolve_item_name(value):
+        await message.answer(localize('admin.goods.add.name.exists'),
                              reply_markup=skip_keyboard('add_item_skip_tr', 'goods_management'))
         return
     names = dict(data.get('item_names') or {})
@@ -154,15 +165,19 @@ async def add_item_skip_translation(call: CallbackQuery, state):
 @router.message(AddItemFSM.waiting_item_description, F.text)
 async def add_item_description(message: Message, state):
     """
-    Save the (main-language) description and ask for it in the other languages.
+    Save the description in the admin's own language (required) and ask for the other languages.
     """
     description = (message.text or "").strip()
+    if not description:
+        await message.answer(localize('admin.translations.invalid'), reply_markup=back('goods_management'))
+        return
     if len(description) > MAX_DESCRIPTION_LEN:
         await message.answer(localize('admin.translations.too_long', max=MAX_DESCRIPTION_LEN),
                              reply_markup=back('goods_management'))
         return
-    await state.update_data(item_description=description, item_descriptions={},
-                            item_desc_queue=other_languages())
+    languages = wizard_languages(await admin_language(message.from_user.id))
+    await state.update_data(item_desc_lang=languages[0], item_descriptions={languages[0]: description},
+                            item_desc_queue=languages[1:])
     await _next_description_translation(message, state)
 
 
@@ -186,9 +201,8 @@ async def check_category_for_add_item(message: Message, state):
     """
     Category must exist; then ask for the stock quantity.
     """
-    category_name = (message.text or "").strip()
-    category = await check_category_cached(category_name)
-    if not category:
+    category_name = await resolve_category_name(message.text)
+    if not category_name:
         await message.answer(
             localize('admin.goods.add.category.not_found'),
             reply_markup=back('goods_management')
@@ -228,13 +242,20 @@ async def _create_product(message: Message, user, state, image: bytes | None = N
     ``message`` is where replies go, ``user`` is the admin who acted.
     """
     data = await state.get_data()
-    item_name = data.get('item_name')
+    names = dict(data.get('item_names') or {})
+    descriptions = dict(data.get('item_descriptions') or {})
+    # Canonical (lookup-key) text: the main-language (BOT_LOCALE) text if entered, else the admin's own
+    # language, else the first filled. Every entered language is stored as ``name_<lang>`` /
+    # ``description_<lang>``, so ``name_<main>`` is set only when the canonical IS the main-language text
+    # and stays NULL otherwise.
+    item_name = derive_canonical(names, main_language(), data.get('item_name_lang'))
+    item_description = derive_canonical(descriptions, main_language(), data.get('item_desc_lang')) or ''
     stock = data.get('item_stock') or 0
-    translated = set(data.get('item_names') or {}) | set(data.get('item_descriptions') or {})
+    translated = set(names) | set(descriptions)
 
-    await create_item(item_name, data.get('item_description'), data.get('item_price'),
+    await create_item(item_name, item_description, data.get('item_price'),
                       data.get('item_category'), stock=stock,
-                      names=data.get('item_names') or None, descriptions=data.get('item_descriptions') or None)
+                      names=names or None, descriptions=descriptions or None)
 
     created = await get_item_info(item_name)    # uncached: the name step may have cached a miss
     photo_ok = None

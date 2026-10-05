@@ -53,7 +53,7 @@ class TestItemNameStep:
 
         # The name is stored; the other two languages are asked before the description.
         assert await fsm_context.get_state() == AddItemFSM.waiting_item_name_translation
-        assert (await fsm_context.get_data())["item_name"] == "Fresh Item"
+        assert list((await fsm_context.get_data())["item_names"].values()) == ["Fresh Item"]
 
     async def test_existing_name_is_refused(self, make_message, fsm_context, item_factory):
         await item_factory(name="AlreadyHere", price=10, category="C", stock=1)
