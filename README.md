@@ -195,7 +195,8 @@ flowchart TD
     M0 --> M1["RateLimit<br/>global 30/min + per-action buckets"]
     M1 --> M2["Analytics<br/>metrics + conversion funnels"]
     M2 --> M3["Auth<br/>role cache · blocked users"]
-    M3 --> M4["Security<br/>audit · maintenance gate · 1h replay guard"]
+    M3 --> ML["Language · Profile<br/>per-update language · name/@username kept fresh"]
+    ML --> M4["Security<br/>audit · maintenance gate · 1h replay guard"]
     M4 --> R["Routers: language → bottom menu → admin → other → user"]
     R --> H[Handler]
 ```
@@ -215,7 +216,7 @@ flowchart TD
     subgraph proc["Bot process — one asyncio loop"]
         DP["aiogram Dispatcher"]
         UV["uvicorn · Starlette<br/>SQLAdmin · /health · /metrics · /export"]
-        RM["RecoveryManager<br/>unpaid-MIA expiry 60 s · health 60 s"]
+        RM["RecoveryManager<br/>unpaid-MIA expiry 60 s · health 60 s · due mailings 15 s"]
         CM["CleanupManager<br/>daily retention"]
         CS["CacheScheduler<br/>stats hourly · daily 03:00"]
     end
@@ -316,6 +317,12 @@ The data model, in plain terms:
 - **operations** — the balance ledger (admin credits and deductions, balance promos).
 - **promo_codes** (+ per-user usages) — bound to a category or a product; carries its own `scope`
   because bindings are `ON DELETE SET NULL`, so a promo whose target is gone applies to nothing.
+- **users** also carry the customer profile: `username`, `first_name`, `last_name` (from Telegram), `phone`, `address`
+  (from the latest order), staff `notes`, `last_seen_at`.
+- **shipping_methods** — delivery methods (translated name, price, optional free-from amount, active, position); an order keeps
+  `shipping_name` and `delivery_fee` (the fee is part of `total`).
+- **mailings** — web-panel mass messages: text (Telegram HTML), picture bytes + cached `file_id`, audience, status, schedule,
+  counters (total / sent / blocked / failed). **web_users** — panel accounts (`telegram_id` is where test mailings go).
 - **referral_earnings**, and an **audit_log** of every admin action. All money is stored as exact
   `NUMERIC(12,2)` — never floats.
 
@@ -681,11 +688,22 @@ Alembic migrations (upgrade → downgrade → upgrade on a real PostgreSQL 16) o
 
 ## 📚 Project documentation
 
-- [`CLAUDE.md`](CLAUDE.md) — handoff for a new AI/developer session: working agreements, commands, code map, design rules,
-  quirks learned the hard way.
-- [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — what exists, PR history, open items, known risks.
-- [`docs/run-and-test.pdf`](docs/run-and-test.pdf) — step-by-step run and test guide (source: `docs/run-and-test.md`;
-  rebuild with `python docs/build_pdf.py`, needs `reportlab`).
+| Document | What it is |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | the canonical rulebook for any AI agent or developer (owner's rules, workflow, architecture rules, definition of done) |
+| [`CLAUDE.md`](CLAUDE.md) | Claude Code handoff: tooling specifics, commands, code map, quirks learned the hard way |
+| [`CHANGELOG.md`](CHANGELOG.md) | every feature and change, per merged PR |
+| [`ROADMAP.md`](ROADMAP.md) | phases, open items, proposals, declined ideas |
+| [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) | what exists now, open items for the owner, risks, resume checklist |
+| [`docs/PROJECT_PRINCIPLES.md`](docs/PROJECT_PRINCIPLES.md) | product + engineering principles and the **owner's requirements register** |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | architecture/product decision log with reasoning |
+| [`docs/MODULE_GUIDE.md`](docs/MODULE_GUIDE.md) · [`docs/MODULE_STATUS.md`](docs/MODULE_STATUS.md) | how the code is organised · state of each module |
+| [`docs/GIT_WORKFLOW.md`](docs/GIT_WORKFLOW.md) | branches, commits, PRs, CI, merging, hotfix, rollback |
+| [`docs/NAMING_STANDARDS.md`](docs/NAMING_STANDARDS.md) | naming rules (code, DB, i18n keys, callbacks, tests) + glossary |
+| [`docs/TESTING.md`](docs/TESTING.md) | how the suite works and how to verify migrations / panel scripts |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | controls, rules for changes, operator checklist |
+| [`docs/ENTERPRISE_STANDARDS.md`](docs/ENTERPRISE_STANDARDS.md) | quality bar, definition of done, review checklist |
+| [`docs/run-and-test.pdf`](docs/run-and-test.pdf) | step-by-step run and test guide (source `docs/run-and-test.md`; rebuild with `python docs/build_pdf.py`, needs `reportlab`) |
 
 ## 📄 License
 
