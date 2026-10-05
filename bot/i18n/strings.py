@@ -30,6 +30,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # === Titles / Generic Texts ===
         "menu.title": "⛩️ Основное меню",
+        "menu.welcome": "Добро пожаловать в UMBRA",
         "profile.caption": "👤 <b>Профиль</b> — <a href='tg://user?id={id}'>{name}</a>",
         "rules.not_set": "❌ Правила не были добавлены",
 
@@ -407,6 +408,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # === Titles / Generic Texts ===
         "menu.title": "⛩️ Main menu",
+        "menu.welcome": "Welcome to UMBRA",
         "profile.caption": "👤 <b>Profile</b> — <a href='tg://user?id={id}'>{name}</a>",
         "rules.not_set": "❌ Rules have not been added",
 

@@ -168,7 +168,7 @@ class TestSending:
         await start(msg, fsm_context)
 
         calls = msg.answer.await_args_list
-        assert [c.args[0] for c in calls] == ["\u00b7", "menu.title"]
+        assert [c.args[0] for c in calls] == ["menu.welcome", "menu.title"]
         assert isinstance(calls[0].kwargs["reply_markup"], ReplyKeyboardMarkup)
         # The carrier must stay: Telegram drops the keyboard when the message that carries it is deleted.
         msg.answer.return_value.delete.assert_not_awaited()
@@ -187,7 +187,7 @@ class TestSending:
         call = make_callback_query(data="lang:ru", user_id=910012)
         await lang_h.choose_language(call, fsm_context)
         sent = call.message.answer.await_args
-        assert sent.args[0] == "\u00b7"
+        assert sent.args[0] == "menu.welcome"
         assert isinstance(sent.kwargs["reply_markup"], ReplyKeyboardMarkup)
 
 
@@ -223,11 +223,11 @@ class TestCarrierReplacement:
 
 class TestCarrierText:
 
-    def test_carrier_is_a_character_telegram_accepts(self):
-        from bot.handlers.user.main import _KEYBOARD_CARRIER
-        # Telegram answers "text must be non-empty" for whitespace, zero-width and Braille-blank text.
-        assert _KEYBOARD_CARRIER.strip() == _KEYBOARD_CARRIER and _KEYBOARD_CARRIER.isprintable()
-        assert _KEYBOARD_CARRIER not in {"\u2800", "\u200b", "\u2063", "\u3164", " "}
+    def test_welcome_line_exists_in_every_language_as_asked(self):
+        from bot.i18n.strings import TRANSLATIONS
+        assert TRANSLATIONS["ro"]["menu.welcome"] == "Bun venit la UMBRA"
+        assert TRANSLATIONS["en"]["menu.welcome"] == "Welcome to UMBRA"
+        assert TRANSLATIONS["ru"]["menu.welcome"] == "Добро пожаловать в UMBRA"
 
     async def test_a_keyboard_failure_never_blocks_the_menu(self, make_message, fsm_context, env_menu):
         from aiogram.exceptions import TelegramBadRequest
@@ -236,7 +236,7 @@ class TestCarrierText:
         sent = []
 
         async def answer(text, **kw):
-            if text == user_main._KEYBOARD_CARRIER:
+            if text == "menu.welcome":
                 raise TelegramBadRequest(method=MagicMock(), message="text must be non-empty")
             sent.append(text)
             return MagicMock(message_id=1)
