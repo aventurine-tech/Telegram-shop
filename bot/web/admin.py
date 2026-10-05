@@ -18,6 +18,7 @@ from starlette.routing import Route
 from sqlalchemy import text
 
 from markupsafe import Markup, escape
+from sqladmin._menu import CategoryMenu
 from wtforms import BooleanField, Field, FileField, Form, SelectField, StringField, TextAreaField
 from wtforms.validators import Optional as WtfOptional, StopValidation
 from sqlalchemy import select as sa_select, update as sa_update, func as sa_func
@@ -266,6 +267,7 @@ class UserAdmin(AuditModelView, model=User):
     name = Localized("web.model.user.one")
     name_plural = Localized("web.model.user.many")
     icon = "fa-solid fa-users"
+    category = "clients"
 
     async def _invalidate(self, model: Any, *, blocked: bool | None = None) -> None:
         # A web edit of balance/role_id/is_blocked would otherwise be served stale
@@ -358,6 +360,7 @@ class RoleAdmin(AuditModelView, model=Role):
     name = Localized("web.model.role.one")
     name_plural = Localized("web.model.role.many")
     icon = "fa-solid fa-shield-halved"
+    category = "settings"
     column_formatters = {"permissions": _format_perms_html}
     column_formatters_detail = {"permissions": _format_perms_html}
     async def scaffold_form(self, *args, **kwargs):
@@ -385,6 +388,16 @@ class RoleAdmin(AuditModelView, model=Role):
     async def after_model_delete(self, model: Any, request: Request) -> None:
         await super().after_model_delete(model, request)
         await self._flush_role_caches()
+
+
+def _menu_group_title(self) -> str:
+    """Sidebar group names (``category = "catalog"`` …) in the panel's language."""
+    key = f"web.menu.{self.name}"
+    text = localize(key)
+    return self.name if text == key else text
+
+
+CategoryMenu.display_name = property(_menu_group_title)
 
 
 def _viewer_language() -> str:
@@ -541,6 +554,7 @@ class CategoryAdmin(TranslatedModelView, model=Categories):
     name = Localized("web.model.category.one")
     name_plural = Localized("web.model.category.many")
     icon = "fa-solid fa-folder"
+    category = "catalog"
 
     @property
     def form_args(self) -> dict:
@@ -789,6 +803,7 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
     name = Localized("web.model.product.one")
     name_plural = Localized("web.model.product.many")
     icon = "fa-solid fa-box"
+    category = "catalog"
 
     def _bases(self) -> tuple[str, ...]:
         return ("description",)
@@ -1231,6 +1246,28 @@ class OrderItemsAdmin(LocalizedModelView, model=OrderItems):
     name_plural = Localized("web.model.order_line.many")
     icon = "fa-solid fa-list"
 
+    def is_visible(self, request: Request) -> bool:
+        return False        # reached from an order's details page, not from the menu
+
+
+class PaymentsAdmin(OrderAdmin, model=Orders):
+    """MIA transfers waiting for a person to check them: the same actions as an order, only these orders."""
+    name = Localized("web.model.payment.one")
+    name_plural = Localized("web.model.payment.many")
+    icon = "fa-solid fa-hand-holding-dollar"
+    category = "payments"
+    column_searchable_list = [Orders.customer_name, Orders.phone, Orders.user_id]
+
+    def list_query(self, request: Request):
+        return sa_select(Orders).where(
+            Orders.status == OrderStatus.NEW,
+            Orders.payment_method == PaymentMethod.MIA,
+            Orders.payment_status.in_((PaymentStatus.AWAITING_PAYMENT, PaymentStatus.AWAITING_CONFIRMATION)),
+        )
+
+
+PaymentsAdmin.identity = "payments"
+
 
 class OperationsAdmin(LocalizedModelView, model=Operations):
     column_list = [Operations.id, Operations.user_id, Operations.operation_value,
@@ -1244,6 +1281,7 @@ class OperationsAdmin(LocalizedModelView, model=Operations):
     name = Localized("web.model.operation.one")
     name_plural = Localized("web.model.operation.many")
     icon = "fa-solid fa-money-bill-transfer"
+    category = "payments"
 
 
 class ReferralEarningsAdmin(LocalizedModelView, model=ReferralEarnings):
@@ -1259,6 +1297,7 @@ class ReferralEarningsAdmin(LocalizedModelView, model=ReferralEarnings):
     name = Localized("web.model.referral_earning.one")
     name_plural = Localized("web.model.referral_earning.many")
     icon = "fa-solid fa-handshake"
+    category = "clients"
 
 
 class AuditLogAdmin(LocalizedModelView, model=AuditLog):
@@ -1274,6 +1313,7 @@ class AuditLogAdmin(LocalizedModelView, model=AuditLog):
     name = Localized("web.model.audit_log.one")
     name_plural = Localized("web.model.audit_log.many")
     icon = "fa-solid fa-clipboard-list"
+    category = "settings"
 
 
 def _format_promo_scope_html(model, name):
@@ -1336,6 +1376,7 @@ class PromoCodeAdmin(AuditModelView, model=PromoCodes):
     name = Localized("web.model.promo_code.one")
     name_plural = Localized("web.model.promo_code.many")
     icon = "fa-solid fa-tag"
+    category = "marketing"
 
     async def scaffold_form(self, *args, **kwargs):
         """Add Category / Item as dropdowns of real records."""
@@ -1424,6 +1465,7 @@ class CartItemsAdmin(LocalizedModelView, model=CartItems):
     name = Localized("web.model.cart_item.one")
     name_plural = Localized("web.model.cart_item.many")
     icon = "fa-solid fa-cart-plus"
+    category = "clients"
 
 
 
@@ -1436,6 +1478,7 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
     name = Localized("web.model.review.one")
     name_plural = Localized("web.model.review.many")
     icon = "fa-solid fa-star"
+    category = "marketing"
 
     async def _invalidate(self, model: Any) -> None:
         # avg_rating is cached for 600s and keyed by product name, so editing a rating here would otherwise not show up in the bot until it expires.
@@ -1565,21 +1608,23 @@ def create_admin_app(bot: Any = None) -> Starlette:
     env.globals["error_text"] = error_text
     env.globals["main_language_name"] = lambda: localize(f"web.form.lang.{i18n_main.get_locale()}")
 
-    admin.add_view(UserAdmin)
-    admin.add_view(RoleAdmin)
-    admin.add_view(CategoryAdmin)
-    admin.add_view(GoodsAdmin)
+    # Sidebar order: Orders, Clients, Payments, Catalog, Marketing, Settings (groups are named by `category`).
     admin.add_view(OrderAdmin)
     admin.add_view(OrderItemsAdmin)
-    admin.add_view(OperationsAdmin)
+    admin.add_view(UserAdmin)
     admin.add_view(ReferralEarningsAdmin)
-    admin.add_view(AuditLogAdmin)
-    admin.add_view(PromoCodeAdmin)
-    admin.add_view(MailingAdmin)
     admin.add_view(CartItemsAdmin)
+    admin.add_view(PaymentsAdmin)
+    admin.add_view(OperationsAdmin)
+    admin.add_view(GoodsAdmin)
+    admin.add_view(CategoryAdmin)
+    admin.add_view(MailingAdmin)
+    admin.add_view(PromoCodeAdmin)
     if EnvKeys.REVIEWS_ENABLED == "1":
         admin.add_view(ReviewsAdmin)
     admin.add_view(WebUserAdmin)
+    admin.add_view(RoleAdmin)
+    admin.add_view(AuditLogAdmin)
     admin.add_view(MyAccountView)
 
     return app
