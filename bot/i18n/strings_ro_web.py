@@ -168,6 +168,21 @@ TRANSLATIONS = {
         "web.form.parent_has_items": "Categoria părinte aleasă conține deja produse, deci nu poate avea subcategorii. Mutați mai întâi produsele.",
         "web.category.delete_has_children": "Această categorie are subcategorii. Ștergeți-le sau mutați-le mai întâi.",
         "web.form.name_taken": "Există deja un articol cu denumirea \u201e{name}\u201d. Alegeți altă denumire.",
+        "web.col.variant_of": "Opțiune a produsului",
+        "web.col.variant_label": "Denumire opțiune",
+        "web.form.variant_of_none": "— niciunul (produs independent sau principal) —",
+        "web.form.variant_of_hint": "Alegeți un produs principal pentru a face din acesta opțiunea lui (de ex. „50 g”). Lăsați gol pentru un produs independent sau principal. O opțiune are prețul, stocul și reducerea ei; denumirea se formează ca „produs · opțiune”, categoria se preia de la produsul principal, iar descrierea afișată este cea a produsului principal.",
+        "web.form.variant_label_hint": "Denumirea opțiunii, de ex. „50 g” (până la 32 de caractere, fără caracterul „·”, unică în cadrul produsului). Se completează doar împreună cu produsul principal.",
+        "web.form.variant_label_no_head": "Denumirea opțiunii se poate seta doar împreună cu un produs principal.",
+        "web.form.variant_head_unknown": "Produsul principal ales nu există.",
+        "web.form.variant_head_self": "Un produs nu poate fi opțiune a lui însuși.",
+        "web.form.variant_head_is_option": "Produsul principal nu poate fi la rândul lui o opțiune. Alegeți un produs principal.",
+        "web.form.variant_has_options": "Acest produs are opțiuni, deci nu poate deveni el însuși opțiune.",
+        "web.form.variant_label_required": "Introduceți denumirea opțiunii.",
+        "web.form.variant_label_bad": "Denumirea opțiunii nu trebuie să conțină caracterul „·”.",
+        "web.form.variant_label_too_long": "Denumirea opțiunii este prea lungă (cel mult 32 de caractere).",
+        "web.form.variant_label_taken": "Produsul principal are deja o opțiune „{label}”.",
+        "web.form.variant_name_too_long": "Denumirea „produs · opțiune” este prea lungă (cel mult {limit} de caractere).",
         "web.form.lang.en": "engleză",
         "web.form.lang.ru": "rusă",
         "web.form.lang.ro": "română",
@@ -265,6 +280,8 @@ TRANSLATIONS = {
             "încărcată și apare pe cardul produsului în bot. Bifați <i>Șterge poza</i> pe pagina de editare pentru "
             "a o elimina; coloana <i>Poză</i> din listă arată ce produse au una.</li>"
             "<li>Modificați <code>stock</code> ori de câte ori sosește sau se scoate marfă.</li>"
+            "<li><b>Opțiuni de greutate</b> (de ex. 50&nbsp;g / 200&nbsp;g): creați un produs, alegeți produsul principal în <i>Opțiune a produsului</i> și completați <i>Denumire opțiune</i>. "
+            "Fiecare opțiune are prețul, stocul și reducerea ei, se numește „produs · opțiune”, preia categoria produsului principal și apare sub acesta în bot; ștergerea produsului principal șterge și opțiunile.</li>"
             "</ol>"
             "<p class=\"mb-2\"><code>stock</code> se rezervă când un client plasează o comandă și se returnează "
             "când comanda este anulată. Un produs cu stoc <code>0</code> nu poate fi comandat; clienții care "

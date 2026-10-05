@@ -204,6 +204,11 @@ class Goods(Database.BASE):
     sale_until: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     # Units on hand. Reserved at order creation, restored when an order is cancelled.
     stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+    # Weight options: every option is its own Goods row (own price, stock, sale) grouped under a head
+    # product. NULL variant_of = head or standalone product; an option's label is e.g. "50 g".
+    variant_of: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey('goods.id', ondelete="CASCADE"), nullable=True, index=True)
+    variant_label: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     category: Mapped["Categories"] = relationship("Categories", back_populates="items", lazy='raise')
 
     __table_args__ = (

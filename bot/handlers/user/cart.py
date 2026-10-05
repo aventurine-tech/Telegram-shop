@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
 from bot.database.methods.create import add_to_cart, CART_MAX_QTY_PER_ITEM
-from bot.database.methods.read import get_cart_items, validate_promos_for_cart, select_item_stock
+from bot.database.methods.read import get_cart_items, validate_promos_for_cart, select_item_stock, get_item_family
 from bot.database.methods.update import set_cart_item_quantity, clear_cart_item_promo
 from bot.database.methods.delete import remove_from_cart, clear_cart
 from bot.keyboards.inline import back, cart_keyboard
@@ -173,6 +173,12 @@ async def _add_selected_item(call: CallbackQuery, state: FSMContext) -> bool:
     item_name = data.get('csrf_item')
     if not item_name:
         await call.answer(localize("cart.item_not_found"), show_alert=True)
+        return False
+
+    family = await get_item_family(item_name)
+    if family and family["options"] and family["current"]["variant_of"] is None:
+        # A head with weight options is only a gateway: the weight has to be chosen first.
+        await call.answer(localize("cart.choose_option"), show_alert=True)
         return False
 
     stock = await select_item_stock(item_name)

@@ -19,7 +19,7 @@ from sqlalchemy import text
 from markupsafe import Markup, escape
 from wtforms import BooleanField, FileField, Form, SelectField
 from wtforms.validators import Optional as WtfOptional, StopValidation
-from sqlalchemy import select as sa_select
+from sqlalchemy import select as sa_select, update as sa_update, func as sa_func
 
 from bot.misc import EnvKeys
 from bot.database.methods.audit import log_audit
@@ -101,6 +101,7 @@ from bot.database.methods.read import (
     invalidate_category_cache, parent_assignment_error,
 )
 from bot.database.methods.cache_utils import safe_create_task
+from bot.database.methods.delete import delete_item
 from bot.database.methods.product_images import items_with_images, remove_item_image, set_item_image
 from bot.database.methods.orders import set_order_status, confirm_mia_payment
 from bot.misc.services.restock_notifier import notify_restock
@@ -608,12 +609,13 @@ class GoodsForm(Form):
 
 class GoodsAdmin(TranslatedModelView, model=Goods):
     translates_description = True
-    column_list = [Goods.id, Goods.name, "picture", Goods.price, Goods.stock, Goods.sale_percent,
-                   Goods.sale_until, Goods.description, Goods.category_id]
+    column_list = [Goods.id, Goods.name, Goods.variant_label, "picture", Goods.price, Goods.stock,
+                   Goods.sale_percent, Goods.sale_until, Goods.description, Goods.category_id]
     form_base_class = GoodsForm
     column_searchable_list = [Goods.name, Goods.name_en, Goods.name_ru, Goods.name_ro]
     column_sortable_list = [Goods.id, Goods.name, Goods.price, Goods.stock]
-    form_columns = _translation_fields(True) + ["price", "category", "stock", "sale_percent", "sale_until"]
+    form_columns = _translation_fields(True) + ["price", "category", "stock", "sale_percent", "sale_until",
+                                                "variant_label"]
     name = Localized("web.model.product.one")
     name_plural = Localized("web.model.product.many")
     icon = "fa-solid fa-box"
@@ -629,13 +631,26 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
             "stock": {"description": localize("web.form.stock_hint")},
             "sale_percent": {"description": localize("web.form.sale_percent_hint")},
             "sale_until": {"description": localize("web.form.sale_until_hint")},
+            "variant_label": {"description": localize("web.form.variant_label_hint")},
         }
 
     async def scaffold_form(self, *args, **kwargs):
-        """The picture controls, labelled in the request language."""
+        """The picture controls and the head-product select (heads only), in the request language."""
         Base = await super().scaffold_form(*args, **kwargs)
+        async with Database().session() as session:
+            heads = (await session.execute(
+                sa_select(Goods).where(Goods.variant_of.is_(None)).order_by(Goods.name)
+            )).scalars().all()
+        viewer = _viewer_language()
+        choices = [("", localize("web.form.variant_of_none"))] + [(str(h.id), pick(h, "name", viewer)) for h in heads]
+
+        def coerce(value):
+            return None if value in (None, "", "None") else int(value)
 
         class LocalizedGoodsForm(Base):
+            variant_of = SelectField(localize("web.col.variant_of"), choices=choices, coerce=coerce,
+                                     validate_choice=False, validators=[WtfOptional()],
+                                     description=localize("web.form.variant_of_hint"))
             picture = FileField(localize("web.col.picture"), description=localize("web.form.picture_hint"))
             remove_picture = BooleanField(localize("web.form.remove_picture"),
                                           description=localize("web.form.remove_picture_hint"))
@@ -660,7 +675,15 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         request.state.stock_before = 0 if is_created else int(getattr(model, "stock", 0) or 0)
         # Likewise the pre-edit name (model is not mutated yet), so a rename can drop the old name's caches.
         request.state.item_old_name = None if is_created else getattr(model, "name", None)
+        request.state.item_old_category_id = None if is_created else getattr(model, "category_id", None)
+        head = await self._validate_variant(data, model, is_created)
+        if head is not None:
+            self._name_option(data, head)
         await self._apply_translations(data, model, is_created)
+        if head is not None:
+            data["description"] = ""
+            for lang in LANGS:
+                data[f"description_{lang}"] = None
 
         # The picture controls are not columns of the product: take them out of `data` so SQLAdmin does not
         # try to set them on the model, and check the upload before anything is saved.
@@ -679,15 +702,105 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
         request.state.picture_upload = content or None
         request.state.picture_remove = remove
 
+    async def _validate_variant(self, data: dict, model: Any, is_created: bool) -> dict | None:
+        """Check the weight-option fields; returns the head's data when this product is an option.
+
+        An option needs an existing head that is not itself an option, a label (unique per head, no ``·``),
+        and takes its head's category. A product that has options cannot become one.
+        """
+        own_id = None if is_created else getattr(model, "id", None)
+        head_id = data["variant_of"] if "variant_of" in data else getattr(model, "variant_of", None)
+        raw_label = data["variant_label"] if "variant_label" in data else getattr(model, "variant_label", None)
+        label = clean_name(raw_label)
+        if not head_id:
+            if label:
+                raise ValueError(localize("web.form.variant_label_no_head"))
+            data["variant_of"] = None
+            if "variant_label" in data:
+                data["variant_label"] = None
+            return None
+        head_id = int(head_id)
+        async with Database().session() as session:
+            head = await session.get(Goods, head_id)
+            if head is None:
+                raise ValueError(localize("web.form.variant_head_unknown"))
+            if head.id == own_id:
+                raise ValueError(localize("web.form.variant_head_self"))
+            if head.variant_of is not None:
+                raise ValueError(localize("web.form.variant_head_is_option"))
+            if own_id is not None and (await session.execute(
+                    sa_select(Goods.id).where(Goods.variant_of == own_id).limit(1))).first() is not None:
+                raise ValueError(localize("web.form.variant_has_options"))
+            if not label:
+                raise ValueError(localize("web.form.variant_label_required"))
+            if "\u00b7" in label:
+                raise ValueError(localize("web.form.variant_label_bad"))
+            if len(label) > 32:
+                raise ValueError(localize("web.form.variant_label_too_long"))
+            clash = sa_select(Goods.id).where(Goods.variant_of == head.id,
+                                              sa_func.lower(Goods.variant_label) == label.lower())
+            if own_id is not None:
+                clash = clash.where(Goods.id != own_id)
+            if (await session.execute(clash.limit(1))).first() is not None:
+                raise ValueError(localize("web.form.variant_label_taken", label=label))
+            head_data = {c: getattr(head, c) for c in (
+                "id", "name", "category_id", *[f"name_{l}" for l in LANGS])}
+        data["variant_of"] = head_id
+        data["variant_label"] = label
+        data["category"] = str(head_data["category_id"])
+        return head_data
+
+    def _name_option(self, data: dict, head: dict) -> None:
+        """An option is named "<head> · <label>" (per language too) and has no description of its own:
+        the product card shows the head's. The typed name and description are replaced (the description
+        is cleared after the translations are checked)."""
+        label = data["variant_label"]
+        main = i18n_main.get_locale()
+        canonical = f"{head['name']} \u00b7 {label}"
+        if len(canonical) > MAX_NAME_LEN:
+            raise ValueError(localize("web.form.variant_name_too_long", limit=MAX_NAME_LEN))
+        for lang in LANGS:
+            base = head.get(f"name_{lang}")
+            data[f"name_{lang}"] = f"{base} \u00b7 {label}"[:MAX_NAME_LEN] if base else None
+            data[f"description_{lang}"] = None
+        data["name"] = canonical
+        data[f"name_{main}"] = canonical
+        viewer = _viewer_language()
+        if not data.get(f"name_{viewer}"):
+            data[f"name_{viewer}"] = canonical
+        data[f"description_{viewer}"] = "-"       # satisfies the required-description check; cleared after
+
     async def _invalidate(self, model: Any, old_name: str | None = None) -> None:
         # The translations ride in the cached `item_info:<name>` row; on a rename the old name's entries
         # (info, values, image, rating) must go too.
         for name in {n for n in (getattr(model, "name", None), old_name) if n}:
             safe_create_task(invalidate_item_cache(name))
+        category_id = getattr(model, "category_id", None)
+        if category_id:
+            async with Database().session() as session:
+                category = (await session.execute(
+                    sa_select(Categories.name).where(Categories.id == category_id))).scalar()
+            if category:
+                safe_create_task(invalidate_category_cache(category))
+
+    async def _follow_head_category(self, model: Any, old_category_id: int | None) -> None:
+        """Moving a head to another category moves its options with it."""
+        if getattr(model, "variant_of", None) is not None or model.id is None or old_category_id == model.category_id:
+            return
+        async with Database().session() as session:
+            names = (await session.execute(
+                sa_select(Goods.name).where(Goods.variant_of == model.id))).scalars().all()
+            if names:
+                await session.execute(
+                    sa_update(Goods).where(Goods.variant_of == model.id).values(category_id=model.category_id))
+        for name in names:
+            safe_create_task(invalidate_item_cache(name))
 
     async def after_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
         await super().after_model_change(data, model, is_created, request)
         await self._invalidate(model, getattr(request.state, "item_old_name", None))
+        if not is_created:
+            await self._follow_head_category(model, getattr(request.state, "item_old_category_id", None))
 
         name = getattr(model, "name", None)
         stock_before = getattr(request.state, "stock_before", None)
@@ -717,6 +830,15 @@ class GoodsAdmin(TranslatedModelView, model=Goods):
                 "sqladmin_update_item_photo", resource_type=type(self).name, resource_id=str(getattr(model, "id", name)),
                 details=f"item={name}, action={action}", ip_address=_client_ip(request),
             )
+
+    async def on_model_delete(self, model: Any, request: Request) -> None:
+        """A head takes its weight options with it, exactly as the bot's delete does (SQLAdmin deletes
+        through the ORM, which knows nothing of the options)."""
+        async with Database().session() as session:
+            names = (await session.execute(
+                sa_select(Goods.name).where(Goods.variant_of == model.id))).scalars().all()
+        for name in names:
+            await delete_item(name)
 
     async def after_model_delete(self, model: Any, request: Request) -> None:
         await super().after_model_delete(model, request)

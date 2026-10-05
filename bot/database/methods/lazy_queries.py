@@ -105,7 +105,7 @@ async def query_items_in_category(category_name: str, offset: int = 0, limit: in
         return 0 if count_only else []
     cat_id = cat['id']
 
-    query = select(Goods.name).where(Goods.category_id == cat_id)
+    query = select(Goods.name).where(Goods.category_id == cat_id, Goods.variant_of.is_(None))
     if count_only:
         async def _count():
             async with Database().session() as s:
@@ -137,16 +137,17 @@ async def query_goods_search(query: str, offset: int = 0, limit: int = 10,
     pattern = f"%{esc}%"
 
     async with Database().session() as s:
-        base = select(Goods.name).where(
-            or_(*(
-                column.ilike(pattern, escape='\\')
-                for column in (
-                    Goods.name, Goods.description,
-                    Goods.name_en, Goods.name_ru, Goods.name_ro,
-                    Goods.description_en, Goods.description_ru, Goods.description_ro,
-                )
-            ))
-        )
+        hit = or_(*(
+            column.ilike(pattern, escape='\\')
+            for column in (
+                Goods.name, Goods.description,
+                Goods.name_en, Goods.name_ru, Goods.name_ro,
+                Goods.description_en, Goods.description_ru, Goods.description_ro,
+            )
+        ))
+        # Weight options never show up on their own: a hit on an option surfaces its head.
+        hit_heads = select(func.coalesce(Goods.variant_of, Goods.id)).where(hit)
+        base = select(Goods.name).where(Goods.variant_of.is_(None), Goods.id.in_(hit_heads))
         if count_only:
             count_result = await s.execute(select(func.count()).select_from(base.subquery()))
             return count_result.scalar() or 0
@@ -430,7 +431,10 @@ async def query_item_reviews(item_name: str, offset: int = 0, limit: int = 10,
 
     The count also feeds the item card's review badge, which is rendered on
     every product view — hence the cache (dropped by invalidate_rating_cache).
+    Weight options read their head's reviews.
     """
+    from bot.database.methods.read import get_head_name
+    item_name = await get_head_name(item_name)
     if count_only:
         async def _count():
             async with Database().session() as s:

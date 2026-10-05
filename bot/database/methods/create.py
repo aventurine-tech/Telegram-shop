@@ -75,6 +75,50 @@ async def create_item(item_name: str, item_description: str, item_price: int, ca
     safe_create_task(invalidate_category_cache(category_name))
 
 
+async def create_item_option(head_name: str, label: str, price, stock: int = 0,
+                             descriptions: dict[str, str] | None = None) -> tuple[bool, str]:
+    """Add a weight option (e.g. "50 g") under a head product. Returns ``(ok, code)``.
+
+    The option is its own Goods row named ``"<head> · <label>"`` (per language too, from the head's
+    translations), in the head's category, with its own price and stock. Its description stays empty:
+    the product card shows the head's. Codes: success, head_not_found, head_is_option, bad_label, exists.
+    """
+    from bot.misc.localized import LANGS, clean_name, pick
+    label = clean_name(label)[:32] if label else ""
+    if not label or "·" in label:
+        return False, "bad_label"
+    async with Database().session() as s:
+        head = (await s.execute(
+            select(Goods).where(Goods.name == head_name).with_for_update()
+        )).scalars().one_or_none()
+        if head is None:
+            return False, "head_not_found"
+        if head.variant_of is not None:
+            return False, "head_is_option"
+        name = f"{head.name} · {label}"
+        if len(name) > 100 or (await s.execute(select(exists().where(Goods.name == name)))).scalar():
+            return False, "exists"
+        if (await s.execute(select(exists().where(
+                Goods.variant_of == head.id, sa_func.lower(Goods.variant_label) == label.lower())))).scalar():
+            return False, "exists"
+        translated = {}
+        for l in LANGS:
+            base = getattr(head, f"name_{l}", None)
+            if base:
+                translated[f"name_{l}"] = f"{base} · {label}"[:100]
+        s.add(Goods(
+            name=name, description="", price=price, category_id=head.category_id,
+            stock=max(int(stock), 0), variant_of=head.id, variant_label=label, **translated,
+        ))
+        category_id = head.category_id
+        cat_name = (await s.execute(select(Categories.name).where(Categories.id == category_id))).scalar()
+
+    safe_create_task(invalidate_stats_cache())
+    if cat_name:
+        safe_create_task(invalidate_category_cache(cat_name))
+    return True, "success"
+
+
 async def create_category(category_name: str, names: dict[str, str] | None = None) -> None:
     """Insert category; commit. ``names`` optionally carries display translations ``{lang: text}``."""
     from bot.misc.localized import LANGS, clean_name
@@ -263,6 +307,8 @@ async def create_review(user_id: int, item_name: str, rating: int, text: str = N
         return None
     if not item_name:
         return None
+    from bot.database.methods.read import get_head_name
+    item_name = await get_head_name(item_name)
 
     async with Database().session() as s:
         item_id = (await s.execute(

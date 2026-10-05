@@ -61,6 +61,7 @@ TRANSLATIONS = {"ro": {
         # === Admin: Product update flow ===
         "admin.goods.update.prompt.name": "Introduceți denumirea produsului",
         "admin.goods.update.not_exists": "❌ Produsul nu poate fi actualizat (nu există)",
+        "admin.goods.update.is_option": "❌ Aceasta este o opțiune de greutate: prețul și stocul se schimbă separat, iar numele și categoria urmează produsul principal",
         "admin.goods.update.prompt.new_name": "Introduceți noua denumire a produsului:",
         "admin.goods.update.prompt.description": "Introduceți descrierea produsului:",
         "admin.goods.update.prompt.category": "Introduceți categoria produsului (în prezent „{category}”):",
@@ -74,6 +75,18 @@ TRANSLATIONS = {"ro": {
         "admin.goods.delete.prompt.name": "Introduceți denumirea produsului",
         "admin.goods.delete.position.not_found": "❌ Produsul nu a fost șters (nu există)",
         "admin.goods.delete.position.success": "✅ Produsul a fost șters",
+        # === Admin: Weight options ===
+        "admin.goods.add_option": "➕ Adaugă opțiune (greutate)",
+        "admin.goods.option.prompt.head": "Introduceți denumirea produsului principal căruia îi adăugați o opțiune (denumirea opțiunii urmează, de ex. „50 g”):",
+        "admin.goods.option.head_not_found": "❌ Nu există un astfel de produs",
+        "admin.goods.option.head_is_option": "❌ Aceasta este deja o opțiune. Introduceți denumirea produsului principal.",
+        "admin.goods.option.prompt.label": "Introduceți denumirea opțiunii (de ex. „50 g”):",
+        "admin.goods.option.label.invalid": "⚠️ Denumire de opțiune invalidă (1–32 de caractere, fără caracterul „·”).",
+        "admin.goods.option.exists": "❌ Produsul are deja o astfel de opțiune",
+        "admin.goods.option.result.created": "✅ Opțiunea „{name}” a fost creată. În stoc: <b>{qty}</b> buc.",
+        "admin.goods.options.title": "🧩 Opțiuni:",
+        "admin.goods.options.line": "• {label} — {price} {currency}, în stoc: {stock} buc.",
+        "admin.goods.delete.position.success_options": "✅ Produsul a fost șters împreună cu opțiunile: {count}",
 
         # === Admin: Statistics ===
         "admin.shop.stats.template": (

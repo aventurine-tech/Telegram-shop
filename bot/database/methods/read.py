@@ -4,7 +4,8 @@ from functools import wraps
 from types import SimpleNamespace
 from typing import Optional, Dict, TypeVar, Callable, Any, Coroutine
 
-from sqlalchemy import func, exists, select, inspect as sa_inspect
+from sqlalchemy import func, exists, select, or_, inspect as sa_inspect
+from sqlalchemy.orm import aliased
 
 from bot.database.models import Database, User, Goods, Categories, Role, \
     Operations, ReferralEarnings, Permission
@@ -219,6 +220,42 @@ async def get_items_info(item_names: list[str]) -> dict[str, dict]:
     async with Database().session() as s:
         result = await s.execute(select(Goods).where(Goods.name.in_(names)))
         return {g.name: _obj_to_dict(g, Goods) for g in result.scalars().all()}
+
+
+async def get_head_name(item_name: str) -> str:
+    """The head product's name for a weight option (reviews and ratings live on the head); a head or
+    standalone product — or an unknown name — comes back unchanged."""
+    async with Database().session() as s:
+        head = aliased(Goods)
+        name = (await s.execute(
+            select(head.name).join(Goods, Goods.variant_of == head.id).where(Goods.name == item_name)
+        )).scalar()
+    return name or item_name
+
+
+async def get_item_family(item_name: str) -> dict | None:
+    """A product with its weight options, from the name of the head *or* of any option.
+
+    ``{"head": row, "options": [row, ...], "current": row}`` — options in creation order, rows as
+    for get_item_info. ``options`` is empty for a standalone product. None if the name is unknown."""
+    async with Database().session() as s:
+        cur = (await s.execute(select(Goods).where(Goods.name == item_name))).scalars().first()
+        if cur is None:
+            return None
+        head = cur
+        if cur.variant_of is not None:
+            head = (await s.execute(select(Goods).where(Goods.id == cur.variant_of))).scalars().one()
+        opts = (await s.execute(
+            select(Goods).where(Goods.variant_of == head.id).order_by(Goods.id)
+        )).scalars().all()
+        return {"head": _obj_to_dict(head, Goods),
+                "options": [_obj_to_dict(o, Goods) for o in opts],
+                "current": _obj_to_dict(cur, Goods)}
+
+
+async def get_option_by_id(goods_id: int) -> dict | None:
+    """A weight option's row by id; None for a head, a standalone product or an unknown id."""
+    return await _fetch_one_dict(Goods, Goods.id == goods_id, Goods.variant_of.is_not(None))
 
 
 async def resolve_item_name(text: str) -> str | None:
@@ -924,7 +961,8 @@ async def is_subscribed_to_stock(user_id: int, item_name: str) -> bool:
 
 @async_cached(ttl=600, key_prefix="avg_rating")
 async def get_item_avg_rating(item_name: str) -> float | None:
-    """Return average rating for an item, or None if no reviews."""
+    """Return average rating for an item, or None if no reviews (options share their head's)."""
+    item_name = await get_head_name(item_name)
     async with Database().session() as s:
         result = (await s.execute(
             select(func.avg(Reviews.rating))
@@ -935,20 +973,25 @@ async def get_item_avg_rating(item_name: str) -> float | None:
 
 
 async def has_purchased_item(user_id: int, item_name: str) -> bool:
-    """Check if the user has received an item (a *completed* order contains it)."""
+    """Check if the user has received an item (a *completed* order contains it, or — for a head
+    product — any of its weight options)."""
     async with Database().session() as s:
+        head = aliased(Goods)
+        family = select(Goods.name).outerjoin(head, Goods.variant_of == head.id).where(
+            or_(Goods.name == item_name, head.name == item_name))
         return (await s.execute(
             select(exists().where(
                 OrderItems.order_id == Orders.id,
                 Orders.user_id == user_id,
                 Orders.status == OrderStatus.COMPLETED,
-                OrderItems.item_name == item_name,
+                OrderItems.item_name.in_(family),
             ))
         )).scalar()
 
 
 async def get_user_review(user_id: int, item_name: str) -> dict | None:
     """Return user's review for an item, or None."""
+    item_name = await get_head_name(item_name)
     async with Database().session() as s:
         obj = (await s.execute(
             select(Reviews)
@@ -960,6 +1003,7 @@ async def get_user_review(user_id: int, item_name: str) -> dict | None:
 
 async def invalidate_rating_cache(item_name: str):
     """Invalidate the review caches for an item (average and count)."""
+    item_name = await get_head_name(item_name)
     cache = get_cache_manager()
     if cache:
         await cache.delete_many((

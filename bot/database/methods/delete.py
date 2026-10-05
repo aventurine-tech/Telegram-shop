@@ -10,6 +10,7 @@ from bot.database.methods.audit import log_audit
 async def delete_item(item_name: str) -> None:
     """Delete a product. Order lines that reference it keep their name/price snapshot."""
     category_name = None
+    option_names: list[str] = []
     async with Database().session() as s:
         result = await s.execute(select(Goods).where(Goods.name == item_name))
         item = result.scalars().first()
@@ -17,10 +18,20 @@ async def delete_item(item_name: str) -> None:
             category_name = (await s.execute(
                 select(Categories.name).where(Categories.id == item.category_id)
             )).scalar()
+            # A head takes its weight options with it.
+            options = (await s.execute(select(Goods.id, Goods.name).where(Goods.variant_of == item.id))).all()
+            option_names = [n for _, n in options]
+            for oid, _ in options:
+                await s.execute(sa_delete(ProductImages).where(ProductImages.item_id == oid))
+                await s.execute(sa_delete(CartItems).where(CartItems.item_id == oid))
+                await s.execute(sa_delete(StockSubscriptions).where(StockSubscriptions.item_id == oid))
+                await s.execute(sa_delete(Goods).where(Goods.id == oid))
             await s.execute(sa_delete(ProductImages).where(ProductImages.item_id == item.id))
             await s.delete(item)
 
     safe_create_task(invalidate_item_cache(item_name))
+    for n in option_names:
+        safe_create_task(invalidate_item_cache(n))
     if category_name:
         # The category's cached item count changed.
         safe_create_task(invalidate_category_cache(category_name))

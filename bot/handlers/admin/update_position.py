@@ -51,6 +51,10 @@ async def check_item_name_for_update(message: Message, state):
             reply_markup=back('goods_management')
         )
         return
+    if item.get('variant_of') is not None:
+        # An option's name and category follow its head; renaming it here would break "HEAD · label".
+        await message.answer(localize('admin.goods.update.is_option'), reply_markup=back('goods_management'))
+        return
 
     category_name = await get_category_name_by_id(item['category_id'])
     await state.update_data(item_old_name=item_name, item_category=category_name)
