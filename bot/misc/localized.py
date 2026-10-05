@@ -53,3 +53,16 @@ def clean_description(value: str | None) -> str | None:
     text = "\n".join(_SPACES.sub(" ", line).strip() for line in _TAGS.sub("", _CONTROL.sub("", value)).splitlines())
     text = text.strip()
     return text or None
+
+
+def derive_canonical(texts: dict[str, str | None], main: str, viewer: str | None = None) -> str | None:
+    """The canonical (lookup-key) text from per-language input.
+
+    Priority: the main language (``BOT_LOCALE``), then the language of the admin entering it, then the
+    first filled of en/ru/ro. ``None`` when every language is blank.
+    """
+    for lang in (main, viewer, *LANGS):
+        text = (texts.get(lang) or "").strip() if lang else ""
+        if text:
+            return text
+    return None

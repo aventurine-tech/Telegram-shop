@@ -221,6 +221,37 @@ async def get_items_info(item_names: list[str]) -> dict[str, dict]:
         return {g.name: _obj_to_dict(g, Goods) for g in result.scalars().all()}
 
 
+async def resolve_item_name(text: str) -> str | None:
+    """Canonical product name for something an admin typed: the canonical name itself, else a
+    translated name in any language (case-insensitive). None if nothing matches."""
+    return await _resolve_name(Goods, text)
+
+
+async def resolve_category_name(text: str) -> str | None:
+    """Canonical category name for something an admin typed (canonical or any translation)."""
+    return await _resolve_name(Categories, text)
+
+
+async def _resolve_name(model, text: str) -> str | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    async with Database().session() as s:
+        exact = (await s.execute(select(model.name).where(model.name == text))).scalar()
+        if exact:
+            return exact
+        # Case-insensitive match over the translations. Folded in Python rather than SQL `lower()`,
+        # which is ASCII-only on SQLite; this runs only on an admin's typed lookup over a small table.
+        wanted = text.casefold()
+        rows = await s.execute(
+            select(model.name, model.name_en, model.name_ru, model.name_ro).order_by(model.id)
+        )
+        for canonical, *translations in rows.all():
+            if any(v and v.strip().casefold() == wanted for v in (canonical, *translations)):
+                return canonical
+    return None
+
+
 async def check_category(category_name: str) -> dict | None:
     """Return category as dict by name, or None."""
     return await _fetch_one_dict(Categories, Categories.name == category_name)
