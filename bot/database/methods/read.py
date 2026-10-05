@@ -78,6 +78,16 @@ async def check_user(telegram_id: int | str) -> Optional[dict]:
     return await _fetch_one_dict(User, User.telegram_id == telegram_id)
 
 
+async def get_user_languages(telegram_ids) -> dict[int, str | None]:
+    """{telegram_id: language or None} for the given users, in one query (for per-recipient messages)."""
+    ids = list(dict.fromkeys(telegram_ids))
+    if not ids:
+        return {}
+    async with Database().session() as s:
+        rows = await s.execute(select(User.telegram_id, User.language).where(User.telegram_id.in_(ids)))
+        return {r[0]: r[1] for r in rows.all()}
+
+
 async def check_role(telegram_id: int) -> int:
     """Return permission bitmask for user (0 if none)."""
     async with Database().session() as s:

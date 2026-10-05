@@ -135,7 +135,7 @@ async def db_cleanup(setup_test_database):
         ReferralEarnings, Operations, OrderItems, Orders,
         Goods, Categories, User, Role,
         Reviews, CartItems, PromoCodeUsages, PromoCodes,
-        StockSubscriptions, ProductImages,
+        StockSubscriptions, ProductImages, WebUsers,
     )
 
     db = Database()
@@ -154,6 +154,7 @@ async def db_cleanup(setup_test_database):
         await s.execute(delete(Goods))
         await s.execute(delete(Categories))
         await s.execute(delete(User))
+        await s.execute(delete(WebUsers))
         # Delete custom roles (keep built-in)
         await s.execute(delete(Role).where(Role.name.notin_(['USER', 'ADMIN', 'OWNER'])))
 

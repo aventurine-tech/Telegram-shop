@@ -106,12 +106,15 @@ class User(Database.BASE):
     registration_date: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())
     is_blocked: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, index=True)
+    # Interface language the user picked (en/ru/ro). NULL = not asked yet: show the picker.
+    language: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
     user_operations: Mapped[list["Operations"]] = relationship(
         "Operations", back_populates="user_telegram_id", lazy='raise')
     user_orders: Mapped[list["Orders"]] = relationship(
         "Orders", back_populates="user", lazy='raise')
 
     __table_args__ = (
+        CheckConstraint("language IN ('en','ru','ro')", name='ck_users_language'),
         CheckConstraint('referral_id != telegram_id', name='ck_users_no_self_referral'),
         Index('ix_users_registration_date', 'registration_date'),
     )
@@ -131,6 +134,35 @@ class User(Database.BASE):
 
     def __str__(self):
         return str(self.telegram_id)
+
+
+class WebRole:
+    ADMIN = 'admin'   # everything, plus managing web accounts
+    STAFF = 'staff'   # everything else in the panel
+
+    CHOICES = (ADMIN, STAFF)
+
+
+class WebUsers(Database.BASE):
+    """A login for the web panel (separate from Telegram users)."""
+    __tablename__ = 'web_users'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    role: Mapped[str] = mapped_column(String(8), nullable=False, default=WebRole.STAFF)
+    language: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_login_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("role IN ('admin','staff')", name='ck_web_users_role'),
+        CheckConstraint("language IS NULL OR language IN ('en','ru','ro')", name='ck_web_users_language'),
+    )
+
+    def __str__(self):
+        return self.username
 
 
 class Categories(Database.BASE):

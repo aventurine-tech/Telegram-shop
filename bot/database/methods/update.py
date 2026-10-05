@@ -147,6 +147,20 @@ async def set_item_sale(item_name: str, sale_percent, sale_until) -> bool:
     return True
 
 
+async def set_user_language(telegram_id: int, language: str) -> bool:
+    """Remember the interface language a user picked (en/ru/ro). False for an unknown user/language."""
+    if language not in ("en", "ru", "ro"):
+        return False
+    async with Database().session() as s:
+        user = (await s.execute(select(User).where(User.telegram_id == telegram_id))).scalars().first()
+        if not user:
+            return False
+        user.language = language
+
+    safe_create_task(invalidate_user_cache(telegram_id))
+    return True
+
+
 async def set_user_blocked(telegram_id: int, blocked: bool) -> bool:
     """Set user blocked status and commit."""
     async with Database().session() as s:
