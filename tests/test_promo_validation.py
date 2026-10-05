@@ -11,7 +11,7 @@ from bot.database.methods.transactions import redeem_balance_promo
 from bot.database.models.main import Fulfillment, PaymentMethod
 from bot.database.methods.read import validate_promo_for_item
 from bot.database.methods.create import add_to_cart
-from bot.handlers.user.cart import _cart_view_data, _calc_cart_total_with_promos
+from bot.handlers.user.cart import _cart_view_data
 
 
 def _future(hours: int = 1) -> datetime:
@@ -46,6 +46,10 @@ async def _mark_used(code, user_id):
 async def _goods(name):
     async with Database().session() as s:
         return (await s.execute(select(Goods).where(Goods.name == name))).scalars().one()
+
+
+async def _calc_cart_total_with_promos(user_id):
+    return (await _cart_view_data(user_id))[3]
 
 
 async def _checkout(user_id, expected_total=None):

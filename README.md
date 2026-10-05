@@ -502,7 +502,7 @@ Balances, referrals, promo codes, reviews and carts are kept.
 
 ## 🧪 Testing
 
-**<<TESTS>>** (`pytest`). The data layer runs against a real in-memory async SQLite database
+**1131 tests, 80 % line coverage** (`pytest`). The data layer runs against a real in-memory async SQLite database
 (real SQL, transactions, and constraints) — only external services (Telegram Bot API, Redis)
 are mocked. What's covered:
 

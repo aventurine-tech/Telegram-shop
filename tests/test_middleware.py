@@ -100,7 +100,7 @@ class TestRateLimitActionMapping:
     def test_browsing_is_shop_view(self, data):
         assert self._action(data) == "shop_view"
 
-    @pytest.mark.parametrize("data", ["buy_item", "add_to_cart", "cart_checkout_confirm"])
+    @pytest.mark.parametrize("data", ["buy_item", "add_to_cart", "co_confirm"])
     def test_purchase_paths_are_buy_item(self, data):
         assert self._action(data) == "buy_item"
 

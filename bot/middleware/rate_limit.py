@@ -358,9 +358,8 @@ class RateLimitMiddleware(BaseMiddleware):
         self._redis_limiter: "RedisRateLimiter | None" = None
         self.auth_middleware = auth_middleware
         self.action_mapping = {
-            'replenish_balance': 'top_up',
             'pay_': 'payment',
-            'cart_checkout_confirm': 'buy_item',
+            'co_confirm': 'buy_item',
             'add_to_cart': 'buy_item',
             'buy_item': 'buy_item',
             'shop_search': 'search',
