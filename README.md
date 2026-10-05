@@ -41,12 +41,14 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   creating a product, or **Change photo / Remove photo** on the product's stock screen) or in the web panel
   (an upload field on the product form). Send the picture as a *file* to keep the original quality.
 - **Translated catalog** — category names, product names and product descriptions can each be entered in
-  English, Russian and Romanian, and every customer sees them in their own language. The text you type
-  first is the **main language** (set by `BOT_LOCALE`) and the fallback: a missing translation shows the
-  main-language text, so nothing is ever blank. In the bot, the add-category / add-product wizards ask for
-  the other two languages with a **Skip** button, and **🌐 Translations** (on the product's stock screen and
-  in the Categories menu) edits or clears them later; in the web panel every language has its own field.
-  Search finds a product by a word in any language.
+  English, Russian and Romanian, and every customer sees them in their own language. The shop's **main
+  language** (`BOT_LOCALE`) is the fallback: a missing translation shows the main-language text, so nothing
+  is ever blank. Admins always work in their own interface language first: the bot's add-category /
+  add-product wizards ask in your language, then the other two with a **Skip** button, and in the web panel
+  the field for *your* language is simply called **Name** / **Description** (an English-interface admin sees
+  `Name`, `Name (Russian)`, `Name (Romanian)`). **🌐 Translations** (on the product's stock screen and in the
+  Categories menu) edits or clears them later, and any admin command that asks for a name accepts it in any
+  language. Search finds a product by a word in any language.
 - **Search** — find a product by name or description; results are paginated and open the
   normal product page. Backed by trigram (GIN) indexes on PostgreSQL, with a graceful fallback
   when `pg_trgm` isn't available.

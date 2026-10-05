@@ -79,7 +79,8 @@ class TestAddCategory:
         await _add_category(make_message, make_callback_query, fsm_context, "Mobila", [None, None])
 
         cat = await check_category("Mobila")
-        assert cat and cat["name_en"] is None and cat["name_ro"] is None and cat["name_ru"] is None
+        # Only the typed (main = admin default) language is stored.
+        assert cat and cat["name_en"] is None and cat["name_ro"] is None and cat["name_ru"] == "Mobila"
         assert await fsm_context.get_state() is None
 
     async def test_partial_translations(self, make_message, make_callback_query, fsm_context, ru_main):
@@ -93,7 +94,7 @@ class TestAddCategory:
                             ["  <b>Furniture</b> ", "Mobilă"])
 
         cat = await check_category("Мебель")
-        assert (cat["name_en"], cat["name_ro"], cat["name_ru"]) == ("Furniture", "Mobilă", None)
+        assert (cat["name_en"], cat["name_ro"], cat["name_ru"]) == ("Furniture", "Mobilă", "Мебель")
 
     async def test_main_language_is_never_asked(self, make_message, make_callback_query, fsm_context, main_lang):
         await fsm_context.set_state(CategoryFSM.waiting_add_category)
@@ -106,7 +107,8 @@ class TestAddCategory:
             await cm.skip_category_translation(_call(make_callback_query, "cat_tr_skip"), fsm_context)
         assert asked == OTHERS[main_lang]
         cat = await check_category("Main")
-        assert all(cat[f"name_{l}"] is None for l in ("en", "ru", "ro"))
+        assert all(cat[f"name_{l}"] is None for l in OTHERS[main_lang])
+        assert cat[f"name_{main_lang}"] == "Main"
 
     async def test_main_language_text_stays_canonical(self, make_message, make_callback_query, fsm_context, main_lang):
         first, second = OTHERS[main_lang]
@@ -114,7 +116,7 @@ class TestAddCategory:
 
         cat = await check_category("Canon")
         assert cat["name"] == "Canon" and cat[f"name_{first}"] == "one" and cat[f"name_{second}"] == "two"
-        assert cat[f"name_{main_lang}"] is None
+        assert cat[f"name_{main_lang}"] == "Canon"
 
     @pytest.mark.parametrize("bad,key", [("x" * (MAX_NAME_LEN + 1), "too_long"), ("<i></i>", "invalid"), ("  ", "invalid")])
     async def test_bad_translation_reprompts_and_stays(self, make_message, make_callback_query,
@@ -231,8 +233,9 @@ class TestAddProduct:
 
         item = await get_item_info("Chair")
         assert item["description"] == "Desc"
-        for lang in ("en", "ru", "ro"):
+        for lang in ("en", "ro"):
             assert item[f"name_{lang}"] is None and item[f"description_{lang}"] is None
+        assert item["name_ru"] == "Chair" and item["description_ru"] == "Desc"
 
     async def test_partial_translations(self, make_message, make_callback_query, fsm_context, category_factory,
                                         hooks, ru_main):
@@ -244,7 +247,7 @@ class TestAddProduct:
         item = await get_item_info("Стул")
         assert (item["name_en"], item["name_ro"]) == ("Chair", None)
         assert (item["description_en"], item["description_ro"]) == (None, "Confortabil")
-        assert item["name_ru"] is None and item["description_ru"] is None
+        assert item["name_ru"] == "Стул" and item["description_ru"] == "Удобный"
 
     async def test_full_translations_with_photo_step(self, make_message, make_callback_query, fsm_context,
                                                      category_factory, hooks, main_lang):
@@ -260,7 +263,7 @@ class TestAddProduct:
         assert item["name"] == "Chair" and item["description"] == "Desc"
         assert item[f"name_{a}"] == "N-" + a and item[f"name_{b}"] == "N-" + b
         assert item[f"description_{a}"] == "D-" + a and item[f"description_{b}"] == "D-" + b
-        assert item[f"name_{main_lang}"] is None and item[f"description_{main_lang}"] is None
+        assert item[f"name_{main_lang}"] == "Chair" and item[f"description_{main_lang}"] == "Desc"
 
     async def test_translations_are_audited(self, make_message, make_callback_query, fsm_context,
                                             category_factory, hooks, ru_main):

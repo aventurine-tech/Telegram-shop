@@ -156,6 +156,27 @@ def other_languages() -> list[str]:
     return [code for code, _ in LANGUAGES if code in LANGS and code != main]
 
 
+def default_language() -> str:
+    """The bot-wide default language (``bot.i18n.main.get_locale()``) limited to en/ru/ro."""
+    lang = _i18n_main.get_locale()
+    return lang if lang in LANGS else LANGS[0]
+
+
+async def admin_language(user_id) -> str:
+    """The admin's own interface language (saved choice), else the bot default; one of en/ru/ro."""
+    from bot.database.methods.read import check_user_cached
+    user = await check_user_cached(user_id)
+    lang = (user or {}).get("language")
+    return lang if lang in LANGS else default_language()
+
+
+def wizard_languages(admin_lang: str | None) -> list[str]:
+    """Order of the add wizards' language steps: the admin's own language first, then the others
+    in picker order. An unknown ``admin_lang`` falls back to the bot default."""
+    first = admin_lang if admin_lang in LANGS else default_language()
+    return [first] + [code for code, _ in LANGUAGES if code in LANGS and code != first]
+
+
 def language_label(code: str) -> str:
     """Picker label of a language ("🇷🇴 Română")."""
     return dict(LANGUAGES).get(code, code)

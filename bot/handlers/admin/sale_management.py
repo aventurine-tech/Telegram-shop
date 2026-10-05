@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.database.models import Permission
 from bot.database.methods import get_item_info_cached
+from bot.database.methods.read import resolve_item_name
 from bot.database.methods.update import set_item_sale
 from bot.database.methods.pricing import effective_price, coerce_sale_until
 from bot.database.methods.audit import log_audit
@@ -35,8 +36,8 @@ async def manage_sale_callback_handler(call: CallbackQuery, state):
 @router.message(SaleFSM.waiting_item_name, F.text)
 async def sale_item_name(message: Message, state):
     """Validate the item and show its current sale status, then ask for percent."""
-    item_name = message.text.strip()
-    item = await get_item_info_cached(item_name)
+    item_name = await resolve_item_name(message.text)
+    item = await get_item_info_cached(item_name) if item_name else None
     if not item:
         await message.answer(localize('admin.sale.not_found'), reply_markup=back('goods_management'))
         return

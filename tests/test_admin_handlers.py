@@ -244,7 +244,7 @@ class TestCategoryManagement:
         msg.answer.assert_called_once()
         assert "prompt.translation" in msg.answer.call_args[0][0]
         assert await check_category("NewCategory") is None
-        assert (await fsm_context.get_data())["cat_name"] == "NewCategory"
+        assert list((await fsm_context.get_data())["cat_names"].values()) == ["NewCategory"]
 
     async def test_add_duplicate_category(self, make_message, fsm_context, category_factory):
 

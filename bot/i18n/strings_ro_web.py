@@ -150,6 +150,15 @@ TRANSLATIONS = {
         "web.form.description_tr_hint": "Afișată clienților a căror limbă este {language}. Lăsați gol pentru a folosi descrierea în limba principală.",
         "web.form.tr_too_long_name": "Denumirea ({language}) este prea lungă (maximum {limit} de caractere).",
         "web.form.tr_too_long_description": "Descrierea ({language}) este prea lungă (maximum {limit} de caractere).",
+        "web.form.name_own_hint": "Obligatoriu. Clienții a căror limbă este {language} văd această denumire.",
+        "web.form.name_own_main_hint": "Obligatoriu. {language} este limba principală a magazinului: această denumire identifică articolul și se folosește oriunde o traducere lipsește.",
+        "web.form.name_main_hint": "Limba principală a magazinului ({language}): identifică articolul și se folosește oriunde o traducere lipsește. Lăsați gol pentru a folosi denumirea din limba dvs. (sau pentru a păstra cea actuală).",
+        "web.form.description_own_hint": "Obligatoriu. Clienții a căror limbă este {language} văd această descriere.",
+        "web.form.description_own_main_hint": "Obligatoriu. {language} este limba principală a magazinului: această descriere se folosește oriunde o traducere lipsește.",
+        "web.form.description_main_hint": "Limba principală a magazinului ({language}): se folosește oriunde o traducere lipsește. Lăsați gol pentru a folosi descrierea din limba dvs. (sau pentru a păstra cea actuală).",
+        "web.form.name_required": "Introduceți denumirea ({language}).",
+        "web.form.description_required": "Introduceți descrierea ({language}).",
+        "web.form.name_taken": "Există deja un articol cu denumirea \u201e{name}\u201d. Alegeți altă denumire.",
         "web.form.lang.en": "engleză",
         "web.form.lang.ru": "rusă",
         "web.form.lang.ro": "română",
@@ -295,10 +304,10 @@ TRANSLATIONS = {
             "care este adesea mai rapid pentru modificările de catalog și de roluri.</li>"),
         "web.help.i18n.title": "🌐 Traduceri",
         "web.help.i18n.body": (
-            "<p>Denumirile categoriilor și denumirile și descrierile produselor pot fi traduse în <b>engleză, rusă și română</b>. "
-            "Completați câmpurile <i>Denumire (…)</i> și <i>Descriere (…)</i> din formularul de creare sau editare; clienții văd textul în limba lor.</p>"
-            "<p class=\"mb-0\">Câmpurile simple <b>Denumire</b> și <b>Descriere</b> reprezintă textul în limba principală, după care magazinul identifică articolele. "
-            "O traducere lăsată goală este înlocuită cu textul în limba principală, așa că clientul nu vede niciodată un câmp gol.</p>"
+            "<p>Denumirile categoriilor și denumirile și descrierile produselor există în <b>engleză, rusă și română</b>. "
+            "Formularul de creare sau editare are câte un câmp pe limbă; cel din limba <i>dvs.</i> de interfață se numește simplu <b>Denumire</b> (sau <b>Descriere</b>) și este obligatoriu, celelalte sunt etichetate <i>Denumire (…)</i>. Clienții văd textul în limba lor.</p>"
+            "<p class=\"mb-0\">Limba principală a magazinului este <b>{main}</b>: textul în această limbă identifică articolul și înlocuiește orice limbă lăsată goală, așa că clientul nu vede niciodată un câmp gol. "
+            "Dacă lăsați gol câmpul limbii principale, se folosește textul dvs.</p>"
         ),
         "web.help.accounts.title": "👥 Conturi de panou",
         "web.help.accounts.body": (

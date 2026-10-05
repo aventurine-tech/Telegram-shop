@@ -4,10 +4,12 @@ from aiogram.types import CallbackQuery, Message
 from bot.i18n import localize, esc
 from bot.handlers.other import caller_name
 from bot.database.models import Permission
-from bot.database.methods import check_category_cached, create_category, delete_category, update_category
+from bot.database.methods import create_category, delete_category, update_category
+from bot.database.methods.read import resolve_category_name
 from bot.handlers.admin._common import (
-    other_languages, language_label, check_translation, translation_limit,
+    admin_language, main_language, wizard_languages, language_label, check_translation, translation_limit,
 )
+from bot.misc.localized import derive_canonical
 from bot.keyboards.inline import back, simple_buttons
 from bot.keyboards.translations import skip_keyboard
 from bot.filters import HasPermissionFilter
@@ -16,6 +18,11 @@ from bot.misc import CategoryRequest
 from bot.states import CategoryFSM
 
 router = Router()
+
+
+async def wizard_languages_for(user_id) -> list[str]:
+    """Language steps of the add wizard for this admin: their own language first, then the others."""
+    return wizard_languages(await admin_language(user_id))
 
 
 @router.callback_query(F.data == 'categories_management', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
@@ -39,10 +46,11 @@ async def categories_callback_handler(call: CallbackQuery):
 @router.callback_query(F.data == 'add_category', HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
 async def add_category_callback_handler(call: CallbackQuery, state):
     """
-    Asks admin for a new category name.
+    Asks admin for a new category name, first in the admin's own language.
     """
+    admin_lang = (await wizard_languages_for(call.from_user.id))[0]
     await call.message.edit_text(
-        localize("admin.categories.prompt.add"),
+        localize("admin.categories.prompt.add", language=language_label(admin_lang)),
         reply_markup=back("categories_management"),
     )
     await state.set_state(CategoryFSM.waiting_add_category)
@@ -50,7 +58,8 @@ async def add_category_callback_handler(call: CallbackQuery, state):
 
 @router.message(CategoryFSM.waiting_add_category, F.text)
 async def process_category_for_add(message: Message, state):
-    """Checks the (main-language) name, then asks for it in the other languages (each skippable)."""
+    """Checks the name in the admin's own language (required), then asks for the other languages (each
+    skippable). The canonical name is derived when the wizard ends (see ``_create_category_with_names``)."""
     try:
         # Validate category name
         category_request = CategoryRequest(name=message.text.strip())
@@ -58,7 +67,7 @@ async def process_category_for_add(message: Message, state):
         if not category_name:
             raise ValueError("empty category name")
 
-        if await check_category_cached(category_name):
+        if await resolve_category_name(category_name):
             await message.answer(
                 localize("admin.categories.add.exist"),
                 reply_markup=back("categories_management"),
@@ -75,7 +84,9 @@ async def process_category_for_add(message: Message, state):
         await state.clear()
         return
 
-    await state.update_data(cat_name=category_name, cat_names={}, cat_queue=other_languages())
+    languages = await wizard_languages_for(message.from_user.id)
+    await state.update_data(cat_lang=languages[0], cat_names={languages[0]: category_name},
+                            cat_queue=languages[1:])
     await _next_category_translation(message, message.from_user, state)
 
 
@@ -109,6 +120,12 @@ async def process_category_translation(message: Message, state):
             reply_markup=skip_keyboard("cat_tr_skip", "categories_management"),
         )
         return
+    if await resolve_category_name(value):
+        await message.answer(
+            localize("admin.categories.add.exist"),
+            reply_markup=skip_keyboard("cat_tr_skip", "categories_management"),
+        )
+        return
     names = dict(data.get("cat_names") or {})
     names[queue[0]] = value
     await state.update_data(cat_names=names, cat_queue=queue[1:])
@@ -126,11 +143,16 @@ async def skip_category_translation(call: CallbackQuery, state):
 
 
 async def _create_category_with_names(target: Message, user, state):
-    """Creates the category with the collected translations; ``target`` is where replies go,
-    ``user`` is the admin who acted."""
+    """Creates the category with the collected names; ``target`` is where replies go, ``user`` is the
+    admin who acted.
+
+    The canonical name is the main-language (BOT_LOCALE) text if it was entered, else the admin's own
+    language text, else the first filled one. Every entered language is stored as its ``name_<lang>``;
+    ``name_<main>`` is therefore set only when the canonical IS the main-language text, otherwise it
+    stays NULL (the canonical shows instead)."""
     data = await state.get_data()
-    category_name = data.get("cat_name")
     names = dict(data.get("cat_names") or {})
+    category_name = derive_canonical(names, main_language(), data.get("cat_lang"))
     await state.clear()
     if not category_name:
         await target.answer(localize("errors.invalid_data"), reply_markup=back("categories_management"))
@@ -162,9 +184,9 @@ async def process_category_for_delete(message: Message, state):
     """
     Deletes a category by name if it exists.
     """
-    category_name = message.text.strip()
+    category_name = await resolve_category_name(message.text)
 
-    if not await check_category_cached(category_name):
+    if not category_name:
         await message.answer(
             localize("admin.categories.delete.not_found"),
             reply_markup=back("categories_management"),
@@ -199,9 +221,9 @@ async def check_category_for_update(message: Message, state):
     """
     Verifies the category exists, then prompts for a new name.
     """
-    old_name = message.text.strip()
+    old_name = await resolve_category_name(message.text)
 
-    if not await check_category_cached(old_name):
+    if not old_name:
         await message.answer(
             localize("admin.categories.rename.not_found"),
             reply_markup=back("categories_management"),
@@ -235,7 +257,9 @@ async def check_category_name_for_update(message: Message, state):
     data = await state.get_data()
     old_name = data.get("old_category")
 
-    if await check_category_cached(new_name):
+    existing = await resolve_category_name(new_name)
+    # Taken by another category, or unchanged; a translation of the category itself may become its canonical name.
+    if existing and (existing != old_name or new_name == old_name):
         await message.answer(
             localize("admin.categories.rename.exist"),
             reply_markup=back("categories_management"),

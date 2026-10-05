@@ -2,8 +2,8 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 
 from bot.database.models import Permission
-from bot.database.methods import get_item_info_cached, update_item, check_category_cached, \
-    get_category_name_by_id
+from bot.database.methods import get_item_info_cached, update_item, get_category_name_by_id
+from bot.database.methods.read import resolve_category_name, resolve_item_name
 from bot.handlers.other import is_safe_item_name, caller_name
 from bot.handlers.admin._common import parse_price
 
@@ -43,8 +43,8 @@ async def update_item_callback_handler(call: CallbackQuery, state):
 @router.message(UpdateItemFSM.waiting_item_name_for_update, F.text)
 async def check_item_name_for_update(message: Message, state):
     """Validate item and ask for a new name."""
-    item_name = message.text.strip()
-    item = await get_item_info_cached(item_name)
+    item_name = await resolve_item_name(message.text)
+    item = await get_item_info_cached(item_name) if item_name else None
     if not item:
         await message.answer(
             localize('admin.goods.update.not_exists'),
@@ -135,8 +135,8 @@ async def update_item_keep_category(call: CallbackQuery, state):
 @router.message(UpdateItemFSM.waiting_item_category, F.text)
 async def update_item_category(message: Message, state):
     """The new category must exist; then save."""
-    category_name = (message.text or "").strip()
-    if not await check_category_cached(category_name):
+    category_name = await resolve_category_name(message.text)
+    if not category_name:
         await message.answer(
             localize('admin.goods.update.category.not_found'),
             reply_markup=back('goods_management')
