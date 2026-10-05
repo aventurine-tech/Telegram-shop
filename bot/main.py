@@ -21,6 +21,9 @@ from bot.database.models import register_models
 from bot.logger_mesh import configure_logging
 from bot.middleware import setup_rate_limiting, RateLimitConfig
 from bot.middleware.language import LanguageMiddleware
+from bot.middleware.clean_chat import (
+    CleanChatMiddleware, CleanChatRequestMiddleware, clean_chat_enabled,
+)
 from bot.middleware.security import SecurityMiddleware, AuthenticationMiddleware, set_auth_middleware
 from bot.misc.caching import init_cache_manager, get_cache_manager
 from bot.misc.caching import CacheScheduler
@@ -63,6 +66,12 @@ def _register_middlewares(
         security_middleware: SecurityMiddleware,
 ) -> None:
     """Register non-rate-limit middlewares."""
+    if clean_chat_enabled():
+        # Outermost, so its after-the-handler tidy-up runs last.
+        clean_chat = CleanChatMiddleware()
+        dp.message.outer_middleware(clean_chat)
+        dp.callback_query.outer_middleware(clean_chat)
+
     dp.message.middleware(analytics_middleware)
     dp.callback_query.middleware(analytics_middleware)
 
@@ -395,6 +404,8 @@ async def start_bot() -> None:
                 protect_content=False,
             ),
     ) as bot:
+        if clean_chat_enabled():
+            bot.session.middleware(CleanChatRequestMiddleware())
         bot_info = await bot.get_me()
         logging.info(f"Starting bot: @{bot_info.username} (ID: {bot_info.id})")
 
