@@ -786,15 +786,19 @@ async def get_cart_items(user_id: int) -> list[dict]:
     """Return all cart items for user; each dict includes the current item_name for display."""
     async with Database().session() as s:
         result = await s.execute(
-            select(CartItems, Goods.name.label('item_name'))
+            select(CartItems, Goods.name.label('item_name'),
+                   Goods.name_en, Goods.name_ru, Goods.name_ro)
             .join(Goods, Goods.id == CartItems.item_id)
             .where(CartItems.user_id == user_id)
             .order_by(CartItems.added_at.desc())
         )
         items = []
-        for ci, item_name in result.all():
+        for ci, item_name, name_en, name_ru, name_ro in result.all():
             d = _obj_to_dict(ci, CartItems)
             d['item_name'] = item_name
+            d['name'] = item_name          # canonical key `pick(line, 'name')` falls back to
+            # translations ride along so the cart can show names in the viewer's language
+            d.update(name_en=name_en, name_ru=name_ru, name_ro=name_ro)
             items.append(d)
         return items
 

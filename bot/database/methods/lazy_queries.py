@@ -26,8 +26,20 @@ async def _cached_count(cache_key: str, compute) -> int:
     return count
 
 
-async def query_categories(offset: int = 0, limit: int = 10, count_only: bool = False) -> Any:
-    """Query categories with pagination"""
+def _display_order(model, lang: str | None):
+    """ORDER BY the name as the viewer sees it (translation, else canonical), then canonical."""
+    from bot.i18n.main import current_language
+    from bot.misc.localized import LANGS
+    lang = lang or current_language()
+    if lang not in LANGS:
+        return (model.name.asc(),)
+    col = getattr(model, f"name_{lang}")
+    return (func.coalesce(func.nullif(func.trim(col), ''), model.name).asc(), model.name.asc())
+
+
+async def query_categories(offset: int = 0, limit: int = 10, count_only: bool = False,
+                           lang: str | None = None) -> Any:
+    """Query categories with pagination. Returns canonical names, ordered as the viewer sees them."""
     if count_only:
         async def _count():
             async with Database().session() as s:
@@ -37,7 +49,7 @@ async def query_categories(offset: int = 0, limit: int = 10, count_only: bool = 
     async with Database().session() as s:
         result = await s.execute(
             select(Categories.name)
-            .order_by(Categories.name.asc())
+            .order_by(*_display_order(Categories, lang))
             .offset(offset)
             .limit(limit)
         )
@@ -45,8 +57,8 @@ async def query_categories(offset: int = 0, limit: int = 10, count_only: bool = 
 
 
 async def query_items_in_category(category_name: str, offset: int = 0, limit: int = 10,
-                                  count_only: bool = False) -> Any:
-    """Query items in category with pagination"""
+                                  count_only: bool = False, lang: str | None = None) -> Any:
+    """Query items in category with pagination (canonical names, ordered as the viewer sees them)"""
     from bot.database.methods.read import check_category_cached
     cat = await check_category_cached(category_name)
     if not cat:
@@ -64,14 +76,14 @@ async def query_items_in_category(category_name: str, offset: int = 0, limit: in
 
     async with Database().session() as s:
         result = await s.execute(
-            query.order_by(Goods.name.asc()).offset(offset).limit(limit)
+            query.order_by(*_display_order(Goods, lang)).offset(offset).limit(limit)
         )
         return [row[0] for row in result.all()]
 
 
 async def query_goods_search(query: str, offset: int = 0, limit: int = 10,
-                             count_only: bool = False) -> Any:
-    """Search goods by name or description with pagination.
+                             count_only: bool = False, lang: str | None = None) -> Any:
+    """Search goods by name or description (in any language) with pagination.
 
     Returns a list of names, matching query_items_in_category's shape so the
     item card and the index-into-page-list convention work unchanged.
@@ -86,16 +98,20 @@ async def query_goods_search(query: str, offset: int = 0, limit: int = 10,
 
     async with Database().session() as s:
         base = select(Goods.name).where(
-            or_(
-                Goods.name.ilike(pattern, escape='\\'),
-                Goods.description.ilike(pattern, escape='\\'),
-            )
+            or_(*(
+                column.ilike(pattern, escape='\\')
+                for column in (
+                    Goods.name, Goods.description,
+                    Goods.name_en, Goods.name_ru, Goods.name_ro,
+                    Goods.description_en, Goods.description_ru, Goods.description_ro,
+                )
+            ))
         )
         if count_only:
             count_result = await s.execute(select(func.count()).select_from(base.subquery()))
             return count_result.scalar() or 0
         result = await s.execute(
-            base.order_by(Goods.name.asc()).offset(offset).limit(limit)
+            base.order_by(*_display_order(Goods, lang)).offset(offset).limit(limit)
         )
         return [row[0] for row in result.all()]
 

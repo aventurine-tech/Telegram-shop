@@ -37,8 +37,16 @@ async def create_user(telegram_id: int, registration_date: datetime, referral_id
 
 
 async def create_item(item_name: str, item_description: str, item_price: int, category_name: str,
-                      stock: int = 0) -> None:
-    """Insert item (goods) with its initial stock; commit. Resolves category_name to category_id."""
+                      stock: int = 0, names: dict[str, str] | None = None,
+                      descriptions: dict[str, str] | None = None) -> None:
+    """Insert item (goods) with its initial stock; commit. Resolves category_name to category_id.
+
+    ``names`` / ``descriptions`` optionally carry display translations ``{lang: text}``."""
+    from bot.misc.localized import LANGS, clean_name, clean_description
+    translated = {
+        **{f"name_{l}": clean_name(v) for l, v in (names or {}).items() if l in LANGS},
+        **{f"description_{l}": clean_description(v) for l, v in (descriptions or {}).items() if l in LANGS},
+    }
     async with Database().session() as s:
         result = await s.execute(select(exists().where(Goods.name == item_name)))
         if result.scalar():
@@ -53,6 +61,7 @@ async def create_item(item_name: str, item_description: str, item_price: int, ca
                 price=item_price,
                 category_id=cat,
                 stock=max(int(stock), 0),
+                **translated,
             )
         )
 
@@ -61,13 +70,17 @@ async def create_item(item_name: str, item_description: str, item_price: int, ca
     safe_create_task(invalidate_category_cache(category_name))
 
 
-async def create_category(category_name: str) -> None:
-    """Insert category; commit."""
+async def create_category(category_name: str, names: dict[str, str] | None = None) -> None:
+    """Insert category; commit. ``names`` optionally carries display translations ``{lang: text}``."""
+    from bot.misc.localized import LANGS, clean_name
     async with Database().session() as s:
         result = await s.execute(select(exists().where(Categories.name == category_name)))
         if result.scalar():
             return
-        s.add(Categories(name=category_name))
+        s.add(Categories(
+            name=category_name,
+            **{f"name_{l}": clean_name(v) for l, v in (names or {}).items() if l in LANGS},
+        ))
 
     safe_create_task(invalidate_stats_cache())
     # Drops the cached categories:count

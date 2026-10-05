@@ -168,7 +168,12 @@ class WebUsers(Database.BASE):
 class Categories(Database.BASE):
     __tablename__ = 'categories'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # `name` is the canonical, main-language text (and the unique lookup key). The translations
+    # are display-only; a missing/blank one falls back to `name` (see bot/misc/localized.py).
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name_en: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     items: Mapped[list["Goods"]] = relationship(
         "Goods", back_populates="category", lazy='raise', passive_deletes=True)
 
@@ -182,6 +187,13 @@ class Goods(Database.BASE):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    # Display-only translations of name/description (canonical = main language); see Categories.
+    name_en: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    description_en: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description_ro: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     category_id: Mapped[int] = mapped_column(
         Integer, ForeignKey('categories.id', ondelete="CASCADE"), nullable=False, index=True)
     sale_percent: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
@@ -307,6 +319,11 @@ class OrderItems(Database.BASE):
     item_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey('goods.id', ondelete="SET NULL"), nullable=True, index=True)
     item_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    # Snapshot of the product's translated names at order time, so an order card can be shown in
+    # the viewer's language and history survives a later edit. NULL = fall back to item_name.
+    name_en: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     # Line total after the sale/promo; unit_price * quantity before a promo.
