@@ -143,7 +143,7 @@ class TestShopCategoriesPagination:
 
 class TestShopGoodsPagination:
     async def test_list_and_navigate(self, make_callback_query, fsm_context, item_factory):
-        await item_factory(name="G1", category="GoodsCat", values=[("v", False)])
+        await item_factory(name="G1", category="GoodsCat", stock=3)
         # open categories -> select category (cat:0:0) -> paginate goods (gp_0)
         c1 = make_callback_query(data="shop")
         await shop_callback_handler(c1, fsm_context)
@@ -186,12 +186,12 @@ class TestEveryNavPrefixHasAHandler:
         ("bot.handlers.admin.user_management", "admin-refearn_", "admin-refearn_1_2_1"),
         ("bot.handlers.admin.user_management", "admin-refs-page_", "admin-refs-page_1_1"),
         ("bot.handlers.admin.user_management", "admin-all-earn_", "admin-all-earn_1_page_1"),
-        ("bot.handlers.admin.user_management", "bought-goods-page_", "bought-goods-page_user_0"),
+        ("bot.handlers.admin.user_management", "user-orders-page_", "user-orders-page_1_1"),
+        ("bot.handlers.admin.orders_management", "ords_", "ords_new_1"),
         ("bot.handlers.admin.shop_management", "users-page_", "users-page_1"),
         ("bot.handlers.user.shop_and_goods", "categories-page_", "categories-page_1"),
         ("bot.handlers.user.shop_and_goods", "gp_", "gp_1"),
         ("bot.handlers.user.shop_and_goods", "sp_", "sp_1"),
-        ("bot.handlers.admin.goods_management", "gip_", "gip_abcd1234_1"),
         ("bot.handlers.admin.promo_management", "promos-page_", "promos-page_1"),
     ]
 

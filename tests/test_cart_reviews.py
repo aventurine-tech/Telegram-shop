@@ -17,7 +17,7 @@ from bot.database.methods.lazy_queries import query_item_reviews
 class TestCart:
     async def test_add_and_get(self, user_factory, item_factory):
         await user_factory(telegram_id=960001)
-        await item_factory(name="CartX", price=100, values=[("v", False)])
+        await item_factory(name="CartX", price=100, stock=5)
         ok, msg = await add_to_cart(960001, "CartX", promo_code="SAVE")
         assert (ok, msg) == (True, "success")
         items = await get_cart_items(960001)
@@ -35,17 +35,17 @@ class TestCart:
         """The cart caps *distinct* positions, not units."""
         await user_factory(telegram_id=960003)
         for i in range(10):
-            await item_factory(name=f"CartF{i}", price=10, values=[("v", False)])
+            await item_factory(name=f"CartF{i}", price=10, stock=5)
             ok, msg = await add_to_cart(960003, f"CartF{i}")
             assert (ok, msg) == (True, "success")
 
-        await item_factory(name="CartFOver", price=10, values=[("v", False)])
+        await item_factory(name="CartFOver", price=10, stock=5)
         ok, msg = await add_to_cart(960003, "CartFOver")
         assert (ok, msg) == (False, "cart_full")
 
     async def test_add_same_item_increments_quantity(self, user_factory, item_factory):
         await user_factory(telegram_id=960005)
-        await item_factory(name="CartQ", price=10, values=[("v", False)])
+        await item_factory(name="CartQ", price=10, stock=5)
         for _ in range(10):
             ok, msg = await add_to_cart(960005, "CartQ")
             assert (ok, msg) == (True, "success")
@@ -59,7 +59,7 @@ class TestCart:
         """A full cart still allows bumping something already in it."""
         await user_factory(telegram_id=960006)
         for i in range(10):
-            await item_factory(name=f"CartB{i}", price=10, values=[("v", False)])
+            await item_factory(name=f"CartB{i}", price=10, stock=5)
             await add_to_cart(960006, f"CartB{i}")
 
         ok, msg = await add_to_cart(960006, "CartB0")
@@ -70,7 +70,7 @@ class TestCart:
 
     async def test_add_to_cart_qty_cap(self, user_factory, item_factory):
         await user_factory(telegram_id=960007)
-        await item_factory(name="CartCap", price=10, values=[("v", False)])
+        await item_factory(name="CartCap", price=10, stock=5)
         ok, msg = await add_to_cart(960007, "CartCap", quantity=CART_MAX_QTY_PER_ITEM)
         assert (ok, msg) == (True, "success")
 
@@ -80,7 +80,7 @@ class TestCart:
 
     async def test_remove_and_clear(self, user_factory, item_factory):
         await user_factory(telegram_id=960004)
-        await item_factory(name="CartR", price=10, values=[("v", False)])
+        await item_factory(name="CartR", price=10, stock=5)
         await add_to_cart(960004, "CartR")
         items = await get_cart_items(960004)
         assert await remove_from_cart(items[0]["id"], 960004) is True
@@ -95,7 +95,7 @@ class TestCart:
 class TestCartQuantity:
     async def test_increment_and_decrement(self, user_factory, item_factory):
         await user_factory(telegram_id=961001)
-        await item_factory(name="QtyA", price=10, values=[("v", False)])
+        await item_factory(name="QtyA", price=10, stock=5)
         await add_to_cart(961001, "QtyA", quantity=3)
         cid = (await get_cart_items(961001))[0]["id"]
 
@@ -108,7 +108,7 @@ class TestCartQuantity:
 
     async def test_decrement_to_zero_removes_row(self, user_factory, item_factory):
         await user_factory(telegram_id=961002)
-        await item_factory(name="QtyB", price=10, values=[("v", False)])
+        await item_factory(name="QtyB", price=10, stock=5)
         await add_to_cart(961002, "QtyB")
         cid = (await get_cart_items(961002))[0]["id"]
 
@@ -118,7 +118,7 @@ class TestCartQuantity:
 
     async def test_cap_is_enforced(self, user_factory, item_factory):
         await user_factory(telegram_id=961003)
-        await item_factory(name="QtyC", price=10, values=[("v", False)])
+        await item_factory(name="QtyC", price=10, stock=5)
         await add_to_cart(961003, "QtyC", quantity=CART_MAX_QTY_PER_ITEM)
         cid = (await get_cart_items(961003))[0]["id"]
 
@@ -129,7 +129,7 @@ class TestCartQuantity:
     async def test_other_users_cart_is_rejected(self, user_factory, item_factory):
         await user_factory(telegram_id=961004)
         await user_factory(telegram_id=961005)
-        await item_factory(name="QtyD", price=10, values=[("v", False)])
+        await item_factory(name="QtyD", price=10, stock=5)
         await add_to_cart(961004, "QtyD", quantity=2)
         cid = (await get_cart_items(961004))[0]["id"]
 
@@ -144,7 +144,7 @@ class TestCartQuantity:
         from bot.database.models.main import CartItems
 
         await user_factory(telegram_id=961006)
-        await item_factory(name="QtyE", price=10, values=[("v", False)])
+        await item_factory(name="QtyE", price=10, stock=5)
         await add_to_cart(961006, "QtyE")
         item_id = (await get_cart_items(961006))[0]["item_id"]
 
@@ -156,7 +156,7 @@ class TestCartQuantity:
 class TestStockSubscriptions:
     async def test_subscribe_and_check(self, user_factory, item_factory):
         await user_factory(telegram_id=962001)
-        await item_factory(name="SubA", price=10, values=[])
+        await item_factory(name="SubA", price=10, stock=0)
 
         ok, code = await subscribe_to_stock(962001, "SubA")
         assert (ok, code) == (True, "subscribed")
@@ -164,7 +164,7 @@ class TestStockSubscriptions:
 
     async def test_subscribe_is_idempotent(self, user_factory, item_factory):
         await user_factory(telegram_id=962002)
-        await item_factory(name="SubB", price=10, values=[])
+        await item_factory(name="SubB", price=10, stock=0)
 
         assert await subscribe_to_stock(962002, "SubB") == (True, "subscribed")
         assert await subscribe_to_stock(962002, "SubB") == (True, "already_subscribed")
@@ -176,7 +176,7 @@ class TestStockSubscriptions:
 
     async def test_unsubscribe(self, user_factory, item_factory):
         await user_factory(telegram_id=962004)
-        await item_factory(name="SubC", price=10, values=[])
+        await item_factory(name="SubC", price=10, stock=0)
         await subscribe_to_stock(962004, "SubC")
 
         assert await unsubscribe_from_stock(962004, "SubC") is True
@@ -186,7 +186,7 @@ class TestStockSubscriptions:
     async def test_pop_returns_subscribers_and_empties_table(self, user_factory, item_factory):
         await user_factory(telegram_id=962005)
         await user_factory(telegram_id=962006)
-        await item_factory(name="SubD", price=10, values=[])
+        await item_factory(name="SubD", price=10, stock=0)
         await subscribe_to_stock(962005, "SubD")
         await subscribe_to_stock(962006, "SubD")
 
@@ -197,7 +197,7 @@ class TestStockSubscriptions:
     async def test_pop_twice_never_double_notifies(self, user_factory, item_factory):
         """The property that stops two concurrent restocks messaging twice."""
         await user_factory(telegram_id=962007)
-        await item_factory(name="SubE", price=10, values=[])
+        await item_factory(name="SubE", price=10, stock=0)
         await subscribe_to_stock(962007, "SubE")
 
         assert await pop_stock_subscribers("SubE") == [962007]
@@ -208,8 +208,8 @@ class TestStockSubscriptions:
 
     async def test_subscriptions_are_per_item(self, user_factory, item_factory):
         await user_factory(telegram_id=962008)
-        await item_factory(name="SubF", price=10, values=[])
-        await item_factory(name="SubG", price=10, values=[])
+        await item_factory(name="SubF", price=10, stock=0)
+        await item_factory(name="SubG", price=10, stock=0)
         await subscribe_to_stock(962008, "SubF")
 
         assert await is_subscribed_to_stock(962008, "SubG") is False
@@ -219,7 +219,7 @@ class TestStockSubscriptions:
 class TestReviews:
     async def test_create_and_read(self, user_factory, item_factory):
         await user_factory(telegram_id=960010)
-        await item_factory(name="RevX", price=100, values=[("v", False)])
+        await item_factory(name="RevX", price=100, stock=5)
         rid = await create_review(960010, "RevX", 4, "good")
         assert rid is not None
         # one review per user per item
@@ -232,11 +232,11 @@ class TestReviews:
         assert len(await query_item_reviews("RevX")) == 1
 
     async def test_avg_rating_none_when_empty(self, item_factory):
-        await item_factory(name="RevEmpty", price=10, values=[("v", False)])
+        await item_factory(name="RevEmpty", price=10, stock=5)
         assert await get_item_avg_rating("RevEmpty") is None
 
     async def test_avg_of_multiple(self, user_factory, item_factory):
-        await item_factory(name="RevM", price=10, values=[("v", False)])
+        await item_factory(name="RevM", price=10, stock=5)
         await user_factory(telegram_id=960020)
         await user_factory(telegram_id=960021)
         await create_review(960020, "RevM", 2)
@@ -245,7 +245,7 @@ class TestReviews:
 
     async def test_get_user_review_none(self, user_factory, item_factory):
         await user_factory(telegram_id=960030)
-        await item_factory(name="RevN", price=10, values=[("v", False)])
+        await item_factory(name="RevN", price=10, stock=5)
         assert await get_user_review(960030, "RevN") is None
 
 
@@ -254,7 +254,7 @@ class TestRenameKeepsLinks:
         from bot.database.methods.update import update_item
 
         await user_factory(telegram_id=970001, balance=1000)
-        await item_factory(name="RenOld", price=10, category="RenCat", values=[("v", False)])
+        await item_factory(name="RenOld", price=10, category="RenCat", stock=5)
         await create_review(970001, "RenOld", 5, "great")
         await add_to_cart(970001, "RenOld")
 

@@ -7,7 +7,9 @@ from sqlalchemy import select
 from bot.database.main import Database
 from bot.database.models.main import Goods, PromoCodes
 from bot.database.methods.pricing import effective_price
-from bot.database.methods.transactions import buy_item_transaction
+from bot.database.methods.create import add_to_cart
+from bot.database.methods.orders import create_order_transaction
+from bot.database.models.main import Fulfillment, PaymentMethod
 from bot.database.methods.update import set_item_sale
 from bot.database.methods.read import get_item_info
 from bot.handlers.admin.sale_management import sale_item_name, sale_percent, sale_days
@@ -64,39 +66,47 @@ class TestEffectivePrice:
         assert original == Decimal(price)
 
 
-# --- Purchase flow integration tests ---
+# --- Order flow integration tests ---
 
-class TestSalePurchase:
+async def _order(user_id: int, item_name: str, promo_code: str | None = None):
+    await add_to_cart(user_id, item_name, promo_code=promo_code)
+    return await create_order_transaction(
+        user_id, fulfillment=Fulfillment.PICKUP, customer_name="Test", phone="+37360000000",
+        address=None, comment=None, payment_method=PaymentMethod.COD,
+    )
 
-    async def test_purchase_charges_sale_price(self, user_factory, item_factory):
-        await user_factory(telegram_id=500001, balance=1000)
-        await item_factory(name="SaleItem", price=100, values=[("code-1", False)])
+
+class TestSaleOrder:
+
+    async def test_order_charges_sale_price(self, user_factory, item_factory):
+        await user_factory(telegram_id=500001)
+        await item_factory(name="SaleItem", price=100, stock=1)
         await _set_sale("SaleItem", Decimal("20"), _future())
 
-        success, msg, data = await buy_item_transaction(500001, "SaleItem")
+        success, msg, order = await _order(500001, "SaleItem")
         assert success is True, msg
-        assert data["price"] == 80.0
-        assert data["new_balance"] == 920.0
+        assert order["total"] == Decimal("80.00")
+        assert order["items"][0]["unit_price"] == Decimal("80.00")
 
     async def test_expired_sale_charges_full_price(self, user_factory, item_factory):
-        await user_factory(telegram_id=500002, balance=1000)
-        await item_factory(name="OldSale", price=100, values=[("code-2", False)])
+        await user_factory(telegram_id=500002)
+        await item_factory(name="OldSale", price=100, stock=1)
         await _set_sale("OldSale", Decimal("20"), _past())
 
-        success, msg, data = await buy_item_transaction(500002, "OldSale")
+        success, msg, order = await _order(500002, "OldSale")
         assert success is True, msg
-        assert data["price"] == 100.0
+        assert order["total"] == Decimal("100.00")
 
     async def test_sale_and_promo_stack(self, user_factory, item_factory):
-        await user_factory(telegram_id=500003, balance=1000)
-        await item_factory(name="StackItem", price=100, values=[("code-3", False)])
+        await user_factory(telegram_id=500003)
+        await item_factory(name="StackItem", price=100, stock=1)
         await _set_sale("StackItem", Decimal("20"), _future())  # -> 80
         await _create_promo("SAVE10", "percent", Decimal("10"))  # 10% off the 80
 
-        success, msg, data = await buy_item_transaction(500003, "StackItem", promo_code="SAVE10")
+        success, msg, order = await _order(500003, "StackItem", promo_code="SAVE10")
         assert success is True, msg
-        assert data["price"] == 72.0  # 100 * 0.8 * 0.9
-        assert data["discount"]["original_price"] == 80.0  # promo discounts off sale price
+        assert order["total"] == Decimal("72.00")  # 100 * 0.8 * 0.9
+        assert order["items"][0]["unit_price"] == Decimal("80.00")  # promo discounts off the sale price
 
 
 # --- set_item_sale DB method ---
@@ -104,7 +114,7 @@ class TestSalePurchase:
 class TestSetItemSale:
 
     async def test_sets_sale_fields(self, item_factory):
-        await item_factory(name="M1", price=100, values=[("v", False)])
+        await item_factory(name="M1", price=100, stock=1)
 
         ok = await set_item_sale("M1", Decimal("25"), _future())
         assert ok is True
@@ -115,7 +125,7 @@ class TestSetItemSale:
         assert final == Decimal("75.00")
 
     async def test_clears_sale(self, item_factory):
-        await item_factory(name="M2", price=100, values=[("v", False)])
+        await item_factory(name="M2", price=100, stock=1)
         await _set_sale("M2", Decimal("30"), _future())
 
         ok = await set_item_sale("M2", None, None)
@@ -134,7 +144,7 @@ class TestSetItemSale:
 class TestSaleAdminFlow:
 
     async def test_fsm_sets_sale(self, item_factory, make_message, fsm_context):
-        await item_factory(name="FsmSale", price=100, values=[("v", False)])
+        await item_factory(name="FsmSale", price=100, stock=1)
 
         await sale_item_name(make_message(text="FsmSale", user_id=1), fsm_context)
         await sale_percent(make_message(text="25", user_id=1), fsm_context)
@@ -146,7 +156,7 @@ class TestSaleAdminFlow:
         assert final == Decimal("75.00")
 
     async def test_fsm_zero_percent_disables(self, item_factory, make_message, fsm_context):
-        await item_factory(name="FsmOff", price=100, values=[("v", False)])
+        await item_factory(name="FsmOff", price=100, stock=1)
         await _set_sale("FsmOff", Decimal("40"), _future())
 
         await sale_item_name(make_message(text="FsmOff", user_id=1), fsm_context)
@@ -157,7 +167,7 @@ class TestSaleAdminFlow:
         assert on_sale is False
 
     async def test_fsm_invalid_percent_rejected(self, item_factory, make_message, fsm_context):
-        await item_factory(name="FsmBad", price=100, values=[("v", False)])
+        await item_factory(name="FsmBad", price=100, stock=1)
 
         await sale_item_name(make_message(text="FsmBad", user_id=1), fsm_context)
         msg = make_message(text="150", user_id=1)

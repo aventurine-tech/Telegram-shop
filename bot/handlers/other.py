@@ -41,14 +41,6 @@ async def get_bot_info(event) -> str:
     return me.username
 
 
-def _any_payment_method_enabled() -> bool:
-    """Is there at least one enabled payment method?"""
-    cryptopay_ok = bool(EnvKeys.CRYPTO_PAY_TOKEN)
-    tg_stars_ok = bool(EnvKeys.STARS_PER_VALUE)
-    tg_pay_ok = bool(EnvKeys.TELEGRAM_PROVIDER_TOKEN)
-    return cryptopay_ok or tg_stars_ok or tg_pay_ok
-
-
 def _parse_channel_username() -> str | None:
     """Extract channel username from CHANNEL_URL env variable."""
     channel_url = EnvKeys.CHANNEL_URL or ""

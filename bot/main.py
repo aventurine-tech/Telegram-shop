@@ -20,6 +20,7 @@ from bot.handlers import register_all_handlers
 from bot.database.models import register_models
 from bot.logger_mesh import configure_logging
 from bot.middleware import setup_rate_limiting, RateLimitConfig
+from bot.middleware.language import LanguageMiddleware
 from bot.middleware.security import SecurityMiddleware, AuthenticationMiddleware, set_auth_middleware
 from bot.misc.caching import init_cache_manager, get_cache_manager
 from bot.misc.caching import CacheScheduler
@@ -68,6 +69,11 @@ def _register_middlewares(
     dp.message.middleware(auth_middleware)
     dp.callback_query.middleware(auth_middleware)
 
+    # After auth (a blocked user never gets this far), before security (its notices speak the user's language).
+    language_middleware = LanguageMiddleware()
+    dp.message.middleware(language_middleware)
+    dp.callback_query.middleware(language_middleware)
+
     dp.message.middleware(security_middleware)
     dp.callback_query.middleware(security_middleware)
 
@@ -105,6 +111,14 @@ async def _start_admin_server(bot: Bot):
     """Create and start the admin web server as a background task; return it."""
     import uvicorn
     from bot.web import create_admin_app
+    from bot.database.methods.web_users import bootstrap_web_admin
+
+    # The first Admin comes from ADMIN_USERNAME / ADMIN_PASSWORD, once, while no web account exists yet.
+    try:
+        if await bootstrap_web_admin(EnvKeys.ADMIN_USERNAME, EnvKeys.ADMIN_PASSWORD):
+            logging.info("Created the first web-panel Admin account from ADMIN_USERNAME / ADMIN_PASSWORD")
+    except Exception:
+        logging.exception("Could not create the first web-panel Admin account; nobody will be able to sign in")
 
     # The bot goes in so panel edits can reach users (e.g. restock notifications).
     admin_app = create_admin_app(bot)
@@ -224,10 +238,6 @@ async def _shutdown(ctx: AppContext, bot: Bot) -> None:
     if ctx.webhook_server:
         ctx.webhook_server.should_exit = True
 
-    # Close CryptoPay shared HTTP session
-    from bot.misc.services.payment import CryptoPayAPI
-    await CryptoPayAPI.close_session()
-
     # Let fire-and-forget invalidations and audit rows land while the engine and Redis are both still open.
     from bot.database.methods.cache_utils import drain_background_tasks
     await drain_background_tasks()
@@ -259,8 +269,6 @@ def _configure_logging() -> None:
 _ALLOWED_UPDATES = [
     "message",
     "callback_query",
-    "pre_checkout_query",
-    "successful_payment",
 ]
 
 

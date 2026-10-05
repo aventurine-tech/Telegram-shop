@@ -29,7 +29,7 @@ class StatsCache:
     async def _daily_stats(self, date: str) -> Dict[str, Any]:
         from bot.database.main import Database
         from bot.database.methods.read import _day_window
-        from bot.database.models.main import BoughtGoods, Operations, User
+        from bot.database.models.main import Orders, OrderStatus, Operations, User
 
         start_of_day, end_of_day = _day_window(date)
 
@@ -42,9 +42,10 @@ class StatsCache:
                            User.registration_date < end_of_day)
                     .scalar_subquery().label("users"),
 
-                    select(func.coalesce(func.sum(BoughtGoods.price), 0))
-                    .where(BoughtGoods.bought_datetime >= start_of_day,
-                           BoughtGoods.bought_datetime < end_of_day)
+                    select(func.coalesce(func.sum(Orders.total), 0))
+                    .where(Orders.status != OrderStatus.CANCELLED,
+                           Orders.created_at >= start_of_day,
+                           Orders.created_at < end_of_day)
                     .scalar_subquery().label("orders"),
 
                     select(func.coalesce(func.sum(Operations.operation_value), 0))
@@ -53,9 +54,10 @@ class StatsCache:
                     .scalar_subquery().label("operations"),
 
                     select(func.count())
-                    .select_from(BoughtGoods)
-                    .where(BoughtGoods.bought_datetime >= start_of_day,
-                           BoughtGoods.bought_datetime < end_of_day)
+                    .select_from(Orders)
+                    .where(Orders.status != OrderStatus.CANCELLED,
+                           Orders.created_at >= start_of_day,
+                           Orders.created_at < end_of_day)
                     .scalar_subquery().label("orders_count"),
                 )
             )).one()
@@ -76,7 +78,7 @@ class StatsCache:
     @cache_result(ttl=300, key_prefix="stats:global")
     async def _global_stats(self) -> Dict[str, Any]:
         from bot.database.main import Database
-        from bot.database.models.main import BoughtGoods, Goods, ItemValues, User
+        from bot.database.models.main import Orders, OrderStatus, Goods, User
 
         async with Database().session() as s:
             row = (await s.execute(
@@ -84,10 +86,11 @@ class StatsCache:
                     select(func.count()).select_from(User)
                     .scalar_subquery().label("total_users"),
 
-                    select(func.coalesce(func.sum(BoughtGoods.price), 0))
+                    select(func.coalesce(func.sum(Orders.total), 0))
+                    .where(Orders.status != OrderStatus.CANCELLED)
                     .scalar_subquery().label("total_revenue"),
 
-                    select(func.count()).select_from(ItemValues)
+                    select(func.coalesce(func.sum(Goods.stock), 0))
                     .scalar_subquery().label("total_items"),
 
                     select(func.count()).select_from(Goods)
@@ -111,19 +114,27 @@ class StatsCache:
     @cache_result(ttl=60, key_prefix="stats:dashboard")
     async def _dashboard_stats(self) -> Dict[str, Any]:
         from bot.database.main import Database
-        from bot.database.models.main import BoughtGoods, Categories, Operations, User
+        from bot.database.models.main import Orders, OrderItems, OrderStatus, Categories, Operations, User
 
         async with Database().session() as s:
             row = (await s.execute(
                 select(
-                    select(func.count(func.distinct(BoughtGoods.buyer_id)))
+                    select(func.count(func.distinct(Orders.user_id)))
+                    .where(Orders.status != OrderStatus.CANCELLED)
                     .scalar_subquery().label("unique_buyers"),
 
-                    select(func.coalesce(func.avg(BoughtGoods.price), 0))
+                    select(func.coalesce(func.avg(Orders.total), 0))
+                    .where(Orders.status != OrderStatus.CANCELLED)
                     .scalar_subquery().label("avg_order"),
 
-                    select(func.count()).select_from(BoughtGoods)
+                    select(func.coalesce(func.sum(OrderItems.quantity), 0))
+                    .select_from(OrderItems.__table__.join(Orders, Orders.id == OrderItems.order_id))
+                    .where(Orders.status != OrderStatus.CANCELLED)
                     .scalar_subquery().label("sold_count"),
+
+                    select(func.count()).select_from(Orders)
+                    .where(Orders.status == OrderStatus.NEW)
+                    .scalar_subquery().label("new_orders"),
 
                     select(func.count()).select_from(User)
                     .where(User.is_blocked.is_(True))
@@ -144,6 +155,7 @@ class StatsCache:
             "unique_buyers": row.unique_buyers or 0,
             "avg_order": Decimal(str(row.avg_order or 0)),
             "sold_count": row.sold_count or 0,
+            "new_orders": row.new_orders or 0,
             "blocked_users": row.blocked_users or 0,
             "users_balance": Decimal(str(row.users_balance or 0)),
             "all_operations": Decimal(str(row.all_operations or 0)),

@@ -1,0 +1,619 @@
+"""Web panel strings (English and Russian). Romanian lives in strings_ro_web.py."""
+
+_PERMS_EN = {
+    "web.help.perm.use": "Basic bot access",
+    "web.help.perm.broadcast": "Mass messaging",
+    "web.help.perm.settings": "Maintenance mode",
+    "web.help.perm.users": "View / block users, referrals, orders",
+    "web.help.perm.catalog": "Categories, products, stock",
+    "web.help.perm.admins": "Create roles, assign roles",
+    "web.help.perm.owner": "Owner-only operations",
+    "web.help.perm.stats": "Statistics, logs",
+    "web.help.perm.balance": "Top-up / deduct balance",
+    "web.help.perm.promo": "Promo-code management",
+    "web.help.perm.orders": "View orders, verify MIA payments, change order status",
+}
+
+_PERMS_RU = {
+    "web.help.perm.use": "Базовый доступ к боту",
+    "web.help.perm.broadcast": "Массовая рассылка",
+    "web.help.perm.settings": "Режим обслуживания",
+    "web.help.perm.users": "Просмотр и блокировка пользователей, рефералы, заказы",
+    "web.help.perm.catalog": "Категории, товары, остатки",
+    "web.help.perm.admins": "Создание и назначение ролей",
+    "web.help.perm.owner": "Операции только для владельца",
+    "web.help.perm.stats": "Статистика, журналы",
+    "web.help.perm.balance": "Пополнение и списание баланса",
+    "web.help.perm.promo": "Управление промокодами",
+    "web.help.perm.orders": "Просмотр заказов, проверка оплаты MIA, смена статуса заказа",
+}
+
+TRANSLATIONS = {
+    "en": {
+        # === Shared ===
+        "web.logout": "Logout",
+        "web.role.admin": "Admin",
+        "web.role.staff": "Staff",
+        "web.yes": "yes",
+        "web.language": "Language",
+        "web.language.unset": "— not set —",
+        "web.error.400": "The request could not be processed.",
+        "web.error.401": "Please sign in.",
+        "web.error.403": "You do not have access to this page.",
+        "web.error.404": "Not found.",
+        "web.error.500": "Something went wrong on the server.",
+
+        # === Login ===
+        "web.login.title": "Sign in to {title}",
+        "web.login.username": "Username",
+        "web.login.username_ph": "Enter username",
+        "web.login.password": "Password",
+        "web.login.password_ph": "Password",
+        "web.login.submit": "Sign in",
+        "web.login.error": "Invalid username or password.",
+        "web.login.choose_language": "Choose your language",
+
+        # === Model names (sidebar, titles) ===
+        "web.model.user.one": "User",
+        "web.model.user.many": "Users",
+        "web.model.role.one": "Role",
+        "web.model.role.many": "Roles",
+        "web.model.category.one": "Category",
+        "web.model.category.many": "Categories",
+        "web.model.product.one": "Product",
+        "web.model.product.many": "Products",
+        "web.model.order.one": "Order",
+        "web.model.order.many": "Orders",
+        "web.model.order_line.one": "Order Line",
+        "web.model.order_line.many": "Order Lines",
+        "web.model.operation.one": "Operation",
+        "web.model.operation.many": "Operations",
+        "web.model.referral_earning.one": "Referral Earning",
+        "web.model.referral_earning.many": "Referral Earnings",
+        "web.model.audit_log.one": "Audit Log",
+        "web.model.audit_log.many": "Audit Logs",
+        "web.model.promo_code.one": "Promo Code",
+        "web.model.promo_code.many": "Promo Codes",
+        "web.model.cart_item.one": "Cart Item",
+        "web.model.cart_item.many": "Cart Items",
+        "web.model.review.one": "Review",
+        "web.model.review.many": "Reviews",
+        "web.model.web_user.one": "Web Account",
+        "web.model.web_user.many": "Web Accounts",
+        "web.model.my_account": "My account",
+
+        # === Column labels ===
+        "web.col.id": "ID",
+        "web.col.name": "Name",
+        "web.col.telegram_id": "Telegram ID",
+        "web.col.balance": "Balance",
+        "web.col.role_id": "Role",
+        "web.col.referral_id": "Referred by",
+        "web.col.registration_date": "Registered",
+        "web.col.is_blocked": "Blocked",
+        "web.col.default": "Default",
+        "web.col.permissions": "Permissions",
+        "web.col.price": "Price",
+        "web.col.stock": "Stock",
+        "web.col.sale_percent": "Sale %",
+        "web.col.sale_until": "Sale until",
+        "web.col.description": "Description",
+        "web.col.category_id": "Category",
+        "web.col.category": "Category",
+        "web.col.picture": "Picture",
+        "web.col.user_id": "User ID",
+        "web.col.status": "Status",
+        "web.col.payment_method": "Payment method",
+        "web.col.payment_status": "Payment status",
+        "web.col.fulfillment": "Fulfillment",
+        "web.col.customer_name": "Customer",
+        "web.col.phone": "Phone",
+        "web.col.total": "Total",
+        "web.col.balance_used": "Balance used",
+        "web.col.created_at": "Created",
+        "web.col.updated_at": "Updated",
+        "web.col.address": "Address",
+        "web.col.comment": "Comment",
+        "web.col.pay_by": "Pay by",
+        "web.col.items": "Items",
+        "web.col.order_id": "Order ID",
+        "web.col.item_name": "Product",
+        "web.col.quantity": "Quantity",
+        "web.col.unit_price": "Unit price",
+        "web.col.line_total": "Line total",
+        "web.col.operation_value": "Amount",
+        "web.col.operation_time": "Time",
+        "web.col.referrer_id": "Referrer ID",
+        "web.col.amount": "Amount",
+        "web.col.original_amount": "Order amount",
+        "web.col.timestamp": "Time",
+        "web.col.level": "Level",
+        "web.col.action": "Action",
+        "web.col.resource_type": "Resource type",
+        "web.col.resource_id": "Resource ID",
+        "web.col.details": "Details",
+        "web.col.ip_address": "IP address",
+        "web.col.code": "Code",
+        "web.col.discount_type": "Discount type",
+        "web.col.discount_value": "Discount value",
+        "web.col.scope": "Scope",
+        "web.col.item_id": "Product ID",
+        "web.col.max_uses": "Max uses",
+        "web.col.current_uses": "Uses so far",
+        "web.col.is_active": "Active",
+        "web.col.expires_at": "Expires",
+        "web.col.added_at": "Added",
+        "web.col.rating": "Rating",
+        "web.col.text": "Text",
+        "web.col.username": "Username",
+        "web.col.role": "Role",
+        "web.col.language": "Language",
+        "web.col.last_login_at": "Last login",
+        "web.col.password": "Password",
+        "web.col.user": "User",
+        "web.col.order": "Order",
+        "web.col.referrer": "Referrer",
+        "web.col.referral": "Referral",
+        "web.col.user_operations": "Operations",
+        "web.col.user_orders": "Orders",
+        "web.col.referral_earnings_received": "Referral earnings received",
+        "web.col.referral_earnings_generated": "Referral earnings generated",
+
+        # === Product form ===
+        "web.form.picture_hint": ("JPEG, PNG or WEBP, up to 10 MB. Stored as uploaded; shown on the product card in "
+                                  "the bot. Leave empty to keep the current picture."),
+        "web.form.remove_picture": "Remove picture",
+        "web.form.remove_picture_hint": "Tick to delete the product's current picture.",
+        "web.form.stock_hint": ("Units on hand. Orders reserve stock when placed and cancelling an order "
+                                "returns it; customers waiting for this product are notified when it goes from 0 to more."),
+        "web.form.sale_percent_hint": ("Discount percent (0-100) applied while the sale is active. "
+                                       "Leave empty to disable the sale."),
+        "web.form.sale_until_hint": ("Sale end time (UTC). The discount applies only while this is in "
+                                     "the future; a past/empty value means no active sale."),
+        "web.form.permissions_hint": ("Bitmask value — sum the flags you need: USE=1, BROADCAST=2, SETTINGS=4, "
+                                      "USERS=8, CATALOG=16, ADMINS=32, OWNER=64, STATS=128, BALANCE=256, "
+                                      "PROMOS=512, ORDERS=1024. Example: 1951 = full Admin, 2047 = all (Owner)."),
+        "web.picture.err.too_large": "The picture is too large (10 MB at most).",
+        "web.picture.err.invalid_image": "The picture could not be read as an image.",
+        "web.picture.err.unsupported_format": "Only JPEG, PNG and WEBP pictures are supported.",
+        "web.picture.err.item_not_found": "The product no longer exists, so the picture was not saved.",
+        "web.picture.err.both": "Upload a new picture or tick \"Remove picture\", not both.",
+
+        # === Promo form ===
+        "web.promo.type_percent": "Percent (% off the price)",
+        "web.promo.type_fixed": "Fixed amount off the price",
+        "web.promo.type_balance": "Balance top-up (credit the user)",
+        "web.promo.type_hint": "How the discount value is applied.",
+        "web.promo.scope_global": "Global (whole shop)",
+        "web.promo.scope_category": "Category (pick one in the Category field)",
+        "web.promo.scope_item": "Item (pick one in the Item field)",
+        "web.promo.scope_hint": ("Where the promo applies. Must match the binding: 'category' needs a Category "
+                                 "selected, 'item' needs an Item selected, 'global' needs neither. This is what "
+                                 "keeps a promo scoped after its category/item is deleted."),
+        "web.promo.none_global": "— none (global) —",
+        "web.promo.category": "Category",
+        "web.promo.category_hint": "Only for scope = category.",
+        "web.promo.item": "Item",
+        "web.promo.item_hint": "Only for scope = item.",
+        "web.promo.dangling": "DANGLING",
+        "web.promo.dangling_hint": "The bound category/item was deleted. This promo now applies to nothing.",
+        "web.promo.err.code_required": "Code is required.",
+        "web.promo.err.bad_type": "The discount type must be one of: percent, fixed, balance.",
+        "web.promo.err.value_not_number": "The discount value must be a number.",
+        "web.promo.err.value_negative": "The discount value must be 0 or more.",
+        "web.promo.err.percent_range": "A percent discount value must be between 0 and 100.",
+        "web.promo.err.both_bound": "A promo cannot bind both a category and an item — choose one.",
+        "web.promo.err.scope_mismatch": ("Scope '{scope}' does not match the binding — select '{expected}' "
+                                         "(or set/clear the matching Category/Item)."),
+
+        # === Order actions ===
+        "web.action.confirm_payment": "Confirm MIA payment",
+        "web.action.confirm_payment.ask": "Mark the MIA transfer as received and accept the selected orders?",
+        "web.action.confirm": "Confirm order",
+        "web.action.confirm.ask": "Confirm the selected orders?",
+        "web.action.ship": "Mark as shipped",
+        "web.action.ship.ask": "Mark the selected orders as shipped?",
+        "web.action.complete": "Mark as completed",
+        "web.action.complete.ask": "Mark the selected orders as completed?",
+        "web.action.cancel": "Cancel order",
+        "web.action.cancel.ask": ("Cancel the selected orders? Stock returns to the shelf; money already paid "
+                                  "must be refunded by hand."),
+
+        # === Web accounts (admin only) ===
+        "web.account.password": "Password",
+        "web.account.password_hint": "At least {min} characters. When editing, leave empty to keep the current password. It is stored hashed and never shown again.",
+        "web.account.role_hint": "Admin can do everything, including managing accounts. Staff can use every other section.",
+        "web.account.active_hint": "A disabled account cannot sign in, and an open session ends at once.",
+        "web.account.language_hint": "The panel language for this person. Empty = they are asked on their first sign-in.",
+        "web.account.err.forbidden": "Only an Admin can manage accounts.",
+        "web.account.err.username_invalid": "The username must be 1-64 characters with no spaces.",
+        "web.account.err.username_taken": "This username is already taken (usernames are not case-sensitive).",
+        "web.account.err.password_required": "A password is required for a new account.",
+        "web.account.err.password_too_short": "The password must be at least {min} characters.",
+        "web.account.err.password_too_long": "The password must be at most {max} characters.",
+        "web.account.err.role_invalid": "Choose a role: Admin or Staff.",
+        "web.account.err.language_invalid": "Choose a valid language.",
+        "web.account.err.cannot_delete_self": "You cannot delete your own account.",
+        "web.account.err.cannot_deactivate_self": "You cannot deactivate your own account.",
+        "web.account.err.cannot_demote_self": "You cannot take the Admin role away from yourself.",
+        "web.account.err.last_admin": "This is the last active Admin: the panel must always keep one.",
+
+        # === My account ===
+        "web.my.title": "My account",
+        "web.my.signed_in_as": "Signed in as {username}",
+        "web.my.role": "Access level: {role}",
+        "web.my.password_title": "Change password",
+        "web.my.current_password": "Current password",
+        "web.my.new_password": "New password",
+        "web.my.confirm_password": "Repeat the new password",
+        "web.my.password_submit": "Change password",
+        "web.my.password_changed": "Your password was changed.",
+        "web.my.err.wrong_current": "The current password is not correct.",
+        "web.my.err.mismatch": "The two new passwords do not match.",
+        "web.my.err.same": "The new password must differ from the current one.",
+        "web.my.err.generic": "The password could not be changed.",
+        "web.my.language_title": "Panel language",
+        "web.my.language_hint": "Remembered for your account on every device.",
+        "web.my.language_submit": "Save language",
+        "web.my.language_saved": "Language saved.",
+
+        # === Help page ===
+        "web.help.title": "Telegram Shop — Admin Panel",
+        "web.help.intro": ("Quick reference for the panel. Every create/edit/delete here is audit-logged, "
+                           "and the bot's caches are refreshed automatically after a change."),
+        "web.help.goods.title": "📦 Selling goods (product + stock)",
+        "web.help.goods.body": (
+            "<p>A <b>Product</b> is a physical item: name, price, description, category, optional "
+            "sale and the number of units on hand (<code>stock</code>).</p>"
+            "<ol class=\"mb-2\">"
+            "<li>Create a <b>Category</b> (if needed).</li>"
+            "<li>Create a <b>Product</b> — set name, price, description, category and <code>stock</code>.</li>"
+            "<li>Optionally upload a <b>Picture</b> (JPEG, PNG or WEBP, up to 10&nbsp;MB) — it is kept as uploaded and "
+            "shown on the product card in the bot. Tick <i>Remove picture</i> on the edit page to delete it; "
+            "the <i>Picture</i> column in the list shows which products have one.</li>"
+            "<li>Change <code>stock</code> whenever goods arrive or are written off.</li>"
+            "</ol>"
+            "<p class=\"mb-2\"><code>stock</code> is reserved when a customer places an order and returned "
+            "when the order is cancelled. A product at <code>0</code> cannot be ordered; customers who "
+            "asked to be notified get a message when it goes from 0 to more.</p>"
+            "<p class=\"text-muted mb-0\">Renaming or deleting a product keeps carts, reviews and "
+            "order history consistent automatically.</p>"),
+        "web.help.perms.title": "🔐 Roles &amp; permissions",
+        "web.help.perms.intro": (
+            "A role's <code>permissions</code> is a <b>bitmask</b>: add up the values of the "
+            "abilities you want. Built-in roles: <b>USER</b> (1), <b>ADMIN</b>, <b>OWNER</b> "
+            "(all bits). You can only grant permissions you hold yourself."),
+        "web.help.perms.col_bit": "Bit",
+        "web.help.perms.col_value": "Value",
+        "web.help.perms.col_grants": "Grants",
+        "web.help.perms.example": (
+            "<b>Example:</b> a catalog manager who also sees stats = "
+            "USE + CATALOG + STATS = 1 + 16 + 128 = <code>145</code>. "
+            "<span class=\"text-muted\">Prefer the bot's role menu for a click-to-toggle UI.</span>"),
+        "web.help.sections.title": "🧭 What each section is for",
+        "web.help.sections.body": (
+            "<li><b>Users</b> — balance, role, block status (edits take effect immediately).</li>"
+            "<li><b>Roles</b> — permission bitmasks (see the table).</li>"
+            "<li><b>Categories / Products</b> — the catalog, with stock per product.</li>"
+            "<li><b>Orders / Order Lines</b> — customer orders (see the tip below).</li>"
+            "<li><b>Promo Codes</b> — percent / fixed / balance codes, limits, expiry.</li>"
+            "<li><b>Operations / Referral Earnings</b> — read-only balance history.</li>"
+            "<li><b>Reviews</b> — 1–5★ product reviews.</li>"
+            "<li><b>Audit Logs</b> — read-only record of every admin action.</li>"
+            "<li><b>My account</b> — change your password and the panel language.</li>"),
+        "web.help.tips.title": "💡 Good to know",
+        "web.help.tips.body": (
+            "<li>Orders, order lines, operations and audit logs are <b>read-only</b> by design.</li>"
+            "<li>To handle an order, tick it in the <b>Orders</b> list (or open it) and use the "
+            "<b>Actions</b> menu: confirm MIA payment, confirm, shipped, completed, cancel. These run "
+            "through the same logic as the bot, so stock, balance refunds, referral commissions and "
+            "customer notifications always stay correct. A move that is not allowed (for example "
+            "shipping an order whose MIA payment is not verified) is skipped and logged. "
+            "Cancelling does <b>not</b> return cash or MIA money — refund it by hand.</li>"
+            "<li>CSV exports: <code>/export/users</code>, <code>/export/orders</code>, "
+            "<code>/export/order_items</code>, <code>/export/operations</code> "
+            "(optional <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code>).</li>"
+            "<li>Prices/balances use exact decimals — enter plain numbers (e.g. <code>199.99</code>).</li>"
+            "<li>A promo code's discount type is one of <code>percent</code>, <code>fixed</code>, "
+            "or <code>balance</code>.</li>"
+            "<li>Most day-to-day tasks are also available in the bot's in-chat admin menu, "
+            "which is often quicker for catalog and role edits.</li>"),
+        "web.help.accounts.title": "👥 Web accounts",
+        "web.help.accounts.body": (
+            "<p>Everyone signs in with their own account. <b>Admin</b> can do everything and is the only "
+            "level that can create, edit, disable or delete accounts (<b>Web Accounts</b> in the menu). "
+            "<b>Staff</b> can use every other section, but never sees the accounts.</p>"
+            "<p class=\"mb-0\">You cannot delete, disable or demote yourself, and the last active Admin "
+            "is always protected. A disabled or changed account takes effect immediately.</p>"),
+    },
+    "ru": {
+        "web.logout": "Выйти",
+        "web.role.admin": "Администратор",
+        "web.role.staff": "Сотрудник",
+        "web.yes": "да",
+        "web.language": "Язык",
+        "web.language.unset": "— не задан —",
+        "web.error.400": "Запрос не удалось обработать.",
+        "web.error.401": "Войдите в панель.",
+        "web.error.403": "У вас нет доступа к этой странице.",
+        "web.error.404": "Не найдено.",
+        "web.error.500": "На сервере произошла ошибка.",
+
+        "web.login.title": "Вход в {title}",
+        "web.login.username": "Логин",
+        "web.login.username_ph": "Введите логин",
+        "web.login.password": "Пароль",
+        "web.login.password_ph": "Пароль",
+        "web.login.submit": "Войти",
+        "web.login.error": "Неверный логин или пароль.",
+        "web.login.choose_language": "Выберите язык",
+
+        "web.model.user.one": "Пользователь",
+        "web.model.user.many": "Пользователи",
+        "web.model.role.one": "Роль",
+        "web.model.role.many": "Роли",
+        "web.model.category.one": "Категория",
+        "web.model.category.many": "Категории",
+        "web.model.product.one": "Товар",
+        "web.model.product.many": "Товары",
+        "web.model.order.one": "Заказ",
+        "web.model.order.many": "Заказы",
+        "web.model.order_line.one": "Позиция заказа",
+        "web.model.order_line.many": "Позиции заказов",
+        "web.model.operation.one": "Операция",
+        "web.model.operation.many": "Операции",
+        "web.model.referral_earning.one": "Реферальный доход",
+        "web.model.referral_earning.many": "Реферальные доходы",
+        "web.model.audit_log.one": "Запись журнала",
+        "web.model.audit_log.many": "Журнал действий",
+        "web.model.promo_code.one": "Промокод",
+        "web.model.promo_code.many": "Промокоды",
+        "web.model.cart_item.one": "Товар в корзине",
+        "web.model.cart_item.many": "Корзины",
+        "web.model.review.one": "Отзыв",
+        "web.model.review.many": "Отзывы",
+        "web.model.web_user.one": "Аккаунт панели",
+        "web.model.web_user.many": "Аккаунты панели",
+        "web.model.my_account": "Мой аккаунт",
+
+        "web.col.id": "ID",
+        "web.col.name": "Название",
+        "web.col.telegram_id": "Telegram ID",
+        "web.col.balance": "Баланс",
+        "web.col.role_id": "Роль",
+        "web.col.referral_id": "Пригласил",
+        "web.col.registration_date": "Дата регистрации",
+        "web.col.is_blocked": "Заблокирован",
+        "web.col.default": "По умолчанию",
+        "web.col.permissions": "Права",
+        "web.col.price": "Цена",
+        "web.col.stock": "Остаток",
+        "web.col.sale_percent": "Скидка, %",
+        "web.col.sale_until": "Скидка до",
+        "web.col.description": "Описание",
+        "web.col.category_id": "Категория",
+        "web.col.category": "Категория",
+        "web.col.picture": "Фото",
+        "web.col.user_id": "ID пользователя",
+        "web.col.status": "Статус",
+        "web.col.payment_method": "Способ оплаты",
+        "web.col.payment_status": "Статус оплаты",
+        "web.col.fulfillment": "Получение",
+        "web.col.customer_name": "Покупатель",
+        "web.col.phone": "Телефон",
+        "web.col.total": "Итого",
+        "web.col.balance_used": "Списано с баланса",
+        "web.col.created_at": "Создан",
+        "web.col.updated_at": "Обновлён",
+        "web.col.address": "Адрес",
+        "web.col.comment": "Комментарий",
+        "web.col.pay_by": "Оплатить до",
+        "web.col.items": "Позиции",
+        "web.col.order_id": "ID заказа",
+        "web.col.item_name": "Товар",
+        "web.col.quantity": "Количество",
+        "web.col.unit_price": "Цена за единицу",
+        "web.col.line_total": "Сумма позиции",
+        "web.col.operation_value": "Сумма",
+        "web.col.operation_time": "Время",
+        "web.col.referrer_id": "ID пригласившего",
+        "web.col.amount": "Сумма",
+        "web.col.original_amount": "Сумма заказа",
+        "web.col.timestamp": "Время",
+        "web.col.level": "Уровень",
+        "web.col.action": "Действие",
+        "web.col.resource_type": "Тип объекта",
+        "web.col.resource_id": "ID объекта",
+        "web.col.details": "Подробности",
+        "web.col.ip_address": "IP-адрес",
+        "web.col.code": "Код",
+        "web.col.discount_type": "Тип скидки",
+        "web.col.discount_value": "Размер скидки",
+        "web.col.scope": "Область действия",
+        "web.col.item_id": "ID товара",
+        "web.col.max_uses": "Макс. использований",
+        "web.col.current_uses": "Использовано",
+        "web.col.is_active": "Активен",
+        "web.col.expires_at": "Действует до",
+        "web.col.added_at": "Добавлен",
+        "web.col.rating": "Оценка",
+        "web.col.text": "Текст",
+        "web.col.username": "Логин",
+        "web.col.role": "Роль",
+        "web.col.language": "Язык",
+        "web.col.last_login_at": "Последний вход",
+        "web.col.password": "Пароль",
+        "web.col.user": "Пользователь",
+        "web.col.order": "Заказ",
+        "web.col.referrer": "Пригласивший",
+        "web.col.referral": "Реферал",
+        "web.col.user_operations": "Операции",
+        "web.col.user_orders": "Заказы",
+        "web.col.referral_earnings_received": "Полученный реферальный доход",
+        "web.col.referral_earnings_generated": "Принесённый реферальный доход",
+
+        "web.form.picture_hint": ("JPEG, PNG или WEBP, до 10 МБ. Хранится как загружено; показывается в карточке "
+                                  "товара в боте. Оставьте пустым, чтобы сохранить текущее фото."),
+        "web.form.remove_picture": "Удалить фото",
+        "web.form.remove_picture_hint": "Отметьте, чтобы удалить текущее фото товара.",
+        "web.form.stock_hint": ("Количество на складе. Заказ резервирует остаток, отмена заказа возвращает его; "
+                                "клиенты, ожидающие этот товар, получат уведомление, когда остаток станет больше 0."),
+        "web.form.sale_percent_hint": ("Скидка в процентах (0–100), пока действует акция. "
+                                       "Оставьте пустым, чтобы отключить скидку."),
+        "web.form.sale_until_hint": ("Окончание скидки (UTC). Скидка действует, только пока это время в будущем; "
+                                     "пустое или прошедшее значение означает, что скидки нет."),
+        "web.form.permissions_hint": ("Битовая маска — сложите нужные флаги: USE=1, BROADCAST=2, SETTINGS=4, "
+                                      "USERS=8, CATALOG=16, ADMINS=32, OWNER=64, STATS=128, BALANCE=256, "
+                                      "PROMOS=512, ORDERS=1024. Например: 1951 = полный Админ, 2047 = всё (Владелец)."),
+        "web.picture.err.too_large": "Фото слишком большое (не более 10 МБ).",
+        "web.picture.err.invalid_image": "Не удалось прочитать файл как изображение.",
+        "web.picture.err.unsupported_format": "Поддерживаются только фото JPEG, PNG и WEBP.",
+        "web.picture.err.item_not_found": "Товар больше не существует, поэтому фото не сохранено.",
+        "web.picture.err.both": "Загрузите новое фото или отметьте «Удалить фото», но не оба действия сразу.",
+
+        "web.promo.type_percent": "Процент (% от цены)",
+        "web.promo.type_fixed": "Фиксированная сумма скидки",
+        "web.promo.type_balance": "Пополнение баланса (начислить пользователю)",
+        "web.promo.type_hint": "Как применяется размер скидки.",
+        "web.promo.scope_global": "Глобально (весь магазин)",
+        "web.promo.scope_category": "Категория (выберите в поле «Категория»)",
+        "web.promo.scope_item": "Товар (выберите в поле «Товар»)",
+        "web.promo.scope_hint": ("Где действует промокод. Должно соответствовать привязке: для «category» нужно "
+                                 "выбрать категорию, для «item» — товар, для «global» — ничего. Именно это "
+                                 "сохраняет область действия, даже если категорию или товар удалят."),
+        "web.promo.none_global": "— нет (глобально) —",
+        "web.promo.category": "Категория",
+        "web.promo.category_hint": "Только для области = category.",
+        "web.promo.item": "Товар",
+        "web.promo.item_hint": "Только для области = item.",
+        "web.promo.dangling": "БЕЗ ПРИВЯЗКИ",
+        "web.promo.dangling_hint": "Привязанная категория или товар удалены. Этот промокод теперь ни к чему не применяется.",
+        "web.promo.err.code_required": "Укажите код.",
+        "web.promo.err.bad_type": "Тип скидки должен быть одним из: percent, fixed, balance.",
+        "web.promo.err.value_not_number": "Размер скидки должен быть числом.",
+        "web.promo.err.value_negative": "Размер скидки должен быть не меньше 0.",
+        "web.promo.err.percent_range": "Процентная скидка должна быть от 0 до 100.",
+        "web.promo.err.both_bound": "Промокод нельзя привязать и к категории, и к товару — выберите что-то одно.",
+        "web.promo.err.scope_mismatch": ("Область «{scope}» не соответствует привязке — выберите «{expected}» "
+                                         "(или задайте/очистите категорию или товар)."),
+
+        "web.action.confirm_payment": "Подтвердить оплату MIA",
+        "web.action.confirm_payment.ask": "Отметить перевод MIA как полученный и принять выбранные заказы?",
+        "web.action.confirm": "Подтвердить заказ",
+        "web.action.confirm.ask": "Подтвердить выбранные заказы?",
+        "web.action.ship": "Отметить отправленным",
+        "web.action.ship.ask": "Отметить выбранные заказы как отправленные?",
+        "web.action.complete": "Отметить выполненным",
+        "web.action.complete.ask": "Отметить выбранные заказы как выполненные?",
+        "web.action.cancel": "Отменить заказ",
+        "web.action.cancel.ask": ("Отменить выбранные заказы? Остатки вернутся на склад; уже полученные "
+                                  "деньги нужно вернуть вручную."),
+
+        "web.account.password": "Пароль",
+        "web.account.password_hint": "Не короче {min} символов. При редактировании оставьте пустым, чтобы не менять пароль. Хранится в виде хеша и больше нигде не показывается.",
+        "web.account.role_hint": "Администратор может всё, включая управление аккаунтами. Сотрудник работает во всех остальных разделах.",
+        "web.account.active_hint": "Отключённый аккаунт не может войти, а открытый сеанс завершается сразу.",
+        "web.account.language_hint": "Язык панели для этого человека. Пусто = его спросят при первом входе.",
+        "web.account.err.forbidden": "Управлять аккаунтами может только администратор.",
+        "web.account.err.username_invalid": "Логин должен содержать от 1 до 64 символов без пробелов.",
+        "web.account.err.username_taken": "Такой логин уже занят (регистр не учитывается).",
+        "web.account.err.password_required": "Для нового аккаунта нужен пароль.",
+        "web.account.err.password_too_short": "Пароль должен быть не короче {min} символов.",
+        "web.account.err.password_too_long": "Пароль должен быть не длиннее {max} символов.",
+        "web.account.err.role_invalid": "Выберите роль: администратор или сотрудник.",
+        "web.account.err.language_invalid": "Выберите допустимый язык.",
+        "web.account.err.cannot_delete_self": "Нельзя удалить свой собственный аккаунт.",
+        "web.account.err.cannot_deactivate_self": "Нельзя отключить свой собственный аккаунт.",
+        "web.account.err.cannot_demote_self": "Нельзя снять с себя роль администратора.",
+        "web.account.err.last_admin": "Это последний активный администратор: в панели всегда должен остаться хотя бы один.",
+
+        "web.my.title": "Мой аккаунт",
+        "web.my.signed_in_as": "Вы вошли как {username}",
+        "web.my.role": "Уровень доступа: {role}",
+        "web.my.password_title": "Смена пароля",
+        "web.my.current_password": "Текущий пароль",
+        "web.my.new_password": "Новый пароль",
+        "web.my.confirm_password": "Повторите новый пароль",
+        "web.my.password_submit": "Сменить пароль",
+        "web.my.password_changed": "Пароль изменён.",
+        "web.my.err.wrong_current": "Текущий пароль указан неверно.",
+        "web.my.err.mismatch": "Новые пароли не совпадают.",
+        "web.my.err.same": "Новый пароль должен отличаться от текущего.",
+        "web.my.err.generic": "Не удалось изменить пароль.",
+        "web.my.language_title": "Язык панели",
+        "web.my.language_hint": "Запоминается для вашего аккаунта на всех устройствах.",
+        "web.my.language_submit": "Сохранить язык",
+        "web.my.language_saved": "Язык сохранён.",
+
+        "web.help.title": "Telegram Shop — панель администратора",
+        "web.help.intro": ("Краткая справка по панели. Каждое создание, изменение и удаление записывается в журнал "
+                           "действий, а кэши бота обновляются автоматически после изменения."),
+        "web.help.goods.title": "📦 Продажа товаров (товар + остаток)",
+        "web.help.goods.body": (
+            "<p><b>Товар</b> — это физический предмет: название, цена, описание, категория, необязательная "
+            "скидка и количество на складе (<code>stock</code>).</p>"
+            "<ol class=\"mb-2\">"
+            "<li>Создайте <b>категорию</b> (если нужно).</li>"
+            "<li>Создайте <b>товар</b> — укажите название, цену, описание, категорию и <code>stock</code>.</li>"
+            "<li>При желании загрузите <b>фото</b> (JPEG, PNG или WEBP, до 10&nbsp;МБ) — оно хранится как загружено и "
+            "показывается в карточке товара в боте. Отметьте <i>Удалить фото</i> на странице редактирования, чтобы "
+            "убрать его; колонка <i>Фото</i> в списке показывает, у каких товаров оно есть.</li>"
+            "<li>Меняйте <code>stock</code>, когда товар поступает или списывается.</li>"
+            "</ol>"
+            "<p class=\"mb-2\"><code>stock</code> резервируется, когда клиент оформляет заказ, и возвращается, "
+            "когда заказ отменён. Товар с остатком <code>0</code> заказать нельзя; клиенты, которые просили "
+            "уведомить их, получат сообщение, когда остаток станет больше 0.</p>"
+            "<p class=\"text-muted mb-0\">Переименование или удаление товара автоматически сохраняет согласованность "
+            "корзин, отзывов и истории заказов.</p>"),
+        "web.help.perms.title": "🔐 Роли и права",
+        "web.help.perms.intro": (
+            "<code>permissions</code> роли — это <b>битовая маска</b>: сложите значения нужных "
+            "возможностей. Встроенные роли: <b>USER</b> (1), <b>ADMIN</b>, <b>OWNER</b> "
+            "(все биты). Выдать можно только те права, которые есть у вас самих."),
+        "web.help.perms.col_bit": "Бит",
+        "web.help.perms.col_value": "Значение",
+        "web.help.perms.col_grants": "Что даёт",
+        "web.help.perms.example": (
+            "<b>Пример:</b> менеджер каталога, который также видит статистику = "
+            "USE + CATALOG + STATS = 1 + 16 + 128 = <code>145</code>. "
+            "<span class=\"text-muted\">Для удобного переключения лучше использовать меню ролей в боте.</span>"),
+        "web.help.sections.title": "🧭 Для чего каждый раздел",
+        "web.help.sections.body": (
+            "<li><b>Пользователи</b> — баланс, роль, блокировка (изменения действуют сразу).</li>"
+            "<li><b>Роли</b> — битовые маски прав (см. таблицу).</li>"
+            "<li><b>Категории / Товары</b> — каталог с остатком по каждому товару.</li>"
+            "<li><b>Заказы / Позиции заказов</b> — заказы клиентов (см. подсказку ниже).</li>"
+            "<li><b>Промокоды</b> — процентные, фиксированные и балансовые коды, лимиты, срок действия.</li>"
+            "<li><b>Операции / Реферальные доходы</b> — история баланса, только чтение.</li>"
+            "<li><b>Отзывы</b> — отзывы о товарах с оценкой 1–5★.</li>"
+            "<li><b>Журнал действий</b> — запись всех действий администраторов, только чтение.</li>"
+            "<li><b>Мой аккаунт</b> — смена пароля и языка панели.</li>"),
+        "web.help.tips.title": "💡 Полезно знать",
+        "web.help.tips.body": (
+            "<li>Заказы, позиции заказов, операции и журнал действий <b>только для чтения</b> — так задумано.</li>"
+            "<li>Чтобы обработать заказ, отметьте его в списке <b>Заказов</b> (или откройте) и используйте меню "
+            "<b>Действия</b>: подтвердить оплату MIA, подтвердить, отправлен, выполнен, отменить. Всё это "
+            "работает через ту же логику, что и бот, поэтому остатки, возвраты на баланс, реферальные "
+            "комиссии и уведомления клиентам всегда остаются корректными. Недопустимый переход (например, "
+            "отправка заказа, оплата MIA по которому не подтверждена) пропускается и записывается в журнал. "
+            "Отмена <b>не</b> возвращает наличные или деньги MIA — верните их вручную.</li>"
+            "<li>CSV-выгрузки: <code>/export/users</code>, <code>/export/orders</code>, "
+            "<code>/export/order_items</code>, <code>/export/operations</code> "
+            "(необязательно <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code>).</li>"
+            "<li>Цены и балансы хранятся точно — вводите обычные числа (например, <code>199.99</code>).</li>"
+            "<li>Тип скидки промокода — один из <code>percent</code>, <code>fixed</code> "
+            "или <code>balance</code>.</li>"
+            "<li>Большинство повседневных задач доступно и в админ-меню бота в чате, "
+            "где правки каталога и ролей часто делаются быстрее.</li>"),
+        "web.help.accounts.title": "👥 Аккаунты панели",
+        "web.help.accounts.body": (
+            "<p>Каждый входит под своим аккаунтом. <b>Администратор</b> может всё и только он может "
+            "создавать, изменять, отключать и удалять аккаунты (раздел <b>Аккаунты панели</b> в меню). "
+            "<b>Сотрудник</b> работает во всех остальных разделах, но не видит аккаунты.</p>"
+            "<p class=\"mb-0\">Нельзя удалить, отключить или понизить самого себя, а последний активный "
+            "администратор всегда защищён. Отключение и смена роли действуют немедленно.</p>"),
+    },
+}
+
+TRANSLATIONS["en"].update(_PERMS_EN)
+TRANSLATIONS["ru"].update(_PERMS_RU)

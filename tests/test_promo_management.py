@@ -270,7 +270,7 @@ class TestPromoCreationFlow:
 
     async def test_fixed_promo_bound_to_an_item(self, make_message, make_callback_query,
                                                 fsm_context, item_factory):
-        await item_factory(name="BoundItem", price=100, values=[("v", False)])
+        await item_factory(name="BoundItem", price=100, stock=3)
 
         await _run_creation_flow(
             make_message, make_callback_query, fsm_context,

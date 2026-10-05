@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import partial
 
 from aiogram import Router, F
@@ -14,6 +15,11 @@ from bot.misc import EnvKeys, LazyPaginator
 from bot.i18n import localize, esc
 
 router = Router()
+
+
+def _money(value) -> Decimal:
+    """Amounts are shown with cents: a 0.50 bonus must not read as 0."""
+    return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
 
 @router.callback_query(F.data == "referral_system")
@@ -41,8 +47,8 @@ async def referral_callback_handler(call: CallbackQuery, state: FSMContext):
     if has_earnings:
         text += "\n\n" + localize('referrals.stats.template',
                                   active_count=earnings_stats['active_referrals_count'],
-                                  total_earned=int(earnings_stats['total_amount']),
-                                  total_original=int(earnings_stats['total_original_amount']),
+                                  total_earned=_money(earnings_stats['total_amount']),
+                                  total_original=_money(earnings_stats['total_original_amount']),
                                   earnings_count=earnings_stats['total_earnings_count'],
                                   currency=EnvKeys.PAY_CURRENCY
                                   )
@@ -76,7 +82,7 @@ async def view_referrals_handler(call: CallbackQuery, state: FSMContext):
         paginator=paginator,
         item_text=lambda referral_data: localize("referrals.item.format",
                                                  telegram_id=referral_data['telegram_id'],
-                                                 total_earned=int(referral_data['total_earned']),
+                                                 total_earned=_money(referral_data['total_earned']),
                                                  currency=EnvKeys.PAY_CURRENCY),
         item_callback=lambda referral_data: f"referral_earnings_{referral_data['telegram_id']}",
         page=0,
@@ -111,7 +117,7 @@ async def referrals_pagination_handler(call: CallbackQuery, state: FSMContext):
         paginator=paginator,
         item_text=lambda referral_data: localize("referrals.item.format",
                                                  telegram_id=referral_data['telegram_id'],
-                                                 total_earned=int(referral_data['total_earned']),
+                                                 total_earned=_money(referral_data['total_earned']),
                                                  currency=EnvKeys.PAY_CURRENCY),
         item_callback=lambda referral_data: f"referral_earnings_{referral_data['telegram_id']}",
         page=page,
@@ -144,10 +150,10 @@ async def _show_ref_earnings_page(call: CallbackQuery, referral_id: int, page: i
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
         item_text=lambda earning: localize("referral.earning.format",
-                                           amount=int(earning.amount),
+                                           amount=_money(earning.amount),
                                            currency=EnvKeys.PAY_CURRENCY,
                                            date=earning.created_at.strftime("%d.%m.%Y %H:%M"),
-                                           original_amount=int(earning.original_amount)),
+                                           original_amount=_money(earning.original_amount)),
         item_callback=lambda earning: f"earning_detail:{earning.id}:referral_earnings_{referral_id}",
         page=page,
         back_cb="view_referrals",
@@ -206,7 +212,7 @@ async def view_all_earnings_handler(call: CallbackQuery, state: FSMContext):
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
         item_text=lambda earning: localize("all.earning.format",
-                                           amount=int(earning.amount),
+                                           amount=_money(earning.amount),
                                            currency=EnvKeys.PAY_CURRENCY,
                                            referral_id=earning.referral_id,
                                            date=earning.created_at.strftime("%d.%m.%Y %H:%M")),
@@ -242,7 +248,7 @@ async def all_earnings_pagination_handler(call: CallbackQuery, state: FSMContext
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
         item_text=lambda earning: localize("all.earning.format",
-                                           amount=int(earning.amount),
+                                           amount=_money(earning.amount),
                                            currency=EnvKeys.PAY_CURRENCY,
                                            referral_id=earning.referral_id,
                                            date=earning.created_at.strftime("%d.%m.%Y %H:%M")),

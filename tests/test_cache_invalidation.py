@@ -9,21 +9,20 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 from bot.database.main import Database
 from bot.database.methods.read import (
     invalidate_user_cache, invalidate_item_cache, invalidate_category_cache,
-    invalidate_stats_cache, check_value_cached, async_cached, is_subscribed_to_stock,
+    invalidate_stats_cache, select_item_stock_cached, async_cached, is_subscribed_to_stock,
 )
 from bot.database.methods.create import create_item, subscribe_to_stock
 from bot.database.methods.lazy_queries import query_categories, query_items_in_category
 from bot.database.methods.update import set_role, set_user_blocked, update_item
 from bot.database.methods.transactions import admin_balance_change
 from bot.database.methods.delete import delete_item, delete_category
-from bot.database.methods.transactions import buy_item_transaction, \
-    process_payment_with_referral
-from bot.database.models.main import Goods, ItemValues
+from bot.database.methods.create import add_to_cart
+from bot.database.methods.orders import create_order_transaction, set_order_status, cancel_order_transaction
+from bot.database.models.main import Fulfillment, PaymentMethod, OrderStatus
 from bot.middleware.security import (
     AuthenticationMiddleware, set_auth_middleware, get_auth_middleware,
 )
 from bot.misc.caching.cache import CacheManager
-from bot.web.admin import ItemValuesAdmin, set_notifier_bot
 
 
 class TestCacheInvalidationFunctions:
@@ -32,7 +31,7 @@ class TestCacheInvalidationFunctions:
     async def test_invalidate_user_cache(self, fake_cache):
         fake_cache.store["user:123"] = {"telegram_id": 123, "balance": 0}
         fake_cache.store["auth:role:123"] = 1
-        fake_cache.store["count:bought:123"] = 3
+        fake_cache.store["count:orders:123"] = 3
         fake_cache.store["count:ops:123"] = 7
         # A different user's entries must survive.
         fake_cache.store["user:124"] = {"telegram_id": 124}
@@ -42,7 +41,7 @@ class TestCacheInvalidationFunctions:
         assert "user:123" not in fake_cache.store
         assert "auth:role:123" not in fake_cache.store
         # The paginator counts are per-user and go stale on any purchase/topup.
-        assert "count:bought:123" not in fake_cache.store
+        assert "count:orders:123" not in fake_cache.store
         assert "count:ops:123" not in fake_cache.store
         assert "user:124" in fake_cache.store
 
@@ -87,24 +86,23 @@ class TestCacheInvalidationFunctions:
 
         assert "item_info:Test" not in fake_cache.store
         assert "item_values:Test" not in fake_cache.store
-        assert "item_infinite:Test" not in fake_cache.store
         # Keyed by name, so a rename would otherwise strand the old average.
         assert "avg_rating:Test" not in fake_cache.store
         assert "category:Cat1" in fake_cache.store
 
-    async def test_check_value_cached_serves_from_cache(self, fake_cache, monkeypatch):
+    async def test_item_stock_cached_serves_from_cache(self, fake_cache, monkeypatch):
         calls = 0
 
-        async def fake_check_value(item_name):
+        async def fake_stock(item_name):
             nonlocal calls
             calls += 1
-            return False
+            return 0
 
-        monkeypatch.setattr('bot.database.methods.read.check_value', fake_check_value)
+        monkeypatch.setattr('bot.database.methods.read.select_item_stock', fake_stock)
 
-        assert await check_value_cached("CachedItem") is False
-        assert await check_value_cached("CachedItem") is False
-        # Second call must be a cache hit (False is cached too).
+        assert await select_item_stock_cached("CachedItem") == 0
+        assert await select_item_stock_cached("CachedItem") == 0
+        # Second call must be a cache hit (zero stock is cached too).
         assert calls == 1
 
     async def test_invalidate_item_cache_with_category_drops_only_that_key(self, fake_cache):
@@ -200,12 +198,12 @@ class TestCacheInvalidationFunctions:
         self, fake_cache, user_factory
     ):
         fake_cache.store["count:ops:940101"] = 4
-        fake_cache.store["count:bought:940101"] = 2
+        fake_cache.store["count:orders:940101"] = 2
 
         await invalidate_user_cache(940101)
 
         assert "count:ops:940101" not in fake_cache.store
-        assert "count:bought:940101" not in fake_cache.store
+        assert "count:orders:940101" not in fake_cache.store
 
     async def test_invalidate_stats_cache(self, fake_cache):
         import datetime as _dt
@@ -305,7 +303,7 @@ class TestCacheInvalidationAfterMutations:
 
     async def test_delete_item_invalidates_cache(self, item_factory, fake_cache):
         item_name = "TestItem"
-        await item_factory(name=item_name, price=100, values=[("value1", False)])
+        await item_factory(name=item_name, price=100, stock=1)
         fake_cache.store[f"item_info:{item_name}"] = {"name": item_name}
 
         await delete_item(item_name)
@@ -323,152 +321,67 @@ class TestCacheInvalidationAfterMutations:
 
         assert f"category:{cat_name}" not in fake_cache.store
 
-    async def test_buy_item_invalidates_user_cache(
+    async def _place_order(self, user_id, item="TestItem", qty=1, **over):
+        await add_to_cart(user_id, item, quantity=qty)
+        kw = dict(fulfillment=Fulfillment.PICKUP, customer_name="T", phone="123456",
+                  address=None, comment=None, payment_method=PaymentMethod.COD)
+        kw.update(over)
+        ok, code, order = await create_order_transaction(user_id, **kw)
+        assert ok, code
+        return order
+
+    async def test_placing_an_order_invalidates_user_item_and_stats_cache(
             self, user_factory, item_factory, fake_cache
     ):
         user = await user_factory(telegram_id=100001, balance=500)
         user_id = user["telegram_id"]
-        await item_factory(name="TestItem", price=100, values=[("secret_value", False)])
+        await item_factory(name="TestItem", price=100, stock=3)
         fake_cache.store[f"user:{user_id}"] = {"telegram_id": user_id, "balance": 500}
-
-        success, msg, data = await buy_item_transaction(user_id, "TestItem")
-        await asyncio.sleep(0)
-
-        assert success is True
-        assert f"user:{user_id}" not in fake_cache.store
-
-    async def test_payment_invalidates_user_and_stats_cache(
-            self, user_factory, fake_cache
-    ):
-        user = await user_factory(telegram_id=100001)
-        user_id = user["telegram_id"]
-        fake_cache.store[f"user:{user_id}"] = {"telegram_id": user_id, "balance": 0}
+        fake_cache.store["item_values:TestItem"] = 3        # the stale stock read
+        fake_cache.store["item_info:TestItem"] = {"name": "TestItem"}
         fake_cache.store["user_count:"] = 1
 
-        success, msg = await process_payment_with_referral(
-            user_id=user_id,
-            amount=Decimal("500"),
-            provider="stars",
-            external_id="pay_001",
-            referral_percent=0,
-        )
+        await self._place_order(user_id)
         await asyncio.sleep(0)
 
-        assert success is True
         assert f"user:{user_id}" not in fake_cache.store
+        assert "item_values:TestItem" not in fake_cache.store
+        assert "item_info:TestItem" not in fake_cache.store
         assert "user_count:" not in fake_cache.store
 
-    async def test_payment_with_referral_invalidates_referrer_cache(
-            self, user_factory, fake_cache
+    async def test_cancelling_an_order_invalidates_the_stock_cache(
+            self, user_factory, item_factory, fake_cache
+    ):
+        user = await user_factory(telegram_id=100001)
+        await item_factory(name="TestItem", price=100, stock=1)
+        order = await self._place_order(user["telegram_id"])
+        fake_cache.store["item_values:TestItem"] = 0        # sold out, per the cache
+
+        ok, _, _ = await cancel_order_transaction(order["id"])
+        await asyncio.sleep(0)
+
+        assert ok
+        assert "item_values:TestItem" not in fake_cache.store
+
+    async def test_completing_an_order_invalidates_referrer_and_stats_cache(
+            self, user_factory, item_factory, fake_cache
     ):
         referrer = await user_factory(telegram_id=200001)
         referrer_id = referrer["telegram_id"]
         user = await user_factory(telegram_id=100001, referral_id=referrer_id)
-        user_id = user["telegram_id"]
+        await item_factory(name="TestItem", price=1000, stock=1)
+        order = await self._place_order(user["telegram_id"])
+        await set_order_status(order["id"], OrderStatus.CONFIRMED)
 
-        fake_cache.store[f"user:{referrer_id}"] = {
-            "telegram_id": referrer_id,
-            "balance": 0,
-        }
+        fake_cache.store[f"user:{referrer_id}"] = {"telegram_id": referrer_id, "balance": 0}
+        fake_cache.store["user_count:"] = 1
 
-        success, msg = await process_payment_with_referral(
-            user_id=user_id,
-            amount=Decimal("1000"),
-            provider="stars",
-            external_id="pay_002",
-            referral_percent=10,
-        )
+        ok, _, _ = await set_order_status(order["id"], OrderStatus.COMPLETED)
         await asyncio.sleep(0)
 
-        assert success is True
+        assert ok
         assert f"user:{referrer_id}" not in fake_cache.store
-
-
-class TestWebPanelStockEdits:
-    def _request(self):
-        request = MagicMock()
-        request.client.host = "127.0.0.1"
-        return request
-
-    async def _fire(self, method, *args):
-
-        scheduled = []
-        with patch('bot.web.admin.safe_create_task', side_effect=scheduled.append):
-            await method(*args)
-        for coro in scheduled:
-            await coro
-
-    async def _stock_row(self, item_name: str):
-
-        async with Database().session() as s:
-            item_id = (await s.execute(select(Goods.id).where(Goods.name == item_name))).scalar()
-            return (await s.execute(
-                select(ItemValues).where(ItemValues.item_id == item_id)
-            )).scalars().first()
-
-    async def test_create_invalidates_item_cache(self, fake_cache, item_factory):
-
-        await item_factory(name="PanelItem", price=10, values=[("v1", False)])
-        row = await self._stock_row("PanelItem")
-        fake_cache.store["item_values:PanelItem"] = 0   # the stale "out of stock" read
-
-        await self._fire(ItemValuesAdmin().after_model_change, {}, row, True, self._request())
-
-        assert "item_values:PanelItem" not in fake_cache.store
-
-    async def test_delete_invalidates_item_cache(self, fake_cache, item_factory):
-
-        await item_factory(name="PanelDel", price=10, values=[("v1", False)])
-        row = await self._stock_row("PanelDel")
-        fake_cache.store["item_values:PanelDel"] = 1
-
-        await self._fire(ItemValuesAdmin().after_model_delete, row, self._request())
-
-        assert "item_values:PanelDel" not in fake_cache.store
-
-    async def test_create_notifies_stock_subscribers(self, mock_bot, item_factory, user_factory):
-
-        await user_factory(telegram_id=990001)
-        await item_factory(name="PanelRestock", price=10, values=[("v1", False)])
-        await subscribe_to_stock(990001, "PanelRestock")
-        row = await self._stock_row("PanelRestock")
-
-        set_notifier_bot(mock_bot)
-        try:
-            await self._fire(ItemValuesAdmin().after_model_change, {}, row, True, self._request())
-        finally:
-            set_notifier_bot(None)
-
-        mock_bot.send_message.assert_awaited_once()
-        assert mock_bot.send_message.await_args.kwargs["chat_id"] == 990001
-        assert await is_subscribed_to_stock(990001, "PanelRestock") is False
-
-    async def test_edit_does_not_notify(self, mock_bot, item_factory, user_factory):
-        """Only new stock is an arrival; editing a value in place is not."""
-
-        await user_factory(telegram_id=990002)
-        await item_factory(name="PanelEdit", price=10, values=[("v1", False)])
-        await subscribe_to_stock(990002, "PanelEdit")
-        row = await self._stock_row("PanelEdit")
-
-        set_notifier_bot(mock_bot)
-        try:
-            await self._fire(ItemValuesAdmin().after_model_change, {}, row, False, self._request())
-        finally:
-            set_notifier_bot(None)
-
-        mock_bot.send_message.assert_not_awaited()
-
-    async def test_no_bot_configured_is_a_noop(self, item_factory, user_factory):
-
-        await user_factory(telegram_id=990003)
-        await item_factory(name="PanelNoBot", price=10, values=[("v1", False)])
-        await subscribe_to_stock(990003, "PanelNoBot")
-        row = await self._stock_row("PanelNoBot")
-
-        set_notifier_bot(None)
-        # Must not raise even though someone is waiting.
-        await self._fire(ItemValuesAdmin().after_model_change, {}, row, True, self._request())
+        assert "user_count:" not in fake_cache.store
 
 
 class _FakeRedis:

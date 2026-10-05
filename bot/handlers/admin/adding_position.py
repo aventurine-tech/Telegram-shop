@@ -1,18 +1,20 @@
 from aiogram import Router, F
-from aiogram.exceptions import TelegramForbiddenError, TelegramNotFound, TelegramBadRequest
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.database.models import Permission
-from bot.database.methods import (
-    check_category_cached, get_item_info_cached, create_item, add_values_to_item
+from bot.database.methods import check_category_cached, get_item_info, get_item_info_cached, create_item
+from bot.database.methods.product_images import set_item_image
+from bot.handlers.other import is_safe_item_name
+from bot.handlers.admin._common import (
+    _notify_restock_safe, announce_arrival, parse_price, parse_quantity,
+    IMAGE_MESSAGE, download_message_image, image_error_text,
 )
-from bot.database.methods.create import add_values_bulk
-from bot.handlers.other import _parse_channel_username, is_safe_item_name, caller_name
-from bot.handlers.admin._common import _notify_restock_safe, parse_price
-from bot.keyboards.inline import back, question_buttons, simple_buttons
+from bot.keyboards.inline import back
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.misc import EnvKeys
+from bot.misc.images import ImageError, validate_image
 from bot.i18n import localize, esc
 from bot.states import AddItemFSM
 
@@ -82,7 +84,7 @@ async def add_item_price(message: Message, state):
 @router.message(AddItemFSM.waiting_category, F.text)
 async def check_category_for_add_item(message: Message, state):
     """
-    Category must exist; then ask about infinite mode.
+    Category must exist; then ask for the stock quantity.
     """
     category_name = (message.text or "").strip()
     category = await check_category_cached(category_name)
@@ -94,170 +96,99 @@ async def check_category_for_add_item(message: Message, state):
         return
 
     await state.update_data(item_category=category_name)
-    await message.answer(
-        localize('admin.goods.add.infinity.question'),
-        reply_markup=question_buttons('infinity', 'goods_management')
-    )
-    await state.set_state(AddItemFSM.waiting_infinity)
+    await message.answer(localize('admin.goods.add.prompt.stock'), reply_markup=back('goods_management'))
+    await state.set_state(AddItemFSM.waiting_stock)
 
 
-@router.callback_query(F.data.startswith('infinity_'), AddItemFSM.waiting_infinity)
-async def adding_value_to_position(call: CallbackQuery, state):
+def _photo_prompt_markup():
+    kb = InlineKeyboardBuilder()
+    kb.row(InlineKeyboardButton(text=localize('admin.goods.photo.btn.skip'), callback_data='add_item_skip_photo'))
+    kb.row(InlineKeyboardButton(text=localize('btn.back'), callback_data='goods_management'))
+    return kb.as_markup()
+
+
+@router.message(AddItemFSM.waiting_stock, F.text)
+async def add_item_stock(message: Message, state):
     """
-    If infinite — wait for a single value.
-    If not — collect multiple values until completion.
+    Validate the stock quantity and ask for the optional picture; the product is created after that step.
     """
-    answer = call.data.split('_')[1]
-    await state.update_data(is_infinity=(answer == 'yes'))
-
-    if answer == 'no':
-        # “Finish adding” button will appear after the first value is provided
-        await call.message.edit_text(
-            localize('admin.goods.add.values.prompt_multi'),
-            reply_markup=back("goods_management")
-        )
-        await state.set_state(AddItemFSM.waiting_values)
-    else:
-        await call.message.edit_text(
-            localize('admin.goods.add.single.prompt_value'),
-            reply_markup=back('goods_management')
-        )
-        await state.set_state(AddItemFSM.waiting_single_value)
-
-
-@router.message(AddItemFSM.waiting_values, F.text)
-async def collect_item_value(message: Message, state):
-    """
-    Accumulate values in FSM state. After the first one — show a “Finish adding” button.
-    """
-    data = await state.get_data()
-    values = data.get('item_values', [])
-    value = (message.text or "")
-    values.append(value)
-    await state.update_data(item_values=values)
-
-    # Show progress + “Finish adding” button
-    await message.answer(
-        localize('admin.goods.add.values.added', value=esc(value), count=len(values)),
-        reply_markup=simple_buttons([
-            (localize('btn.add_values_finish'), "finish_adding_items"),
-            (localize('btn.back'), "goods_management")
-        ], per_row=1)
-    )
-
-
-@router.callback_query(F.data == 'finish_adding_items', AddItemFSM.waiting_values)
-async def finish_adding_items_callback_handler(call: CallbackQuery, state):
-    """
-    Create a position, add all collected values, notify group (if configured).
-    """
-    data = await state.get_data()
-    item_name = data.get('item_name')
-    item_description = data.get('item_description')
-    item_price = data.get('item_price')
-    category_name = data.get('item_category')
-    raw_values: list[str] = data.get("item_values", []) or []
-
-    # Create position
-    await create_item(item_name, item_description, item_price, category_name)
-
-    added, skipped_db_dup, skipped_batch_dup, skipped_invalid = await add_values_bulk(
-        item_name, raw_values, is_infinity=False
-    )
-
-    text_lines = [
-        localize('admin.goods.add.result.created'),
-        localize('admin.goods.add.result.added', n=added)
-    ]
-    if skipped_db_dup:
-        text_lines.append(localize('admin.goods.add.result.skipped_db_dup', n=skipped_db_dup))
-    if skipped_batch_dup:
-        text_lines.append(localize('admin.goods.add.result.skipped_batch_dup', n=skipped_batch_dup))
-    if skipped_invalid:
-        text_lines.append(localize('admin.goods.add.result.skipped_invalid', n=skipped_invalid))
-
-    await call.message.edit_text("\n".join(text_lines), parse_mode="HTML", reply_markup=back("goods_management"))
-
-    if added:
-        await _notify_restock_safe(call.bot, item_name)
-
-    # Optionally notify a channel
-    channel_username = _parse_channel_username()
-    if channel_username:
-        try:
-            chat_id = int(EnvKeys.CHANNEL_ID) if EnvKeys.CHANNEL_ID else f"@{channel_username}"
-            await call.bot.send_message(
-                chat_id=chat_id,
-                text=(
-                    f"🎁 {localize('shop.group.new_upload')}\n"
-                    f"🏷️ {localize('shop.group.item')}: <b>{esc(item_name)}</b>\n"
-                    f"📦 {localize('shop.group.count')}: <b>{added}</b>"
-                ),
-                parse_mode='HTML'
-            )
-        except TelegramForbiddenError:
-            await call.answer(localize("errors.channel.telegram_forbidden_error", channel=channel_username))
-        except TelegramNotFound:
-            await call.answer(localize("errors.channel.telegram_not_found", channel=channel_username))
-        except TelegramBadRequest as e:
-            await call.answer(localize("errors.channel.telegram_bad_request", e=e))
-
-    admin_name = caller_name(call)
-    await log_audit("create_item", user_id=call.from_user.id, resource_type="Item", resource_id=item_name,
-                    details=f"admin={admin_name}")
-
-    await state.clear()
-
-
-@router.message(AddItemFSM.waiting_single_value, F.text)
-async def finish_adding_item_callback_handler(message: Message, state):
-    """
-    Create a position and add one “infinite” value. Notify group (if configured).
-    """
-    data = await state.get_data()
-    item_name = data.get('item_name')
-    item_description = data.get('item_description')
-    item_price = data.get('item_price')
-    category_name = data.get('item_category')
-
-    single_value = (message.text or "").strip()
-    if not single_value:
-        await message.answer(localize('admin.goods.add.single.empty'), reply_markup=back('goods_management'))
+    stock = parse_quantity(message.text)
+    if stock is None:
+        await message.answer(localize('admin.goods.stock.invalid'), reply_markup=back('goods_management'))
         return
 
-    # 1) Create position
-    await create_item(item_name, item_description, item_price, category_name)
-    # 2) Add 1 “infinite” value
-    added = await add_values_to_item(item_name, single_value, True)
+    await state.update_data(item_stock=stock)
+    await message.answer(localize('admin.goods.add.prompt.photo'), reply_markup=_photo_prompt_markup())
+    await state.set_state(AddItemFSM.waiting_photo)
 
-    # 3) Stock is committed — notify anyone waiting on this position.
-    if added:
+
+async def _create_product(message: Message, user, state, image: bytes | None = None) -> None:
+    """
+    Create the product from the collected answers, store its picture (if any), announce it if it is in stock.
+    ``message`` is where replies go, ``user`` is the admin who acted.
+    """
+    data = await state.get_data()
+    item_name = data.get('item_name')
+    stock = data.get('item_stock') or 0
+
+    await create_item(item_name, data.get('item_description'), data.get('item_price'),
+                      data.get('item_category'), stock=stock)
+
+    created = await get_item_info(item_name)    # uncached: the name step may have cached a miss
+    photo_ok = None
+    if image is not None and created:
+        # Only a product that really exists gets a picture.
+        photo_ok, code = await set_item_image(item_name, image)
+        if not photo_ok:
+            await message.answer(image_error_text(code), reply_markup=back('goods_management'))
+
+    await message.answer(
+        localize('admin.goods.add.result.created', name=esc(item_name), qty=stock),
+        parse_mode='HTML', reply_markup=back('goods_management')
+    )
+
+    # Stock is committed — notify anyone waiting on this product and the shop channel.
+    if stock > 0:
         await _notify_restock_safe(message.bot, item_name)
+        await announce_arrival(message.bot, item_name, stock)
 
-    # 4) Optionally notify a channel
-    channel_username = _parse_channel_username()
-    if channel_username:
-        try:
-            chat_id = int(EnvKeys.CHANNEL_ID) if EnvKeys.CHANNEL_ID else f"@{channel_username}"
-            await message.bot.send_message(
-                chat_id=chat_id,
-                text=(
-                    f"🎁 {localize('shop.group.new_upload')}\n"
-                    f"🏷️ {localize('shop.group.item')}: <b>{esc(item_name)}</b>\n"
-                    f"📦 {localize('shop.group.count')}: <b>∞</b>"
-                ),
-                parse_mode='HTML'
-            )
-        except TelegramForbiddenError:
-            await message.answer(localize("errors.channel.telegram_forbidden_error", channel=channel_username))
-        except TelegramNotFound:
-            await message.answer(localize("errors.channel.telegram_not_found", channel=channel_username))
-        except TelegramBadRequest as e:
-            await message.answer(localize("errors.channel.telegram_bad_request", e=e))
-
-    await message.answer(localize('admin.goods.add.single.created'), reply_markup=back('goods_management'))
-    admin_name = caller_name(message)
-    await log_audit("create_item", user_id=message.from_user.id, resource_type="Item", resource_id=item_name,
-                    details=f"admin={admin_name}, infinite=true")
+    admin_name = user.first_name or str(user.id)
+    await log_audit("create_item", user_id=user.id, resource_type="Item", resource_id=item_name,
+                    details=f"admin={admin_name}, stock={stock}, photo={'yes' if photo_ok else 'no'}")
 
     await state.clear()
+
+
+@router.message(AddItemFSM.waiting_photo, IMAGE_MESSAGE)
+async def add_item_photo(message: Message, state):
+    """
+    Take the product picture (photo or image file). A bad file is refused and the admin may retry or skip.
+    """
+    try:
+        image = await download_message_image(message)
+        if image is None:
+            raise ImageError("invalid_image")
+        validate_image(image)
+    except ImageError as e:
+        await message.answer(image_error_text(e.code), reply_markup=_photo_prompt_markup())
+        return
+
+    await _create_product(message, message.from_user, state, image)
+
+
+@router.callback_query(F.data == 'add_item_skip_photo', AddItemFSM.waiting_photo,
+                       HasPermissionFilter(permission=Permission.CATALOG_MANAGE))
+async def add_item_skip_photo(call: CallbackQuery, state):
+    """
+    Create the product without a picture.
+    """
+    await call.answer()
+    await _create_product(call.message, call.from_user, state)
+
+
+@router.message(AddItemFSM.waiting_photo)
+async def add_item_photo_reprompt(message: Message):
+    """
+    Anything but a photo / image file at the photo step: ask again.
+    """
+    await message.answer(localize('admin.goods.photo.reprompt'), reply_markup=_photo_prompt_markup())

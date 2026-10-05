@@ -6,7 +6,8 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 from html import escape as _esc
 
-from bot.i18n import localize
+from bot.i18n import localize, use_language
+from bot.misc.services.recipients import language_of
 from bot.handlers.other import display_name, caller_name
 from bot.database.models import Permission
 from bot.database.methods import (
@@ -33,6 +34,7 @@ PERM_LABELS = {
     Permission.STATS_VIEW: "STATS",
     Permission.BALANCE_MANAGE: "BALANCE",
     Permission.PROMO_MANAGE: "PROMOS",
+    Permission.ORDERS_MANAGE: "ORDERS",
 }
 
 
@@ -417,11 +419,9 @@ async def assign_role_confirm(call: CallbackQuery):
     )
 
     try:
-        await call.message.bot.send_message(
-            chat_id=target_id,
-            text=localize('admin.roles.assigned_notify', role=_esc(role['name'])),
-            reply_markup=close()
-        )
+        with use_language(await language_of(target_id)):
+            notice = localize('admin.roles.assigned_notify', role=_esc(role['name']))
+        await call.message.bot.send_message(chat_id=target_id, text=notice, reply_markup=close())
     except (TelegramBadRequest, TelegramForbiddenError) as e:
         await log_audit("assign_role_notify_fail", level="ERROR", user_id=target_id, details=str(e))
 

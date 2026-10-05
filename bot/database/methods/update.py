@@ -1,11 +1,11 @@
 from sqlalchemy import exc, select, update
 
 from bot.database.methods.read import invalidate_user_cache, invalidate_item_cache, \
-    invalidate_category_cache
+    invalidate_category_cache, invalidate_stats_cache
 from bot.database.methods.cache_utils import safe_create_task
 from bot.database.methods.create import CART_MAX_QTY_PER_ITEM
-from bot.database.models import User, Goods, Categories, BoughtGoods, Role
-from bot.database.models.main import PromoCodes, CartItems
+from bot.database.models import User, Goods, Categories, Role
+from bot.database.models.main import PromoCodes, CartItems, OrderItems
 from bot.database import Database
 from bot.logger_mesh import logger
 
@@ -69,7 +69,7 @@ async def update_item(item_name: str, new_name: str, description: str, price, ca
                 goods.category_id = cat_id
 
                 await s.execute(
-                    update(BoughtGoods).where(BoughtGoods.item_name == item_name).values(item_name=new_name)
+                    update(OrderItems).where(OrderItems.item_name == item_name).values(item_name=new_name)
                 )
                 to_invalidate = [item_name, new_name]
 
@@ -83,6 +83,48 @@ async def update_item(item_name: str, new_name: str, description: str, price, ca
         safe_create_task(invalidate_category_cache(old_category))
 
     return True, None
+
+
+async def set_item_stock(item_name: str, quantity: int) -> tuple[bool, int, int]:
+    """Set an item's units on hand to an absolute number.
+
+    Returns ``(found, old_stock, new_stock)``. The caller decides whether to announce a
+    restock (``old_stock == 0 < new_stock``).
+    """
+    quantity = max(int(quantity), 0)
+    async with Database().session() as s:
+        goods = (await s.execute(
+            select(Goods).where(Goods.name == item_name).with_for_update()
+        )).scalars().one_or_none()
+        if not goods:
+            return False, 0, 0
+        old = goods.stock
+        goods.stock = quantity
+
+    safe_create_task(invalidate_item_cache(item_name))
+    safe_create_task(invalidate_stats_cache())
+    return True, old, quantity
+
+
+async def adjust_item_stock(item_name: str, delta: int) -> tuple[bool, int, int]:
+    """Add (or, if negative, remove) units; the result never goes below zero.
+
+    Returns ``(found, old_stock, new_stock)``. Atomic under the goods row lock, so it is
+    safe against a concurrent checkout.
+    """
+    async with Database().session() as s:
+        goods = (await s.execute(
+            select(Goods).where(Goods.name == item_name).with_for_update()
+        )).scalars().one_or_none()
+        if not goods:
+            return False, 0, 0
+        old = goods.stock
+        goods.stock = max(old + int(delta), 0)
+        new = goods.stock
+
+    safe_create_task(invalidate_item_cache(item_name))
+    safe_create_task(invalidate_stats_cache())
+    return True, old, new
 
 
 async def set_item_sale(item_name: str, sale_percent, sale_until) -> bool:
@@ -102,6 +144,20 @@ async def set_item_sale(item_name: str, sale_percent, sale_until) -> bool:
         goods.sale_until = sale_until
 
     safe_create_task(invalidate_item_cache(item_name))
+    return True
+
+
+async def set_user_language(telegram_id: int, language: str) -> bool:
+    """Remember the interface language a user picked (en/ru/ro). False for an unknown user/language."""
+    if language not in ("en", "ru", "ro"):
+        return False
+    async with Database().session() as s:
+        user = (await s.execute(select(User).where(User.telegram_id == telegram_id))).scalars().first()
+        if not user:
+            return False
+        user.language = language
+
+    safe_create_task(invalidate_user_cache(telegram_id))
     return True
 
 

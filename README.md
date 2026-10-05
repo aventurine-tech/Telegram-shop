@@ -1,8 +1,9 @@
-# 🛍️ Telegram Shop Bot
+# 📦 Telegram Shop Bot — Physical Goods
 
-A Telegram bot for selling **digital goods** (accounts, keys, licenses…): catalog and
-stock, cart, multiple payment methods, a role-based admin panel (in‑chat **and** web),
-and optional Redis caching.
+A Telegram bot for selling **physical goods**: catalog with real stock, cart, delivery or
+pickup, and exactly **two payment methods** — **MIA** instant transfer and **cash on
+delivery / pickup**. Orders are tracked from *new* to *completed* by your staff, in chat or
+in a web panel. Role-based admin, store balance + referrals, optional Redis caching.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Aiogram](https://img.shields.io/badge/aiogram-3.22+-green.svg)](https://docs.aiogram.dev/)
@@ -10,97 +11,138 @@ and optional Redis caching.
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> **Selling physical goods instead?** (inventory, shipping, delivery addresses) — use the
-> [Telegram Physical Goods Shop](https://github.com/interlumpen/Telegram-shop-Physical).
-
-## 🎬 Demo
-
-<div align="center">
-  <img src="assets/admin_pov.gif" alt="Admin interface" width="400"/>
-  <img src="assets/user_pov.gif" alt="User interface" width="400"/>
-</div>
+> Derived from [interlumpen/Telegram-shop](https://github.com/interlumpen/Telegram-shop), a
+> digital-goods shop. Digital delivery (accounts/keys), Telegram Stars, CryptoPay, Telegram
+> Payments and balance top-ups were removed; orders, stock reservation, delivery/pickup and
+> the MIA / cash-on-delivery payments were added.
 
 ## 📋 Table of Contents
 
 - [Features](#-features)
+- [How an order works](#-how-an-order-works)
 - [Security](#-security)
 - [Tech Stack](#-tech-stack)
 - [Architecture](#-architecture)
 - [Configuration](#-configuration)
 - [Installation](#-installation)
 - [Admin panel](#-admin-panel)
-- [Feature tour](#-feature-tour)
+- [Upgrading from the digital-goods shop](#-upgrading-from-the-digital-goods-shop)
 - [Testing](#-testing)
 
 ---
 
 ## ✨ Features
 
-- **Catalog** — categories and products, per-unit stock that is either *limited* (one row
-  per account/key, consumed on purchase) or *unlimited* (one value delivered every time),
-  plus optional time‑limited per‑product sales.
-- **Search** — find a product by name or description instead of paging categories; results
-  are paginated and open the normal product page. Backed by trigram (GIN) indexes on
-  PostgreSQL, with a graceful fallback when the `pg_trgm` extension isn't available.
-- **Cart & promo codes** — add multiple items **with quantities**, apply a promo per item,
-  atomic multi‑item checkout with a receipt. Promo types: `percent`, `fixed`, `balance`; with
-  usage limits, expiry, and category/item binding. A promo stacks on top of an active sale;
-  a `percent` promo scales per unit while a `fixed` one comes off the line once.
-- **Restock notifications** — an out‑of‑stock product offers "notify me"; when stock arrives
-  (from the bot **or** the web panel) everyone waiting is messaged once and unsubscribed.
-- **Payments** — CryptoPay (crypto), Telegram Stars, and Telegram Payments (fiat). Balance
-  top‑up model; purchases are paid from balance. Processing is idempotent and transactional.
-- **Reviews** — 1–5★ ratings with optional text, one per user per item.
-- **Referrals** — configurable commission on referred users' top‑ups.
-- **Roles (RBAC)** — 10 granular permission bits, built‑in `USER`/`ADMIN`/`OWNER` plus custom
-  roles. You can never grant a permission you don't hold yourself; the admin UI only shows
-  buttons your role allows.
-- **Admin** — an in‑chat admin menu and a **web panel** (SQLAdmin) with a built‑in help page,
-  CSV export, and a full audit log. Broadcast messaging, user/balance management, catalog and
-  promo management, statistics.
-- **Performance** — fully async DB (`asyncpg` + async SQLAlchemy). Hot paths stay off both the
-  database and the network: a whole update's rate‑limit decision is one Redis call, roles and
-  blocked checks are served from process memory, audit rows are batched into one multi‑row
-  insert, cart promo validation is batched (no per‑line queries), paginator counts and hot
-  lookups are cached, and cache misses are single‑flighted so an expiring hot key doesn't
-  stampede the DB. Writes invalidate caches by name in a single round‑trip — never by scanning
-  the keyspace. Every paginated list orders by a unique tiebreaker, so paging never
-  repeats or skips a row. **Optional** Redis caching and persistent FSM storage; the bot runs
-  fine without Redis (in‑memory FSM, no caching), and falls back to that automatically if Redis
-  is configured but unreachable at startup rather than failing on every update.
-- **Localization** — Russian and English.
+- **Catalog & stock** — categories and products, each with an integer **units in stock**.
+  Stock is *reserved* the moment an order is placed and *released* if the order is cancelled,
+  so two customers can never buy the last unit. Optional time-limited per-product sales.
+- **Product pictures** — each product can have one picture, shown on its card in the shop and kept exactly
+  as uploaded (JPEG, PNG or WEBP, up to 10 MB). Admins add it in the bot (an optional photo step when
+  creating a product, or **Change photo / Remove photo** on the product's stock screen) or in the web panel
+  (an upload field on the product form). Send the picture as a *file* to keep the original quality.
+- **Search** — find a product by name or description; results are paginated and open the
+  normal product page. Backed by trigram (GIN) indexes on PostgreSQL, with a graceful fallback
+  when `pg_trgm` isn't available.
+- **Cart & promo codes** — several products with quantities, a promo per item, one atomic
+  checkout. Promo types: `percent`, `fixed`, `balance`; usage limits, expiry, category/product
+  binding. A promo stacks on top of an active sale.
+- **Delivery or pickup** — the customer chooses; delivery collects name, phone, address and an
+  optional comment, pickup shows your pickup address. Either can be switched off.
+- **Two payment methods**
+  - **MIA** — the bot shows where to send the transfer (recipient / phone / IBAN), the exact
+    amount and an order reference. The customer taps **I've paid** (optionally attaching a
+    screenshot); staff verify the money arrived and confirm — or reject — in one tap. Unpaid
+    MIA orders are cancelled automatically after `MIA_PAY_TIMEOUT_MIN` and their stock is released.
+  - **Cash on delivery / pickup** — nothing to do up front; the cash is recorded as collected
+    when staff mark the order completed.
+- **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
+  a message at every step and can open **My orders** at any time; staff get an alert for every
+  new order and every "I've paid" claim.
+- **Store balance & referrals** — admins can credit a customer's balance, balance promo codes
+  credit it too, and a referrer earns `REFERRAL_PERCENT`% of every referred customer's
+  **completed** order. Customers can spend their balance at checkout.
+- **Restock notifications** — a sold-out product offers "notify me"; when stock arrives
+  (from the bot, the web panel, or a cancelled order) everyone waiting is messaged once.
+- **Reviews** — 1–5★ with optional text, once per user per product, only after receiving it.
+- **Roles (RBAC)** — 11 granular permission bits, built-in `USER`/`ADMIN`/`OWNER` plus custom
+  roles. You can never grant a permission you don't hold yourself.
+- **Admin** — an in-chat menu **and** a web panel (SQLAdmin): orders, catalog and stock, users
+  and balances, promo codes, broadcast, statistics, CSV export, and a full audit log.
+- **Performance** — fully async DB (`asyncpg` + async SQLAlchemy); hot paths stay off both the
+  database and the network (rate-limit decisions in one Redis call, role/blocked checks from
+  process memory, batched audit rows, cached paginator counts, single-flighted cache misses,
+  invalidation by name — never by scanning the keyspace). **Optional** Redis caching and
+  persistent FSM storage; the bot runs without Redis too.
+- **Localization** — English, Russian and Romanian in **both** the bot and the web panel. Every Telegram
+  user is asked for their language at `/start` and it is remembered (🌐 Language in the profile changes it);
+  messages to someone else — staff order alerts, status updates to customers, restock notices — are
+  sent in *their* language. `BOT_LOCALE` is only the default for people who haven't chosen yet.
+- **Web accounts** — several logins for the panel with two levels: **Admin** (everything, plus creating,
+  disabling and editing accounts) and **Staff** (everything else). Passwords are stored hashed; the login
+  page asks for the language and remembers it per account.
+
+## 🧾 How an order works
+
+```mermaid
+flowchart LR
+    C[Cart] --> F{Delivery<br/>or pickup?}
+    F --> D[Name · phone · address · comment]
+    D --> P{Payment}
+    P -->|MIA| M[Order placed<br/>awaiting transfer]
+    P -->|Cash| K[Order placed<br/>pay on receipt]
+    M -->|customer: I've paid| V[Staff verify the transfer]
+    V -->|confirmed| OK[confirmed]
+    V -->|not found| M
+    M -->|no payment in time| X[cancelled<br/>stock released]
+    K --> OK
+    OK --> S[shipped / ready]
+    S --> Z[completed<br/>cash recorded · referral paid]
+```
+
+Rules enforced in the database transaction, not in the UI:
+
+- Placing an order **reserves stock** and clears the cart in one transaction. If any line is
+  short, the whole order is refused and nothing changes.
+- The total the customer confirmed is re-checked; if a price or sale changed meanwhile the
+  order is refused (`price_changed`) instead of charging a different amount.
+- An MIA order can't be confirmed, shipped or completed until staff verify the payment.
+- **Cancelling** (staff, the customer while the order is still new and unpaid, or the MIA
+  timeout) puts the stock back and returns any balance that was spent. If money was already
+  collected the order is flagged *refund due* — the bot never moves cash itself.
+- Completing an order pays the referral commission exactly once, on the cash actually paid
+  (balance spent on the order earns no commission).
+
+---
 
 ## 🔒 Security
 
 Implemented, and described honestly so you know what to rely on:
 
-- **Payments & money** — server‑side amount validation before accepting a payment; idempotent
-  processing (a `unique(provider, external_id)` constraint plus a `FOR UPDATE` lookup, so a
-  retried/duplicate callback credits once); balance changes run under row locks (ACID); a
-  circuit breaker pauses CryptoPay calls after repeated failures; self‑referral is blocked by
-  DB `CHECK` constraints and a transaction guard. **Double‑spend on a purchase is prevented at
-  the database layer** (row locks + stock removal + idempotent records), not by trusting the client.
-- **Access control** — Telegram‑ID authentication; a 10‑bit permission bitmask with bitwise
-  *subset* validation (you cannot create or assign a role exceeding your own). A permission
-  bitmask lives in exactly one cache — an in‑process tier backed by Redis (when enabled) — so
-  there is a single place to invalidate: every role change, block, or web‑panel edit clears both
-  tiers immediately.
-- **Rate limiting** — global and per‑action limits with temporary bans. When Redis is enabled the
-  limiter state is shared and the whole decision — ban check, both sliding windows, and the
-  auto‑ban on a global overrun — is evaluated in one atomic script, so concurrent updates can't
-  slip past the limit; without Redis it degrades to a per‑process in‑memory limiter with the same
-  verdicts. Admins bypass the windows but are still subject to a ban. The web‑panel login limiter
-  (5 attempts / 15 min per IP) and 30‑minute sessions remain per‑process.
-- **Web panel** — constant‑time credential/secret comparison; proxy‑aware client IP (trusts
-  `X‑Forwarded‑For` only when the socket peer is loopback, so an external client can't spoof it);
-  remote login with the default `admin`/`admin` is blocked; every create/edit/delete is
-  audit‑logged; financial tables are read‑only.
-- **Input handling** — all database access is parameterized via the SQLAlchemy ORM (no raw
-  SQL); user‑facing text is HTML‑escaped on render, and broadcast/category text is sanitized;
-  search queries have their `LIKE` wildcards escaped, so typing `100%` searches for that
-  literal rather than matching the whole catalog; CSV export neutralizes spreadsheet formula
-  injection; item names are control‑character filtered.
-- **Stale‑action guard** — taps on a transactional message older than 1 hour are rejected.
+- **Orders & money** — stock reservation and release run under row locks (ACID); goods are
+  locked in a deterministic order so concurrent carts can't deadlock; a transition table plus
+  per-state checks stop an order from skipping steps; balance changes are row-locked; the
+  referral commission can only be paid on the single transition into *completed*;
+  self-referral is blocked by DB `CHECK` constraints and a transaction guard. **Overselling is
+  prevented at the database layer**, not by trusting the client. **MIA payments are verified by
+  a human** — the bot never treats "I've paid" as proof of payment.
+- **Access control** — Telegram-ID authentication; an 11-bit permission bitmask with bitwise
+  *subset* validation (you cannot create or assign a role exceeding your own). Order
+  management has its own permission. A permission bitmask lives in exactly one cache — an
+  in-process tier backed by Redis (when enabled) — so every role change, block, or web-panel
+  edit clears both tiers immediately.
+- **Rate limiting** — global and per-action limits with temporary bans. With Redis the whole
+  decision is one atomic script; without Redis it degrades to a per-process limiter with the
+  same verdicts. Admins bypass the windows but are still subject to a ban. The web-panel login
+  limiter (5 attempts / 15 min per IP) and 30-minute sessions remain per-process.
+- **Web panel** — constant-time credential/secret comparison; proxy-aware client IP (trusts
+  `X-Forwarded-For` only when the socket peer is loopback); remote login with the default
+  `admin`/`admin` is blocked; every create/edit/delete is audit-logged; order and money
+  tables are read-only so order rules can't be bypassed.
+- **Input handling** — all database access is parameterized via the SQLAlchemy ORM; customer
+  text (name, address, comment) is length-limited and HTML-escaped when shown to staff;
+  broadcast/category text is sanitized; search `LIKE` wildcards are escaped; CSV export
+  neutralizes spreadsheet formula injection; item names are control-character filtered.
+- **Stale-action guard** — taps on a transactional message older than 1 hour are rejected.
 
 ## 💻 Tech Stack
 
@@ -112,9 +154,8 @@ Redis 7 *(optional)* · SQLAdmin + Starlette (web panel) · Pydantic · Docker.
 <details>
 <summary><b>System architecture</b> (click to expand)</summary>
 
-Everything runs in **one process on one asyncio event loop**: the bot, the web
-panel, and the background workers. There is no broker and no worker pool — the
-"services" below are just long-lived tasks.
+Everything runs in **one process on one asyncio event loop**: the bot, the web panel, and the
+background workers. There is no broker and no worker pool — the "services" are long-lived tasks.
 
 **How an update becomes a handler call**
 
@@ -124,7 +165,7 @@ flowchart TD
     API -->|long polling · default| DP
     API -->|webhook POST| WH["POST /webhook<br/>own Starlette app on WEBHOOK_PORT"]
     WH -->|secret token compared in constant time| DP
-    DP["aiogram Dispatcher<br/>allowed updates: message, callback_query,<br/>pre_checkout_query, successful_payment"]
+    DP["aiogram Dispatcher<br/>allowed updates: message, callback_query"]
     DP --> M1["RateLimit<br/>global 30/min + per-action buckets"]
     M1 --> M2["Analytics<br/>metrics + conversion funnels"]
     M2 --> M3["Auth<br/>role cache · blocked users"]
@@ -133,9 +174,8 @@ flowchart TD
     R --> H[Handler]
 ```
 
-The middleware order is the order they are registered in
-[`bot/main.py`](bot/main.py) — aiogram runs the first-registered outermost, so
-rate limiting rejects a flood before anything else does work.
+The middleware order is the order they are registered in [`bot/main.py`](bot/main.py) —
+aiogram runs the first-registered outermost, so rate limiting rejects a flood first.
 
 **What runs, and what it talks to**
 
@@ -147,17 +187,14 @@ flowchart TD
     subgraph proc["Bot process — one asyncio loop"]
         DP["aiogram Dispatcher"]
         UV["uvicorn · Starlette<br/>SQLAdmin · /health · /metrics · /export"]
-        RM["RecoveryManager<br/>CryptoPay sweep 5 min · health 60 s"]
+        RM["RecoveryManager<br/>unpaid-MIA expiry 60 s · health 60 s"]
         CM["CleanupManager<br/>daily retention"]
         CS["CacheScheduler<br/>stats hourly · daily 03:00"]
     end
 
-    CP["CryptoPay API"]
     PG[("PostgreSQL 16")]
     RD[("Redis 7 — optional")]
     FS["logs/ · data/"]
-    DP <--> CP
-    RM <--> CP
     DP --> PG
     UV --> PG
     RM --> PG
@@ -166,44 +203,41 @@ flowchart TD
     CS --> RD
     DP --> FS
     UV -.->|restock notify| TG
+    RM -.->|expiry notices| TG
 ```
 
 Worth knowing:
 
-- **Webhook mode runs its own listener.** `WEBHOOK_ENABLED=1` starts a second,
-  minimal Starlette app on `WEBHOOK_HOST:WEBHOOK_PORT` serving nothing but
-  `POST {WEBHOOK_PATH}`; the secret header is compared with `hmac.compare_digest`.
-  It is deliberately *not* mounted on the admin app — Telegram has to reach the
-  webhook, and nothing else should come along with it. Point your TLS-terminating
-  reverse proxy at the webhook port only.
-- **Redis is optional.** Without it: in-memory FSM, no caching, and a per-process
-  rate limiter and role cache. With it, that state is shared and survives a
-  restart. The connection is verified with a PING at startup, so a
-  configured-but-unreachable Redis degrades to in-memory storage instead of
-  breaking every update.
-- **The web panel is not read-only bookkeeping.** It runs in the same process as
-  the bot, so an edit there clears the same caches and can message users — that
-  is how a restock added in the panel reaches the people waiting for it.
-- **Shutdown is graceful**: tasks stopped, metrics snapshot written to
-  `data/final_metrics.json`, webhook removed, buffered audit rows flushed, CryptoPay
-  session and DB engine closed.
+- **No payment gateway.** MIA is a manual transfer verified by staff and cash is collected on
+  delivery, so there are no payment webhooks, API keys or provider outages to depend on.
+- **Webhook mode runs its own listener.** `WEBHOOK_ENABLED=1` starts a second, minimal Starlette
+  app on `WEBHOOK_HOST:WEBHOOK_PORT` serving nothing but `POST {WEBHOOK_PATH}`; the secret header
+  is compared with `hmac.compare_digest`. It is deliberately *not* mounted on the admin app.
+- **Redis is optional.** Without it: in-memory FSM, no caching, per-process rate limiter and
+  role cache. With it, that state is shared and survives a restart. A configured-but-unreachable
+  Redis degrades to in-memory storage at startup instead of breaking every update.
+- **The web panel runs in the bot's process**, so an edit there clears the same caches and can
+  message users — that is how a restock added in the panel reaches the people waiting for it.
+- **Shutdown is graceful**: tasks stopped, metrics snapshot written to `data/final_metrics.json`,
+  webhook removed, buffered audit rows flushed, DB engine closed.
 
 </details>
 
 <details>
 <summary><b>Database schema</b> (click to expand)</summary>
 
-Two views of the same 15 tables: the product side and the people/money side.
 Exact columns, indexes and `CHECK` constraints live in
-[`bot/database/models/main.py`](bot/database/models/main.py) — the notes under the
-diagrams say what each table is *for*.
+[`bot/database/models/main.py`](bot/database/models/main.py).
 
-**Catalog & stock**
+**Catalog, orders & stock**
 
 ```mermaid
 erDiagram
     categories ||--o{ goods: "groups"
-    goods ||--o{ item_values: "sellable units"
+    goods ||--o| product_images: "optional picture"
+    goods ||--o{ order_items: "sold as (snapshot)"
+    orders ||--|{ order_items: "lines"
+    users ||--o{ orders: "places"
     goods ||--o{ cart_items: "in carts"
     goods ||--o{ reviews: "rated by"
     goods ||--o{ stock_subscriptions: "waited for"
@@ -217,42 +251,38 @@ erDiagram
 erDiagram
     roles ||--o{ users: "role_id (RESTRICT)"
     users ||--o{ users: "referral_id (self)"
-    users ||--o{ payments: "top-ups (idempotent)"
     users ||--o{ operations: "balance ledger"
     users ||--o{ referral_earnings: "commission"
-    users ||--o{ bought_goods: "purchase history"
     users ||--o{ promo_code_usages: "redeemed"
     promo_codes ||--o{ promo_code_usages: "once per user"
 ```
 
-`audit_log` is absent from both on purpose: its `user_id` carries **no** foreign
-key, so the trail outlives the user it refers to.
+`audit_log` is absent on purpose: its `user_id` carries **no** foreign key, so the trail outlives
+the user it refers to.
 
 </details>
 
 The data model, in plain terms:
 
-- **users** — one row per Telegram user: balance, role, and (optionally) who referred them.
-- **roles** — a name plus a permission **bitmask** (see the permission table under *Admin features*).
-- **categories → goods (products) → item_values (stock)** — a product belongs to a category and
-  its sellable units live in `item_values` (one row per account/key, or a single `is_infinity`
-  row for unlimited delivery).
-- **cart_items** / **reviews** — reference their product by foreign key, so a rename or delete
-  never leaves them dangling. A cart holds one row per product with a `quantity` (unique per
-  user+product, `CHECK (quantity > 0)`).
-- **stock_subscriptions** — who is waiting for an out‑of‑stock product. Rows are *consumed*
-  when the notification is sent, which is what stops a restock from messaging twice.
-- **bought_goods** — purchase history, **one row per delivered unit** (each carries its own
-  value, and its price is the per‑unit share of what was charged). It keeps the product *name*
-  as a snapshot so history survives even if the product is later removed.
-- **payments** — one row per top‑up, unique per `(provider, external_id)` so a duplicate/retried
-  callback can only credit once. **operations** is the balance ledger (top‑ups, deductions,
-  referral credits).
-- **promo_codes** (+ per‑user usages) — a promo can be bound to a category or a product. It
-  carries its own `scope` because the bindings are `ON DELETE SET NULL`. A promo whose target is gone
-  stays scoped and applies to nothing.
-- **referral_earnings**, and an **audit_log** of every admin action. All money is stored as
-  exact `NUMERIC(12,2)` — never floats.
+- **users** — one row per Telegram user: store balance, role, and (optionally) who referred them.
+- **roles** — a name plus a permission **bitmask** (see the table under *Admin panel*).
+- **categories → goods** — a product belongs to a category and carries `stock`, the units on
+  hand (`CHECK (stock >= 0)`).
+- **orders** / **order_items** — an order stores its status, payment method and status,
+  fulfilment, contact details, total, the part paid from balance, the MIA screenshot, and the
+  MIA pay-by deadline. Each line keeps the product **name and price as a snapshot** (the
+  product link is `ON DELETE SET NULL`), so history survives a product being renamed or removed.
+- **product_images** — a product's optional picture (the uploaded bytes, plus Telegram's cached
+  `file_id`), kept apart from `goods` so the bytes never ride along in item lookups or the Redis cache.
+- **cart_items** / **reviews** — reference their product by foreign key; a cart holds one row
+  per product with a `quantity` (`CHECK (quantity > 0)`).
+- **stock_subscriptions** — who is waiting for a sold-out product; rows are *consumed* when the
+  notification is sent, which stops a restock from messaging twice.
+- **operations** — the balance ledger (admin credits and deductions, balance promos).
+- **promo_codes** (+ per-user usages) — bound to a category or a product; carries its own `scope`
+  because bindings are `ON DELETE SET NULL`, so a promo whose target is gone applies to nothing.
+- **referral_earnings**, and an **audit_log** of every admin action. All money is stored as exact
+  `NUMERIC(12,2)` — never floats.
 
 ---
 
@@ -261,20 +291,30 @@ The data model, in plain terms:
 Copy `.env.example` to `.env` and fill it in. `TOKEN`, `OWNER_ID` and the `POSTGRES_*` values
 are **required**; everything else has a sensible default.
 
-<details>
-<summary><b>Telegram &amp; payments</b></summary>
+<details open>
+<summary><b>Telegram, orders &amp; payments</b></summary>
 
-| Variable                    | Description                                                               | Default        |
-|-----------------------------|---------------------------------------------------------------------------|----------------|
-| `TOKEN`                     | Bot token from [@BotFather](https://telegram.me/BotFather)                | **required**   |
-| `OWNER_ID`                  | Your [Telegram ID](https://telegram.me/myidbot) — becomes the first OWNER | **required**   |
-| `TELEGRAM_PROVIDER_TOKEN`   | Token for Telegram Payments (fiat)                                        | –              |
-| `CRYPTO_PAY_TOKEN`          | CryptoPay API token                                                       | –              |
-| `STARS_PER_VALUE`           | Telegram Stars exchange rate (`0` disables Stars)                         | `0.91`         |
-| `PAY_CURRENCY`              | Display currency (RUB, USD, EUR…)                                         | `RUB`          |
-| `REFERRAL_PERCENT`          | Referral commission % (0–99)                                              | `0`            |
-| `PAYMENT_TIME`              | Invoice validity, seconds                                                 | `1800`         |
-| `MIN_AMOUNT` / `MAX_AMOUNT` | Allowed top‑up range                                                      | `20` / `10000` |
+| Variable                    | Description                                                                | Default        |
+|-----------------------------|----------------------------------------------------------------------------|----------------|
+| `TOKEN`                     | Bot token from [@BotFather](https://telegram.me/BotFather)                 | **required**   |
+| `OWNER_ID`                  | Your [Telegram ID](https://telegram.me/myidbot) — becomes the first OWNER  | **required**   |
+| `PAY_CURRENCY`              | Currency shown in prices (MDL, EUR, RON…)                                  | `MDL`          |
+| `MIA_RECIPIENT`             | Name of the MIA account holder shown to customers                          | –              |
+| `MIA_PHONE`                 | Phone number linked to your MIA account                                    | –              |
+| `MIA_IBAN`                  | IBAN shown as an alternative way to pay                                    | –              |
+| `MIA_PAY_TIMEOUT_MIN`       | Minutes to pay an MIA order before it is cancelled and stock released      | `120`          |
+| `COD_ENABLED`               | Offer cash on delivery / pickup (`1`/`0`)                                  | `1`            |
+| `DELIVERY_ENABLED`          | Offer delivery (`1`/`0`)                                                   | `1`            |
+| `PICKUP_ENABLED`            | Offer pickup (`1`/`0`)                                                     | `1`            |
+| `PICKUP_ADDRESS`            | Shown to customers who choose pickup                                       | –              |
+| `DELIVERY_INFO`             | Note shown to customers who choose delivery (areas, cost, timing)          | –              |
+| `ORDERS_CHAT_ID`            | Extra chat/group that also receives new-order alerts                       | –              |
+| `REFERRAL_PERCENT`          | Referral commission % on completed orders (0–99, `0` disables)             | `0`            |
+| `MIN_AMOUNT` / `MAX_AMOUNT` | Allowed range for an admin's manual balance top-up / deduction             | `1` / `100000` |
+
+**MIA is offered only when at least one of `MIA_RECIPIENT`, `MIA_PHONE`, `MIA_IBAN` is set.**
+Staff with the order-management permission always get order alerts in private chat; set
+`ORDERS_CHAT_ID` to copy them to a staff group (add the bot to it first).
 
 </details>
 
@@ -283,10 +323,10 @@ are **required**; everything else has a sensible default.
 
 | Variable                                  | Description                                                   | Default                           |
 |-------------------------------------------|---------------------------------------------------------------|-----------------------------------|
-| `CHANNEL_URL` / `CHANNEL_ID`              | Optional news channel (new‑product posts, subscription check) | –                                 |
+| `CHANNEL_URL` / `CHANNEL_ID`              | Optional news channel (new-product posts, subscription check) | –                                 |
 | `HELPER_ID`                               | Support user Telegram ID                                      | –                                 |
 | `RULES`                                   | Rules text shown in the bot                                   | –                                 |
-| `BOT_LOCALE`                              | `ru` or `en`                                                  | `ru`                              |
+| `BOT_LOCALE`                              | Default language (`en`, `ru`, `ro`) for people who haven't chosen one | `ru`                          |
 | `BOT_LOGFILE` / `BOT_AUDITFILE`           | Log file paths                                                | `logs/bot.log` / `logs/audit.log` |
 | `LOG_TO_STDOUT` / `LOG_TO_FILE` / `DEBUG` | `1`/`0` toggles                                               | `1` / `1` / `0`                   |
 | `REVIEWS_ENABLED`                         | Enable product reviews (`1`/`0`)                              | `1`                               |
@@ -296,15 +336,15 @@ are **required**; everything else has a sensible default.
 <details>
 <summary><b>Web admin panel</b></summary>
 
-| Variable                            | Description                                                       | Default                   |
-|-------------------------------------|-------------------------------------------------------------------|---------------------------|
-| `ADMIN_HOST` / `ADMIN_PORT`         | Bind address / port                                               | `localhost` / `9090`      |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Panel login                                                       | `admin` / `admin`         |
-| `SECRET_KEY`                        | Session signing key                                               | `change-me-in-production` |
-| `ADMIN_COOKIE_SECURE`               | Mark session cookie `Secure`; `auto` = on unless loopback-only    | `auto` (or `1` / `0`)     |
+| Variable                            | Description                                                    | Default                   |
+|-------------------------------------|----------------------------------------------------------------|---------------------------|
+| `ADMIN_HOST` / `ADMIN_PORT`         | Bind address / port                                            | `localhost` / `9090`      |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | First Admin account, **created only when no web account exists yet**; after that accounts are managed in the panel | `admin` / `admin` |
+| `SECRET_KEY`                        | Session signing key                                            | `change-me-in-production` |
+| `ADMIN_COOKIE_SECURE`               | Mark session cookie `Secure`; `auto` = on unless loopback-only | `auto` (or `1` / `0`)     |
 
 `SECRET_KEY` signs the admin session cookie, so leaving it at the shipped default means anyone
-who can reach the panel can forge a logged-in session and export every user and payment.
+who can reach the panel can forge a logged-in session and export every customer and order.
 **The bot refuses to start** with a default `SECRET_KEY` or `ADMIN_PASSWORD` when the panel is
 reachable — that is, when `ADMIN_HOST` is not loopback or `WEBHOOK_ENABLED=1`. On a
 loopback-only bind it is a warning instead, so local development still works.
@@ -322,11 +362,11 @@ default) marks the session cookie `Secure` whenever the panel is not loopback-on
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD`                 | Database credentials                                              | **required**                             |
 | `POSTGRES_HOST` / `DB_PORT`                                           | Host / port                                                       | `localhost` (or `db` in Docker) / `5432` |
 | `DB_POOL_SIZE` / `DB_MAX_OVERFLOW`                                    | Connection pool size and burst headroom                           | `10` / `20`                              |
-| `REDIS_ENABLED`                                                       | `1` = Redis caching + persistent FSM; `0` = in‑memory, no cache   | `1`                                      |
+| `REDIS_ENABLED`                                                       | `1` = Redis caching + persistent FSM; `0` = in-memory, no cache   | `1`                                      |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` / `REDIS_PASSWORD`           | Redis connection                                                  | `localhost` / `6379` / `0` / –           |
 | `WEBHOOK_ENABLED` / `WEBHOOK_URL` / `WEBHOOK_PATH` / `WEBHOOK_SECRET` | Webhook mode (default: long polling)                              | `0` / – / `/webhook` / –                 |
 | `WEBHOOK_HOST` / `WEBHOOK_PORT`                                       | Bind address of the webhook listener (its own app, not the panel) | `0.0.0.0` / `8080`                       |
-| `AUDIT_RETENTION_DAYS` / `PAYMENTS_RETENTION_DAYS`                    | Auto‑cleanup age in days; `0` or negative disables the sweep      | `90` / `90`                              |
+| `AUDIT_RETENTION_DAYS`                                                | Auto-cleanup age of audit rows in days; `0` or negative disables  | `90`                                     |
 
 </details>
 
@@ -337,16 +377,15 @@ default) marks the session cookie `Secure` whenever the panel is not loopback-on
 ### Docker (recommended)
 
 ```bash
-git clone https://github.com/interlumpen/Telegram-shop.git
+git clone <this repository>
 cd Telegram-shop
-cp .env.example .env      # then edit .env
+cp .env.example .env      # then edit .env (token, MIA details, pickup address, …)
 
 docker compose up -d --build
 ```
 
 Postgres, Redis and the bot all start together, and the bot waits for the first two to report
-healthy. To run without caching, set `REDIS_ENABLED=0` in `.env` — the bot then ignores Redis
-entirely (in‑memory FSM, no caching).
+healthy. To run without caching, set `REDIS_ENABLED=0` in `.env`.
 
 The container applies migrations (`alembic upgrade head`), seeds roles, starts the bot, and
 launches the admin panel at http://localhost:9090/admin. Logs: `docker compose logs -f bot`.
@@ -364,8 +403,16 @@ alembic upgrade head       # required — the app does not create the schema its
 python run.py
 ```
 
-**Verify:** send `/start` to the bot (the `OWNER_ID` user gets the OWNER role), and open
-http://localhost:9090/admin.
+**Verify:** send `/start` to the bot (the `OWNER_ID` user gets the OWNER role), open
+**🎛 Admin panel → 📦 Orders**, and open http://localhost:9090/admin.
+
+### First-run checklist
+
+1. Create a **category** and a **product** (name, description, price, category, **stock**).
+2. Set `MIA_*` (and/or leave `COD_ENABLED=1`), `PICKUP_ADDRESS`, `DELIVERY_INFO`.
+3. Place a test order from a second Telegram account; confirm the alert reaches you, then walk
+   it through *confirmed → shipped → completed*.
+4. Give your packers/support staff a role with the **ORDERS** permission so they receive alerts.
 
 ---
 
@@ -373,263 +420,151 @@ http://localhost:9090/admin.
 
 Two ways to manage the shop:
 
-- **In‑chat menu** — open it from the bot; buttons are shown according to your permissions.
-  Best for quick catalog and role edits (permissions are click‑to‑toggle there).
-- **Web panel** (SQLAdmin, `/admin`) — browse/search/edit every table. The landing page is a
-  **built‑in cheat sheet** explaining the product→stock workflow and the permission bitmask.
+- **In-chat menu** — buttons are shown according to your permissions. Best for day-to-day order
+  handling: you get the alert, open the order, and act on it from the same message.
+- **Web panel** (SQLAdmin, `/admin`) — browse/search every table, edit the catalog and stock, and
+  export CSV. Orders are **read-only** there on purpose: status changes, cancellations and MIA
+  verification go through the bot so stock, balance and referral rules can never be bypassed.
+  The landing page is a built-in cheat sheet.
 
-**Selling goods:** a *Product* is the listing; its sellable units are separate *Stock Items*
-(one per account/key, or a single `is_infinity` unit for unlimited delivery). Renaming or
-deleting a product keeps carts, reviews, and purchase history consistent automatically.
+### Web accounts
 
-#### Adding stock from the web panel
+Open **Web accounts** in the panel (Admins only) to add people. The first Admin is created from
+`ADMIN_USERNAME` / `ADMIN_PASSWORD` the first time the panel starts; change that password under
+**My account** and create personal accounts for everyone else.
 
-Creating a *Stock Item* in the panel is a first-class way to restock: it clears the product's
-cached stock count and notifies everyone waiting on that product, exactly as the in‑chat flow does.
+| Level     | Can do                                                                                   |
+|-----------|------------------------------------------------------------------------------------------|
+| **Admin** | Everything in the panel, plus create / edit / disable / delete web accounts              |
+| **Staff** | Everything else (catalog, orders, users, exports…); no access to web accounts             |
+
+You can't delete, disable or demote yourself, and the last active Admin is always protected.
+Disabling or demoting an account takes effect on its next request. **My account** (everyone) lets a
+person change their own password and language. SQLAdmin's own generic buttons (Save, Cancel, Search…)
+stay in English; everything we add is translated.
+
+### Handling orders
+
+**Admin panel → 📦 Orders** lists orders by status (new, awaiting payment check, confirmed,
+shipped, completed, cancelled). An order card shows items, totals, payment, fulfilment and the
+customer's contact details, with the next actions for its state:
+
+| Order state                         | Staff can                                                             |
+|-------------------------------------|-----------------------------------------------------------------------|
+| MIA — customer says "I've paid"     | See the screenshot, **Payment received** (→ confirmed) or **Transfer not found** (customer is asked to re-check) |
+| MIA — waiting for the transfer      | Confirm manually if you see the money, or cancel                      |
+| Cash — new                          | **Confirm**, or cancel                                                |
+| Confirmed                           | **Mark shipped / ready**, or **Complete** (pickup)                    |
+| Shipped                             | **Complete** (cash is recorded as collected)                          |
+| Any active order                    | **Cancel** — stock returns, balance is refunded; a paid order is flagged *refund due* |
+
+Every change messages the customer. Cancelling something that brings a sold-out product back
+also notifies the people waiting for it.
+
+### Catalog & stock
+
+Create/edit/delete categories and products. When adding a product you can attach a picture (or skip).
+A product's **stock** can be set to an exact number
+or adjusted by +N / −N; stock going from `0` to something announces the restock to waiting
+customers. You can also set a **time-limited sale** (a % off with an expiry); the sale price is
+computed server-side and a promo code stacks on top of it.
+
+### Roles & permissions
+
+Create custom roles by toggling permission **bits**. You can never grant a permission you don't
+hold yourself, and the built-in `USER`/`ADMIN`/`OWNER` roles can't be deleted.
+
+| Permission  | Value | Grants                                             |
+|-------------|-------|----------------------------------------------------|
+| `USE`       | 1     | Basic bot access                                   |
+| `BROADCAST` | 2     | Mass messaging                                     |
+| `SETTINGS`  | 4     | Maintenance mode                                   |
+| `USERS`     | 8     | View / block users, referrals, orders              |
+| `CATALOG`   | 16    | Categories, products, stock                        |
+| `ADMINS`    | 32    | Create roles, assign roles                         |
+| `OWNER`     | 64    | Owner-only operations                              |
+| `STATS`     | 128   | Statistics, logs                                   |
+| `BALANCE`   | 256   | Top-up / deduct a customer's balance               |
+| `PROMO`     | 512   | Promo-code management                              |
+| `ORDERS`    | 1024  | See orders, verify MIA payments, change order status; receives order alerts |
+
+A role's permissions is the **sum** of the values it grants (e.g. USE + ORDERS = 1 + 1024 =
+`1025` — a packer who can only handle orders).
+
+### Broadcast, statistics & monitoring
+
+Send a message to all users with a live progress counter; view shop statistics (orders, revenue,
+units sold, stock, orders waiting); read recent logs. **Maintenance mode** (the `SETTINGS`
+permission) temporarily blocks regular users while admins keep working.
 
 ### Monitoring endpoints
 
 - `/health` — liveness probe. Public callers get only `{"status": "healthy"}` / 503
-  (503 when the DB is down); the full component breakdown (Redis, uptime) is returned only
-  to an authenticated session.
+  (503 when the DB is down); the full component breakdown is returned only to an authenticated session.
 - `/metrics`, `/metrics/prometheus` — metrics (auth required).
-- `/export/{users,purchases,operations,payments}` — CSV export with optional date filtering.
+- `/export/{users,orders,operations}` — CSV export with optional date filtering.
 
 ### Reliability
 
-Background workers recover stuck CryptoPay payments (checked every 5 min, verified against the
-API, idempotent), run periodic DB/Redis health checks (which also replay cache invalidations
-deferred during a Redis outage), and clean up old audit logs / pending payments. File logging
-is queued off the event loop, so disk writes never stall update handling; the audit trail is
-written to file synchronously and to the database in batches, so a crash can cost the DB copy
-of the last few seconds but never the log itself. Shutdown is graceful (tasks cancelled, metrics
-snapshot saved, log queues and the audit buffer flushed, connections closed).
+A background worker cancels MIA orders nobody paid in time (checked every minute, restocking
+them and telling the customer), runs periodic DB/Redis health checks (which also replay cache
+invalidations deferred during a Redis outage), and a daily job trims old audit rows. File
+logging is queued off the event loop; the audit trail is written to file synchronously and to
+the database in batches. Shutdown is graceful.
 
 ---
 
-## 📱 Feature tour
+## 🔁 Upgrading from the digital-goods shop
 
-<details>
-<summary><b>👤 User features</b> (click to expand)</summary>
+`alembic upgrade head` converts an existing database in place:
 
-#### Main menu
+- `goods.stock` is created and seeded from the old stock (the number of finite rows; an
+  "unlimited" product becomes `9999`).
+- `orders` / `order_items` are created; `item_values`, `bought_goods` and `payments` are
+  **dropped** — digital purchase history and stock values (accounts/keys) have no meaning in a
+  physical shop. **Back up first if you need them.**
+- Every role that can manage the catalog is granted the new `ORDERS` permission.
 
-The bot's home screen. Admins additionally see an **Admin panel** button here.
-
-![Main menu](assets/menu_picture.png)
-![Menu as seen by an admin](assets/menu_as_admin_picture.png)
-
-#### Browsing the shop
-
-Shop → **categories** → **products** in a category. Out‑of‑stock products are still listed but
-can't be bought.
-
-The shop menu also offers **🔍 Search**: type a name or a keyword and get matching products
-straight away — matches are looked for in both the product name and its description, so you
-don't have to remember which category something lives in.
-
-![Categories](assets/categories_picture.png)
-![Products in a category](assets/positions_picture.png)
-
-#### Product page & purchase
-
-Each product shows its price (with any active sale/promo already applied), how many units are
-left (or ∞), and its review rating. Buying pays from your **balance** and the stock value
-(account/key/…) is delivered instantly in chat.
-
-If a product is sold out, the page offers **🔔 Notify me when in stock** instead of a dead end:
-you get a single message as soon as it's restocked, and the subscription is dropped.
-
-![Product page](assets/position_description_picture.png)
-![Product page with promo](assets/position_promo.png)
-
-![Notify](assets/position_notify.png)
-![Purchase](assets/position_purchase.png)
-
-#### Profile & balance top‑up
-
-The shop uses a **balance model**: you top up once (CryptoPay, Telegram Stars, or fiat via
-Telegram Payments) and then spend from balance. The invoice is valid for `PAYMENT_TIME` seconds.
-
-![Profile](assets/user_profile.png)
-![Balance top‑up](assets/balance_topup.png)
-
-#### Cart
-
-Add several products, set **how many** of each with the ➖/➕ stepper, attach a promo code
-**per item**, then check out in one atomic transaction with a formatted receipt. Every unit
-gets its own delivered value, so buying 3 keys hands you 3 different keys.
-
-If the promo stops applying between adding and checkout — it expired, ran out, or its category was deleted — the line
-says so and shows the real price, and the checkout aborts rather than silently charging full price.
-
-The same goes for stock: if fewer units are left than you asked for, the checkout is refused
-and nothing is charged (a product that has sold out entirely is simply dropped from the cart
-and the rest goes through).
-
-![Cart](assets/cart.png)
-
-#### Referral system
-
-Share your personal link (it carries your Telegram ID as the `/start` payload). When someone
-who joined through it tops up, you earn `REFERRAL_PERCENT`% of that top‑up. Self‑referral is
-blocked.
-
-![Referral system](assets/referral_system.png)
-
-#### Purchases & operation history
-
-**Purchases** lists everything you've bought (you can re‑view the delivered value).
-**Operation history** is your money ledger — top‑ups, purchases, and referral credits.
-
-![Purchases](assets/user_purchases.png)
-![Operation history](assets/operation_history.png)
-
-</details>
-
-<details>
-<summary><b>🎛️ Admin features</b> (click to expand)</summary>
-
-Every button below is gated by your permissions — you only see what your role allows.
-
-#### Admin menu & shop management
-
-The hub for admins. From here: statistics, user management, catalog management, and
-bought‑item search (find a purchase by its unique ID for support).
-
-![Admin menu](assets/admin_menu_picture.png)
-![Shop management](assets/shop_menu_picture.png)
-
-#### Categories & products
-
-Create/edit/delete categories and products. When adding stock you choose **limited** (paste one
-value per unit — each is consumed on purchase) or **unlimited** (one `is_infinity` value
-delivered on every purchase). You can also set a **time‑limited sale** (a % off with an expiry);
-the sale price is computed server‑side and a promo code stacks on top of it.
-
-![Categories management](assets/categories_management_menu_picture.png)
-![Products management](assets/goods_management_menu_picture.png)
-
-#### Stock, notifications & channel posting
-
-When you add stock, two things happen automatically:
-
-- **Waiting users are notified.** Anyone subscribed to that product gets a single "back in
-  stock" message and is unsubscribed. This fires whether the stock was added from the in‑chat
-  menu **or** from the web panel.
-- **The news channel can be posted to** (`CHANNEL_ID`), announcing the product and how many
-  units were added. This one is in‑chat only.
-
-![Assortment update](assets/assortment_update.png)
-![Stock / channel post](assets/stock.png)
-
-#### User management
-
-Open a user to view their profile, adjust balance (top‑up/deduct — a **separate** `BALANCE`
-permission), block/unblock, assign a role, and browse their referrals and purchases.
-
-![User management](assets/user_menu_picture.png)
-
-#### Roles & permissions
-
-Create custom roles by toggling permission **bits** (the bot's role menu is click‑to‑toggle).
-Two rules keep this safe: you can never grant a permission you don't hold yourself, and the
-built‑in `USER`/`ADMIN`/`OWNER` roles can't be deleted.
-
-![Roles](assets/roles.png)
-![Role menu](assets/role_menu_picture.png)
-
-| Permission  | Value | Grants                                   |
-|-------------|-------|------------------------------------------|
-| `USE`       | 1     | Basic bot access                         |
-| `BROADCAST` | 2     | Mass messaging                           |
-| `SETTINGS`  | 4     | Maintenance mode                         |
-| `USERS`     | 8     | View / block users, referrals, purchases |
-| `CATALOG`   | 16    | Categories, products, stock              |
-| `ADMINS`    | 32    | Create roles, assign roles               |
-| `OWNER`     | 64    | Owner‑only operations                    |
-| `STATS`     | 128   | Statistics, logs, item search            |
-| `BALANCE`   | 256   | Top‑up / deduct balance                  |
-| `PROMO`     | 512   | Promo‑code management                    |
-
-A role's permissions is the **sum** of the values it grants (e.g. USE + CATALOG + STATS =
-1 + 16 + 128 = `145`).
-
-#### Broadcast, statistics & monitoring
-
-Send a message to all users with a live progress counter; view shop statistics; read recent
-logs. **Maintenance mode** (the `SETTINGS` permission) temporarily blocks regular users while
-admins keep working.
-
-![Broadcast](assets/broadcast_picture.png)
-![Statistics](assets/shop_statistics.png)
-![Logs](assets/bot_logs.png)
-
-### SQLAdmin
-
-You can do all the same things in SQLAdmin! Edits made there are not second‑class: they clear
-the caches they affect (user, role, product, stock, review rating) and adding stock notifies the
-users waiting for it, just like the in‑chat flow.
-
-![SQLAdmin](assets/sqladmin_info.png)
-
-</details>
+`alembic downgrade -1` restores the old (empty) tables and removes the new ones.
+Balances, referrals, promo codes, reviews and carts are kept.
 
 ---
 
 ## 🧪 Testing
 
-**958 tests, 76 % line coverage** (`pytest`). The data layer runs against a
-real in‑memory async SQLite database (real SQL, transactions, and constraints) — only external
-services are mocked (Telegram Bot API, CryptoPay, Redis). What's covered:
+**1216 tests** (`pytest`). The data layer runs against a real in-memory async SQLite database
+(real SQL, transactions, and constraints) — only external services (Telegram Bot API, Redis)
+are mocked. What's covered:
 
-- **Transactions & money** — purchase and cart‑checkout atomicity (balance deducted, stock
-  removed, rollback on error), quantity checkout (one row per unit, partial stock aborts
-  without charging, per‑unit prices summing back to the charge), promo semantics at quantity,
-  payment **idempotency**, top‑ups crediting exactly the invoiced amount for every payment
-  method, atomic stock replacement (a rejected rename leaves the old stock intact), atomic admin
-  balance changes, referral bonus calculation.
-- **Promo codes & sales** — every validation path (buy, cart checkout, balance redeem,
-  read‑only validate), scope enforcement (a promo whose bound category/product was deleted
-  applies to nothing), what the cart displays matching what checkout charges, sale pricing,
-  and promo‑on‑sale stacking.
-- **CRUD** — users, roles (incl. custom create/edit/delete), categories, products, stock, cart
-  (quantities, per‑user uniqueness), stock subscriptions, reviews, payments, operations;
-  duplicate/blocking handling; stats queries. Bulk stock upload is checked both for what it
-  reports (values already stored, repeats inside the pasted batch, blanks) and for what it
-  costs — a guard asserts a 50‑value upload stays a handful of statements rather than drifting
-  back into a per‑value loop.
-- **Statistics** — the dashboard aggregates, which are issued as one statement each: totals per
-  table, revenue summed from real purchases, and the daily figures respecting their day window
-  so yesterday's numbers don't leak into today's.
-- **Security & middleware** — rate limiting and bans (both backends reaching the same verdicts,
-  an action overrun still counting against the global window, admins bypassing the windows but
-  not a ban, and every mapped action having a limit), permission‑bitmask helpers, critical /
-  replay‑action detection, authentication, the web‑panel login limiter, and role‑cache behavior
-  (in‑process tier served first, Redis consulted once it is dropped).
-- **Handlers** — user flows (`/start`, profile, shop, search, cart, referrals) and admin flows
-  (user/role/balance management, catalog, paginated lists, profile views).
-- **Admin FSM flows** — promo‑code creation end to end (type, value, usage cap, expiry, and
-  category/product binding) plus view/toggle/delete; adding a position and restocking one;
-  editing a position and switching it between limited and unlimited stock, where a rejected
-  rename must leave the old stock untouched; broadcast validation, its one‑at‑a‑time guard,
-  and cancellation.
-- **Data export** — CSV streaming with keyset pagination, date filtering, an auth check on
-  every endpoint, and formula‑injection neutralization so a product name can't execute in a
-  spreadsheet.
-- **Infrastructure** — broadcast, restock notifications, payment recovery, metrics (including
-  that user‑supplied callback data can't forge a metric line), caching & invalidation (web‑panel
-  edits, a Redis outage deferring invalidations instead of dropping them, and the write path
-  staying on named deletes so it never falls back to scanning the keyspace), paginator counts
-  being reused across page turns and dropped when the user transacts, pagination, i18n,
-  validators, and audit logging — including batching: rows land on flush, a full batch does not
-  wait, shutdown drains the buffer, and a row enlisted in a caller's transaction is never
-  buffered so it still rolls back with it.
-- **Keyboards & routing** — every callback payload a keyboard generates fits Telegram's 64‑byte
-  limit (a long or Cyrillic product name used to overflow it), and every pagination prefix a view
-  produces has a handler registered for it, so an arrow button can't be a dead end.
+- **Orders** — placing an order (stock reserved, cart cleared, totals, sale and promo pricing,
+  balance use, the last unit going to exactly one buyer, `price_changed`, disabled methods),
+  cancelling (restock, balance refund, who may cancel what, cancel twice), MIA claim /
+  confirm / reject, the unpaid-MIA expiry, the status machine (no skipping, no going back, MIA
+  can't progress unpaid, COD cash recorded on completion), and referral commission (paid once,
+  on cash only, never on a cancelled order).
+- **Promo codes & sales** — every validation path, scope enforcement (a promo whose bound
+  category/product was deleted applies to nothing), what the cart displays matching what
+  checkout charges, sale pricing, and promo-on-sale stacking.
+- **CRUD** — users, roles, categories, products and stock, cart, subscriptions, reviews,
+  operations; duplicate/blocking handling; stats queries.
+- **Security & middleware** — rate limiting and bans (both backends), permission-bitmask helpers,
+  replay-action detection, authentication, the web-panel login limiter, role-cache behaviour.
+- **Handlers** — customer flows (`/start`, profile, shop, search, cart, checkout, MIA proof,
+  My orders, referrals) and admin flows (orders, catalog and stock, user/role/balance
+  management, paginated lists).
+- **Infrastructure** — broadcast, restock notifications, the MIA expiry sweep, metrics,
+  caching & invalidation, pagination, i18n, validators, audit logging, CSV export.
+- **Keyboards & routing** — every callback payload fits Telegram's 64-byte limit, and every
+  pagination prefix has a handler registered for it.
 
 ```bash
 pytest                                          # full suite
 pytest --cov=bot --cov-report=term-missing      # with the coverage report
 ```
+
+**CI:** [`.github/workflows/tests.yml`](.github/workflows/tests.yml) runs the suite and the
+Alembic migrations (upgrade → downgrade → upgrade on a real PostgreSQL 16) on every push and pull request.
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE).

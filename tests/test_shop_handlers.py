@@ -10,10 +10,9 @@ from bot.database.methods.read import (
     get_cart_items, get_cart_count, is_subscribed_to_stock,
 )
 from bot.database.models.main import PromoCodes
-from bot.handlers.user.balance_and_payment import buy_item_callback_handler
 from bot.handlers.user.cart import (
-    cart_qty_handler, view_cart_handler, cart_checkout_confirm_handler,
-    _show_cart, RECEIPT_MAX_BUTTONS,
+    cart_qty_handler, view_cart_handler, add_to_cart_handler, buy_item_handler as buy_item_callback_handler,
+    _show_cart,
 )
 from bot.handlers.user.shop_and_goods import (
     router, shop_callback_handler, navigate_categories, navigate_goods,
@@ -21,7 +20,7 @@ from bot.handlers.user.shop_and_goods import (
     search_item_info_handler, shop_search_handler, receive_search_query_handler,
     subscribe_stock_handler, unsubscribe_stock_handler,
     apply_promo_handler, promo_code_text_handler, back_to_item_handler,
-    bought_items_callback_handler, bought_item_info_callback_handler,
+    my_orders_handler, my_order_handler, my_order_cancel_ask_handler, my_order_cancel_handler,
     _render_item_page,
 )
 from bot.states import ShopStates
@@ -32,7 +31,7 @@ class TestCartHandlers:
                                                     user_factory, item_factory):
 
         await user_factory(telegram_id=620001, balance=1000)
-        await item_factory(name="StepItem", price=100, values=[("v", False)])
+        await item_factory(name="StepItem", price=100, stock=5)
         await add_to_cart(620001, "StepItem")
         cid = (await get_cart_items(620001))[0]["id"]
 
@@ -42,13 +41,13 @@ class TestCartHandlers:
         assert await get_cart_count(620001) == 2
         call.message.edit_text.assert_called()          # cart re-rendered
         text = call.message.edit_text.call_args[0][0]
-        assert "×2" in text                              # quantity shown to the user
+        assert "'qty': 2" in text                             # quantity shown to the user
 
     async def test_stepper_down_to_zero_removes_line(self, make_callback_query, fsm_context,
                                                      user_factory, item_factory):
 
         await user_factory(telegram_id=620002, balance=1000)
-        await item_factory(name="DropItem", price=100, values=[("v", False)])
+        await item_factory(name="DropItem", price=100, stock=5)
         await add_to_cart(620002, "DropItem")
         cid = (await get_cart_items(620002))[0]["id"]
 
@@ -65,7 +64,7 @@ class TestCartHandlers:
                                                      user_factory, item_factory):
 
         await user_factory(telegram_id=620003, balance=1000)
-        await item_factory(name="TotalItem", price=25, values=[("v", False)])
+        await item_factory(name="TotalItem", price=25, stock=5)
         await add_to_cart(620003, "TotalItem", quantity=4)
 
         call = make_callback_query(data="cart", user_id=620003)
@@ -73,14 +72,14 @@ class TestCartHandlers:
 
         text = call.message.edit_text.call_args[0][0]
         assert "100" in text          # 25 * 4, not 25
-        assert "×4" in text
+        assert "'qty': 4" in text
 
     async def test_cart_warns_when_a_line_promo_stopped_applying(self, make_callback_query,
                                                                  fsm_context, user_factory,
                                                                  item_factory):
 
         await user_factory(telegram_id=620010, balance=1000)
-        await item_factory(name="WarnItem", price=100, values=[("v", False)])
+        await item_factory(name="WarnItem", price=100, stock=5)
         async with Database().session() as s:
             s.add(PromoCodes(
                 code="WARNEXP", discount_type="percent", discount_value=Decimal("10"),
@@ -93,7 +92,7 @@ class TestCartHandlers:
         await view_cart_handler(call, fsm_context)
 
         text = call.message.edit_text.call_args[0][0]
-        assert "⚠️" in text            # the line is flagged, not silently full-price
+        assert "cart.item_promo_invalid" in text            # the line is flagged, not silently full-price
         assert "WARNEXP" in text        # and it names the promo to remove
         assert "100" in text            # charged at full price, no fake discount
 
@@ -102,7 +101,7 @@ class TestCartHandlers:
 
         await user_factory(telegram_id=620004, balance=1000)
         await user_factory(telegram_id=620005, balance=1000)
-        await item_factory(name="MineItem", price=10, values=[("v", False)])
+        await item_factory(name="MineItem", price=10, stock=5)
         await add_to_cart(620004, "MineItem", quantity=2)
         cid = (await get_cart_items(620004))[0]["id"]
 
@@ -123,7 +122,7 @@ class TestBackButtonSurvivesSubFlows:
                                                    user_factory, item_factory):
 
         await user_factory(telegram_id=650001)
-        await item_factory(name="BellItem", price=10, values=[])
+        await item_factory(name="BellItem", price=10, stock=0)
         await fsm_context.update_data(csrf_item="BellItem", item_back_data="sp_0")
         await fsm_context.set_state(ShopStates.viewing_search_results)
 
@@ -137,7 +136,7 @@ class TestBackButtonSurvivesSubFlows:
                                                                    item_factory):
 
         await user_factory(telegram_id=650002)
-        await item_factory(name="PromoBack", price=10, values=[("v", False)])
+        await item_factory(name="PromoBack", price=10, stock=5)
         await fsm_context.update_data(csrf_item="PromoBack", item_back_data="gp_0")
         await fsm_context.set_state(ShopStates.viewing_goods)
 
@@ -152,7 +151,7 @@ class TestBackButtonSurvivesSubFlows:
                                                                  item_factory):
 
         await user_factory(telegram_id=650003)
-        await item_factory(name="PromoBackS", price=10, values=[("v", False)])
+        await item_factory(name="PromoBackS", price=10, stock=5)
         await fsm_context.update_data(csrf_item="PromoBackS", item_back_data="sp_0")
         await fsm_context.set_state(ShopStates.viewing_search_results)
 
@@ -167,7 +166,7 @@ class TestBackButtonSurvivesSubFlows:
                                                                      item_factory):
 
         await user_factory(telegram_id=650004)
-        await item_factory(name="PromoTyped", price=10, values=[("v", False)])
+        await item_factory(name="PromoTyped", price=10, stock=5)
         await fsm_context.update_data(csrf_item="PromoTyped", item_back_data="gp_0")
         await fsm_context.set_state(ShopStates.viewing_goods)
 
@@ -178,61 +177,78 @@ class TestBackButtonSurvivesSubFlows:
         assert await fsm_context.get_state() == ShopStates.viewing_goods
 
 
-class TestCheckoutReceipt:
-    """A checkout delivers one row per unit; the receipt must not try to render
-    a button for every one of them."""
+class TestCartStockLimits:
+    """A cart can never hold more than the shop has on the shelf."""
 
-    async def test_receipt_buttons_are_capped(self, make_callback_query, fsm_context,
+    async def test_add_to_cart_refuses_out_of_stock_item(self, make_callback_query, fsm_context,
+                                                         user_factory, item_factory):
+
+        await user_factory(telegram_id=640001)
+        await item_factory(name="GoneItem", price=10, stock=0)
+        await fsm_context.update_data(csrf_item="GoneItem")
+
+        call = make_callback_query(data="add_to_cart", user_id=640001)
+        await add_to_cart_handler(call, fsm_context)
+
+        assert await get_cart_count(640001) == 0
+        assert call.answer.call_args[1].get("show_alert") is True
+        assert "cart.item_out_of_stock" in call.answer.call_args[0][0]
+
+    async def test_add_to_cart_stops_at_stock(self, make_callback_query, fsm_context,
                                               user_factory, item_factory):
 
-        qty = RECEIPT_MAX_BUTTONS + 15
-        await user_factory(telegram_id=640001, balance=100000)
-        await item_factory(name="BulkItem", price=1,
-                           values=[(f"v{i}", False) for i in range(qty)])
-        await add_to_cart(640001, "BulkItem", quantity=qty)
+        await user_factory(telegram_id=640002)
+        await item_factory(name="TwoLeft", price=10, stock=2)
+        await fsm_context.update_data(csrf_item="TwoLeft")
 
-        call = make_callback_query(data="cart_checkout_confirm", user_id=640001)
-        await cart_checkout_confirm_handler(call, fsm_context)
+        for _ in range(3):
+            await add_to_cart_handler(make_callback_query(data="add_to_cart", user_id=640002), fsm_context)
 
-        markup = call.message.edit_text.call_args[1]["reply_markup"]
-        total_buttons = sum(len(row) for row in markup.inline_keyboard)
-        # capped items + "all purchases" + back
-        assert total_buttons == RECEIPT_MAX_BUTTONS + 2
+        assert await get_cart_count(640002) == 2
 
-        cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
-        assert "bought_items" in cbs      # overflow defers to the paginated list
-        assert "profile" in cbs
-
-    async def test_repeated_units_are_numbered(self, make_callback_query, fsm_context,
+    async def test_stepper_cannot_exceed_stock(self, make_callback_query, fsm_context,
                                                user_factory, item_factory):
 
-        await user_factory(telegram_id=640002, balance=1000)
-        await item_factory(name="TwinItem", price=10,
-                           values=[("a", False), ("b", False)])
-        await add_to_cart(640002, "TwinItem", quantity=2)
+        await user_factory(telegram_id=640003)
+        await item_factory(name="OneLeft", price=10, stock=1)
+        await add_to_cart(640003, "OneLeft")
+        cid = (await get_cart_items(640003))[0]["id"]
 
-        call = make_callback_query(data="cart_checkout_confirm", user_id=640002)
-        await cart_checkout_confirm_handler(call, fsm_context)
+        call = make_callback_query(data=f"cart_qty:{cid}:1", user_id=640003)
+        await cart_qty_handler(call, fsm_context)
 
-        markup = call.message.edit_text.call_args[1]["reply_markup"]
-        labels = [b.text for row in markup.inline_keyboard for b in row]
-        # Two units of one position must be distinguishable.
-        assert "📦 TwinItem (1)" in labels
-        assert "📦 TwinItem (2)" in labels
+        assert await get_cart_count(640003) == 1
+        assert "cart.stock_limit" in call.answer.call_args[0][0]
 
-    async def test_receipt_state_does_not_store_delivered_secrets(self, make_callback_query,
-                                                                  fsm_context, user_factory,
-                                                                  item_factory):
+    async def test_cart_warns_about_a_line_above_stock(self, make_callback_query, fsm_context,
+                                                       user_factory, item_factory):
+        """Stock can drop after the item went into the cart (someone else ordered it)."""
 
-        await user_factory(telegram_id=640003, balance=1000)
-        await item_factory(name="SecretItem", price=10, values=[("SUPERSECRET", False)])
-        await add_to_cart(640003, "SecretItem")
+        await user_factory(telegram_id=640004)
+        await item_factory(name="Shrinking", price=10, stock=5)
+        await add_to_cart(640004, "Shrinking", quantity=3)
+        from sqlalchemy import update as sa_update
+        from bot.database.models.main import Goods
+        async with Database().session() as s:
+            await s.execute(sa_update(Goods).where(Goods.name == "Shrinking").values(stock=1))
 
-        call = make_callback_query(data="cart_checkout_confirm", user_id=640003)
-        await cart_checkout_confirm_handler(call, fsm_context)
+        call = make_callback_query(data="cart", user_id=640004)
+        await view_cart_handler(call, fsm_context)
 
-        stored = (await fsm_context.get_data())["cart_receipt_results"]
-        assert all("value" not in r for r in stored)
+        assert "cart.low_stock" in call.message.edit_text.call_args[0][0]
+
+    async def test_buy_now_adds_and_opens_the_cart(self, make_callback_query, fsm_context,
+                                                   user_factory, item_factory):
+
+        await user_factory(telegram_id=640005)
+        await item_factory(name="NowItem", price=10, stock=3)
+        await fsm_context.update_data(csrf_item="NowItem")
+
+        call = make_callback_query(data="buy_item", user_id=640005)
+        await buy_item_callback_handler(call, fsm_context)
+
+        assert await get_cart_count(640005) == 1
+        assert "cart.title" in call.message.edit_text.call_args[0][0]
 
 
 class TestRestockButtonFlow:
@@ -241,7 +257,7 @@ class TestRestockButtonFlow:
                                             user_factory, item_factory):
 
         await user_factory(telegram_id=630001)
-        await item_factory(name="EmptyItem", price=10, values=[])   # out of stock
+        await item_factory(name="EmptyItem", price=10, stock=0)   # out of stock
         await fsm_context.update_data(csrf_item="EmptyItem")
 
         call = make_callback_query(data="sub_stock", user_id=630001)
@@ -253,7 +269,7 @@ class TestRestockButtonFlow:
                                               user_factory, item_factory):
 
         await user_factory(telegram_id=630002)
-        await item_factory(name="EmptyItem2", price=10, values=[])
+        await item_factory(name="EmptyItem2", price=10, stock=0)
         await subscribe_to_stock(630002, "EmptyItem2")
         await fsm_context.update_data(csrf_item="EmptyItem2")
 
@@ -285,9 +301,9 @@ class TestCatalogSearch:
 
     async def test_query_renders_results(self, make_message, fsm_context, item_factory):
 
-        await item_factory(name="Netflix Account", price=100, values=[("v", False)])
-        await item_factory(name="Spotify Account", price=50, values=[("v", False)])
-        await item_factory(name="Unrelated", price=10, values=[("v", False)])
+        await item_factory(name="Netflix Account", price=100, stock=5)
+        await item_factory(name="Spotify Account", price=50, stock=5)
+        await item_factory(name="Unrelated", price=10, stock=5)
 
         message = make_message(text="Account", user_id=610002)
         await receive_search_query_handler(message, fsm_context)
@@ -302,7 +318,7 @@ class TestCatalogSearch:
         """Proves the OR arm against description, not just name."""
 
         await item_factory(name="Opaque Name", price=10,
-                           description="a premium gamepass inside", values=[("v", False)])
+                           description="a premium gamepass inside", stock=5)
 
         message = make_message(text="gamepass", user_id=610003)
         await receive_search_query_handler(message, fsm_context)
@@ -312,7 +328,7 @@ class TestCatalogSearch:
 
     async def test_search_is_case_insensitive(self, make_message, fsm_context, item_factory):
 
-        await item_factory(name="UPPERCASE Item", price=10, values=[("v", False)])
+        await item_factory(name="UPPERCASE Item", price=10, stock=5)
 
         message = make_message(text="uppercase", user_id=610004)
         await receive_search_query_handler(message, fsm_context)
@@ -322,7 +338,7 @@ class TestCatalogSearch:
 
     async def test_empty_result(self, make_message, fsm_context, item_factory):
 
-        await item_factory(name="Something", price=10, values=[("v", False)])
+        await item_factory(name="Something", price=10, stock=5)
 
         message = make_message(text="nothingmatchesthis", user_id=610005)
         await receive_search_query_handler(message, fsm_context)
@@ -346,7 +362,7 @@ class TestCatalogSearch:
                                                               fsm_context, item_factory):
         """Back from a search-opened card must return to the results, not categories."""
 
-        await item_factory(name="FoundItem", price=100, values=[("v", False)])
+        await item_factory(name="FoundItem", price=100, stock=5)
         await fsm_context.update_data(search_query="found")
 
         call = make_callback_query(data="sitm:0:0", user_id=610007)
@@ -371,21 +387,21 @@ class TestSearchQueryEscaping:
 
     async def test_underscore_is_literal(self, item_factory):
 
-        await item_factory(name="a_b", price=10, values=[("v1", False)])
-        await item_factory(name="axb", price=10, values=[("v2", False)])
+        await item_factory(name="a_b", price=10, stock=5)
+        await item_factory(name="axb", price=10, stock=5)
 
         assert await query_goods_search("a_b") == ["a_b"]
 
     async def test_percent_is_literal(self, item_factory):
 
-        await item_factory(name="100% cashback", price=10, values=[("v1", False)])
-        await item_factory(name="plain item", price=10, values=[("v2", False)])
+        await item_factory(name="100% cashback", price=10, stock=5)
+        await item_factory(name="plain item", price=10, stock=5)
 
         assert await query_goods_search("100%") == ["100% cashback"]
 
     async def test_blank_query_returns_nothing(self, item_factory):
 
-        await item_factory(name="Anything", price=10, values=[("v", False)])
+        await item_factory(name="Anything", price=10, stock=5)
 
         assert await query_goods_search("   ") == []
         assert await query_goods_search("   ", count_only=True) == 0
@@ -393,7 +409,7 @@ class TestSearchQueryEscaping:
     async def test_count_only_matches_results(self, item_factory):
 
         for i in range(3):
-            await item_factory(name=f"Bundle {i}", price=10, values=[(f"v{i}", False)])
+            await item_factory(name=f"Bundle {i}", price=10, stock=5)
 
         assert await query_goods_search("Bundle", count_only=True) == 3
         assert len(await query_goods_search("Bundle")) == 3
@@ -436,7 +452,7 @@ class TestItemsList:
 
     async def test_items_list_valid_category(self, make_callback_query, fsm_context, item_factory):
 
-        await item_factory(name="Widget", price=100, category="Widgets", values=[("w1", False)])
+        await item_factory(name="Widget", price=100, category="Widgets", stock=5)
 
         call = make_callback_query(data="cat:0:0", user_id=600010)
         await fsm_context.update_data(category_page_items=["Widgets"])
@@ -464,7 +480,7 @@ class TestItemInfo:
 
     async def test_item_info_display(self, make_callback_query, fsm_context, item_factory):
 
-        await item_factory(name="InfoItem", price=250, category="TestCat", values=[("val1", False)])
+        await item_factory(name="InfoItem", price=250, category="TestCat", stock=5)
 
         call = make_callback_query(data="itm:0:0", user_id=600020)
         await fsm_context.update_data(
@@ -488,7 +504,7 @@ class TestItemInfo:
     async def test_item_info_resolves_from_state_without_requery(self, make_callback_query,
                                                                   fsm_context, item_factory):
 
-        await item_factory(name="StateItem", price=100, category="StateCat", values=[("v", False)])
+        await item_factory(name="StateItem", price=100, category="StateCat", stock=5)
 
         call = make_callback_query(data="itm:0:0", user_id=600025)
         await fsm_context.update_data(
@@ -509,7 +525,7 @@ class TestItemInfo:
     async def test_item_info_state_page_mismatch_falls_back(self, make_callback_query,
                                                             fsm_context, item_factory):
 
-        await item_factory(name="FallbackItem", price=100, category="FallbackCat", values=[("v", False)])
+        await item_factory(name="FallbackItem", price=100, category="FallbackCat", stock=5)
 
         # Keyboard says page 0 but state stored page 3 — must fall back to the DB path.
         call = make_callback_query(data="itm:0:0", user_id=600026)
@@ -537,21 +553,36 @@ class TestItemInfo:
 
         call.answer.assert_called_once()
 
-    async def test_item_info_unlimited_quantity(self, make_callback_query, fsm_context, item_factory):
+    async def test_item_info_shows_units_in_stock(self, make_callback_query, fsm_context, item_factory):
 
-        await item_factory(name="InfItem", price=50, category="InfCat", values=[("unlimited_val", True)])
+        await item_factory(name="StockedItem", price=50, category="StockCat", stock=7)
 
         call = make_callback_query(data="itm:0:0", user_id=600023)
-        await fsm_context.update_data(
-            goods_page_items=["InfItem"],
-            current_category="InfCat",
-        )
+        await fsm_context.update_data(goods_page_items=["StockedItem"], current_category="StockCat")
 
         await item_info_callback_handler(call, fsm_context)
 
-        call.message.edit_text.assert_called_once()
         text = call.message.edit_text.call_args[0][0]
-        assert "quantity_unlimited" in text
+        assert "shop.item.in_stock" in text and "'count': 7" in text
+        cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
+               for b in row]
+        assert "buy_item" in cbs and "add_to_cart" in cbs
+
+    async def test_out_of_stock_item_offers_restock_alert_instead_of_ordering(
+            self, make_callback_query, fsm_context, item_factory):
+
+        await item_factory(name="SoldOutItem", price=50, category="SoldCat", stock=0)
+
+        call = make_callback_query(data="itm:0:0", user_id=600024)
+        await fsm_context.update_data(goods_page_items=["SoldOutItem"], current_category="SoldCat")
+
+        await item_info_callback_handler(call, fsm_context)
+
+        assert "shop.item.out_of_stock" in call.message.edit_text.call_args[0][0]
+        cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
+               for b in row]
+        assert "buy_item" not in cbs and "add_to_cart" not in cbs
+        assert "sub_stock" in cbs
 
 
 class TestAppliedPromoDoesNotFollowTheUser:
@@ -578,8 +609,8 @@ class TestAppliedPromoDoesNotFollowTheUser:
         self, make_callback_query, fsm_context, item_factory, user_factory
     ):
         await user_factory(telegram_id=600040)
-        await item_factory(name="PromoA", price=100, category="PromoCat", values=[("a", False)])
-        await item_factory(name="PromoB", price=100, category="PromoCat", values=[("b", False)])
+        await item_factory(name="PromoA", price=100, category="PromoCat", stock=5)
+        await item_factory(name="PromoB", price=100, category="PromoCat", stock=5)
         await self._promo("CARRY50")
 
         await self._open(make_callback_query, fsm_context, "PromoA", 600040)
@@ -595,7 +626,7 @@ class TestAppliedPromoDoesNotFollowTheUser:
         self, make_callback_query, fsm_context, item_factory, user_factory
     ):
         await user_factory(telegram_id=600041)
-        await item_factory(name="PromoSame", price=100, category="PromoCat", values=[("v", False)])
+        await item_factory(name="PromoSame", price=100, category="PromoCat", stock=5)
         await self._promo("KEEP50")
 
         await self._open(make_callback_query, fsm_context, "PromoSame", 600041)
@@ -612,7 +643,7 @@ class TestAppliedPromoDoesNotFollowTheUser:
         from datetime import datetime, timedelta, timezone
 
         await user_factory(telegram_id=600042)
-        await item_factory(name="PromoExp", price=100, category="PromoCat", values=[("v", False)])
+        await item_factory(name="PromoExp", price=100, category="PromoCat", stock=5)
         await self._promo("GONE50", expires_at=datetime.now(timezone.utc) - timedelta(hours=1))
 
         await self._open(make_callback_query, fsm_context, "PromoExp", 600042)
@@ -624,28 +655,146 @@ class TestAppliedPromoDoesNotFollowTheUser:
         assert (await fsm_context.get_data())["applied_promo"] is None
 
 
-class TestBoughtItems:
+async def _place_order(user_id: int, item_name: str, qty: int = 1, method: str = "cod"):
+    """Put `qty` of an item in the cart and order it; returns the order dict."""
+    from bot.database.methods.orders import create_order_transaction
+    await add_to_cart(user_id, item_name, quantity=qty)
+    ok, code, order = await create_order_transaction(
+        user_id, fulfillment="pickup", customer_name="Ana", phone="+37369123456",
+        address=None, comment=None, payment_method=method,
+    )
+    assert ok, code
+    return order
 
-    async def test_bought_items_empty(self, make_callback_query, fsm_context, user_factory):
+
+class TestMyOrders:
+
+    async def test_orders_list_empty(self, make_callback_query, fsm_context, user_factory):
 
         await user_factory(telegram_id=600030)
+        call = make_callback_query(data="my_orders", user_id=600030)
 
-        call = make_callback_query(data="bought_items", user_id=600030)
+        await my_orders_handler(call, fsm_context)
 
-        with patch('bot.handlers.user.shop_and_goods.lazy_paginated_keyboard', new_callable=AsyncMock) as mock_kb:
-            mock_kb.return_value = MagicMock()
-            await bought_items_callback_handler(call, fsm_context)
+        text = call.message.edit_text.call_args[0][0]
+        assert "orders.empty" in text
 
-        call.message.edit_text.assert_called_once()
-        assert "purchases.title" in call.message.edit_text.call_args[0][0]
+    async def test_orders_list_shows_own_orders(self, make_callback_query, fsm_context,
+                                                user_factory, item_factory):
 
-    async def test_bought_item_info_not_found(self, make_callback_query):
+        await user_factory(telegram_id=600032)
+        await item_factory(name="Mug", price=40, stock=5)
+        order = await _place_order(600032, "Mug", qty=2)
 
-        call = make_callback_query(data="bought-item:99999:profile", user_id=600031)
+        call = make_callback_query(data="my_orders", user_id=600032)
+        await my_orders_handler(call, fsm_context)
 
-        await bought_item_info_callback_handler(call)
+        markup = call.message.edit_text.call_args[1]["reply_markup"]
+        cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
+        assert f"my_order:{order['id']}:0" in cbs
 
+    async def test_order_detail_renders_the_card(self, make_callback_query, fsm_context,
+                                                 user_factory, item_factory):
+
+        await user_factory(telegram_id=600033)
+        await item_factory(name="Lamp", price=40, stock=5)
+        order = await _place_order(600033, "Lamp")
+
+        call = make_callback_query(data=f"my_order:{order['id']}", user_id=600033)
+        await my_order_handler(call, fsm_context)
+
+        text = call.message.edit_text.call_args[0][0]
+        assert "Lamp" in text
+        cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
+               for b in row]
+        assert f"my_order_cancel:{order['id']}" in cbs       # a fresh COD order can still be cancelled
+
+    async def test_order_detail_of_someone_else_is_not_found(self, make_callback_query, fsm_context,
+                                                             user_factory, item_factory):
+
+        await user_factory(telegram_id=600034)
+        await user_factory(telegram_id=600035)
+        await item_factory(name="Chair", price=40, stock=5)
+        order = await _place_order(600034, "Chair")
+
+        call = make_callback_query(data=f"my_order:{order['id']}", user_id=600035)
+        await my_order_handler(call, fsm_context)
+
+        call.message.edit_text.assert_not_called()
+        assert "orders.not_found" in call.answer.call_args[0][0]
+
+    async def test_order_detail_bad_payload(self, make_callback_query, fsm_context):
+
+        call = make_callback_query(data="my_order:abc", user_id=600036)
+        await my_order_handler(call, fsm_context)
+
+        call.message.edit_text.assert_not_called()
         call.answer.assert_called_once()
+
+    async def test_mia_order_awaiting_payment_offers_payment_buttons(
+            self, make_callback_query, fsm_context, user_factory, item_factory):
+
+        await user_factory(telegram_id=600037)
+        await item_factory(name="Desk", price=40, stock=5)
+        order = await _place_order(600037, "Desk", method="mia")
+
+        call = make_callback_query(data=f"my_order:{order['id']}", user_id=600037)
+        await my_order_handler(call, fsm_context)
+
+        cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
+               for b in row]
+        assert f"mia_paid:{order['id']}" in cbs and f"mia_info:{order['id']}" in cbs
+
+    async def test_cancel_asks_first_then_restocks(self, make_callback_query, fsm_context,
+                                                   user_factory, item_factory):
+        from bot.database.methods.read import select_item_stock
+
+        await user_factory(telegram_id=600038)
+        await item_factory(name="Vase", price=40, stock=1)
+        order = await _place_order(600038, "Vase")
+        assert await select_item_stock("Vase") == 0
+
+        ask = make_callback_query(data=f"my_order_cancel:{order['id']}", user_id=600038)
+        await my_order_cancel_ask_handler(ask, fsm_context)
+        assert "orders.cancel_confirm" in ask.message.edit_text.call_args[0][0]
+        assert await select_item_stock("Vase") == 0          # asking changes nothing
+
+        yes = make_callback_query(data=f"my_order_cancel_yes:{order['id']}:0", user_id=600038)
+        with patch('bot.handlers.user.shop_and_goods.notify_restock', new_callable=AsyncMock) as notify:
+            await my_order_cancel_handler(yes, fsm_context)
+
+        assert await select_item_stock("Vase") == 1
+        assert "orders.cancelled" in yes.answer.call_args[0][0]
+        notify.assert_called_once_with(yes.bot, "Vase")      # 0 -> 1 wakes the restock subscribers
+
+    async def test_cancel_refused_once_the_shop_accepted_the_order(
+            self, make_callback_query, fsm_context, user_factory, item_factory):
+        from bot.database.methods.orders import set_order_status
+
+        await user_factory(telegram_id=600039)
+        await item_factory(name="Plate", price=40, stock=3)
+        order = await _place_order(600039, "Plate")
+        assert (await set_order_status(order["id"], "confirmed"))[0]
+
+        yes = make_callback_query(data=f"my_order_cancel_yes:{order['id']}", user_id=600039)
+        await my_order_cancel_handler(yes, fsm_context)
+
+        assert "orders.not_cancellable" in yes.answer.call_args[0][0]
+
+    async def test_cannot_cancel_someone_elses_order(self, make_callback_query, fsm_context,
+                                                     user_factory, item_factory):
+        from bot.database.methods.read import select_item_stock
+
+        await user_factory(telegram_id=600040)
+        await user_factory(telegram_id=600041)
+        await item_factory(name="Bowl", price=40, stock=3)
+        order = await _place_order(600040, "Bowl")
+
+        yes = make_callback_query(data=f"my_order_cancel_yes:{order['id']}", user_id=600041)
+        await my_order_cancel_handler(yes, fsm_context)
+
+        assert await select_item_stock("Bowl") == 2
+        assert "orders.not_found" in yes.answer.call_args[0][0]
 
 
 class TestHtmlEscapingInRenderedText:
@@ -657,7 +806,7 @@ class TestHtmlEscapingInRenderedText:
 
         await item_factory(
             name=self.HOSTILE, price=100, description=self.HOSTILE,
-            values=[("v1", False)],
+            stock=5,
         )
 
         call = make_callback_query(data="itm:0:0", user_id=610901)
@@ -672,7 +821,7 @@ class TestHtmlEscapingInRenderedText:
     async def test_cart_escapes_item_name(self, make_callback_query, user_factory, item_factory):
 
         await user_factory(telegram_id=610902, balance=1000)
-        await item_factory(name=self.HOSTILE, price=100, values=[("v1", False)])
+        await item_factory(name=self.HOSTILE, price=100, stock=5)
         ok, _ = await add_to_cart(610902, self.HOSTILE)
         assert ok
 
@@ -701,7 +850,7 @@ class TestBackFromItemCardAfterPurchase:
     ):
 
         await user_factory(telegram_id=660001, balance=1000)
-        await item_factory(name="BoughtThenBack", price=100, values=[("v1", False)])
+        await item_factory(name="BoughtThenBack", price=100, stock=5)
 
         # Browsing a category, with the item card open.
         await fsm_context.update_data(csrf_item="BoughtThenBack", item_back_data="gp_0",
@@ -724,7 +873,7 @@ class TestBackFromItemCardAfterPurchase:
     ):
 
         await user_factory(telegram_id=660002, balance=1000)
-        await item_factory(name="SearchThenBack", price=100, values=[("v1", False)])
+        await item_factory(name="SearchThenBack", price=100, stock=5)
 
         await fsm_context.update_data(csrf_item="SearchThenBack", item_back_data="sp_0",
                                       search_query="Search")
@@ -745,7 +894,7 @@ class TestBackFromItemCardAfterPurchase:
         from search, must not restore the category state over the search one."""
 
         await user_factory(telegram_id=660003, balance=1000)
-        await item_factory(name="StalePromoState", price=100, values=[("v1", False)])
+        await item_factory(name="StalePromoState", price=100, stock=5)
 
         # Category browsing: open the promo prompt, then leave it.
         await fsm_context.update_data(csrf_item="StalePromoState", item_back_data="gp_0")
@@ -796,7 +945,7 @@ class TestBackFromItemCardAfterPurchase:
 
         await user_factory(telegram_id=660004, balance=1000)
         await item_factory(name="EndToEndBack", price=100, category="E2ECat",
-                           values=[("v1", False), ("v2", False)])
+                           stock=5)
 
         await shop_callback_handler(make_callback_query(data="shop", user_id=660004), fsm_context)
         await items_list_callback_handler(make_callback_query(data="cat:0:0", user_id=660004), fsm_context)

@@ -8,15 +8,30 @@ import pytest
 from sqlalchemy import select
 
 from bot.database.main import Database
-from bot.database.methods.create import create_pending_payment
 from tests.factories import add_operation
-from bot.database.models.main import BoughtGoods, User
+from bot.database.models.main import Orders, OrderItems, User
 from bot.web.export import (
     BATCH_SIZE, _sanitize_cell, _parse_date_params, _check_auth, _stream_csv,
-    export_users, export_purchases, export_operations, export_payments,
+    export_users, export_orders, export_order_items, export_operations,
 )
 
 NOW = datetime.datetime.now(datetime.timezone.utc)
+
+
+async def _add_order(user_id, *, customer="Ann", total=100, created_at=NOW, lines=(("Lamp", 1, 100),)):
+    """Insert an order with its lines; returns the order id."""
+    async with Database().session() as s:
+        order = Orders(
+            user_id=user_id, status="new", payment_method="cod", payment_status="unpaid",
+            fulfillment="pickup", customer_name=customer, phone="123456", total=total,
+            balance_used=0, created_at=created_at,
+        )
+        s.add(order)
+        await s.flush()
+        for name, qty, line_total in lines:
+            s.add(OrderItems(order_id=order.id, item_name=name, quantity=qty,
+                             unit_price=line_total / qty, line_total=line_total))
+        return order.id
 
 
 def _request(session=None, **query_params):
@@ -70,21 +85,43 @@ class TestParseDateParams:
         assert _parse_date_params(_request(**params)) == (expected_from, expected_to)
 
 
+async def _account(username="exporter", role="staff", active=True):
+    """A web account; returns the session an Admin/Staff browser would carry."""
+    from bot.database.methods.web_users import create_web_user, get_web_user_auth
+    if await get_web_user_auth(username) is None:
+        ok, _ = await create_web_user(username, "correct horse", role, is_active=active)
+        assert ok
+    return {"uid": (await get_web_user_auth(username))["id"], "role": role}
+
+
 class TestCheckAuth:
 
-    @pytest.mark.parametrize("session,expected", [
-        ({"authenticated": True}, True),
-        ({"authenticated": False}, False),
-        ({}, False),  # no session key at all
+    @pytest.mark.parametrize("role", ["admin", "staff"])
+    async def test_any_active_account_passes(self, role):
+        assert await _check_auth(_request(session=await _account(role=role))) is True
+
+    @pytest.mark.parametrize("session", [
+        {"authenticated": True},   # the old session shape no longer counts
+        {"uid": 12345, "role": "admin"},   # an account that does not exist
+        {"uid": "1", "role": "admin"},
+        {},                        # no session key at all
     ])
-    def test_auth(self, session, expected):
-        assert _check_auth(_request(session=session)) is expected
+    async def test_everything_else_is_refused(self, session):
+        assert await _check_auth(_request(session=session)) is False
+
+    async def test_disabled_account_is_refused(self):
+        assert await _check_auth(_request(session=await _account(active=False))) is False
+
+    async def test_role_change_invalidates_the_session(self):
+        session = await _account(role="admin")
+        session["role"] = "staff"      # the cookie says staff, the account is admin: not the same session
+        assert await _check_auth(_request(session=session)) is False
 
 
 class TestExportEndpointsRequireAuth:
 
     @pytest.mark.parametrize("endpoint", [
-        export_users, export_purchases, export_operations, export_payments,
+        export_users, export_orders, export_order_items, export_operations,
     ])
     async def test_unauthenticated_request_is_rejected(self, endpoint):
         response = await endpoint(_request())
@@ -138,31 +175,34 @@ class TestStreamCsv:
     async def test_batch_size_default_is_not_accidentally_tiny(self):
         assert BATCH_SIZE == 1000
 
-    async def test_exported_item_name_cannot_carry_a_formula(self, user_factory):
-        """End-to-end: a hostile product name reaches the CSV neutralized."""
+    async def test_exported_customer_name_cannot_carry_a_formula(self, user_factory):
+        """End-to-end: a hostile customer name reaches the CSV neutralized."""
         await user_factory(telegram_id=770020)
-        async with Database().session() as s:
-            s.add(BoughtGoods(
-                item_name="=HYPERLINK(\"http://evil\",\"click\")", value="v",
-                price=10, bought_datetime=NOW, unique_id=770020, buyer_id=770020,
-            ))
+        await _add_order(770020, customer="=HYPERLINK(\"http://evil\",\"click\")")
 
-        response = await export_purchases(_request(session={"authenticated": True}))
+        response = await export_orders(_request(session=await _account()))
         body = await _collect(response)
 
         rows = list(csv.reader(io.StringIO(body)))
-        item_names = [r[1] for r in rows[1:]]
-        assert item_names == ["'=HYPERLINK(\"http://evil\",\"click\")"]
+        names = [r[rows[0].index("customer_name")] for r in rows[1:]]
+        assert names == ["'=HYPERLINK(\"http://evil\",\"click\")"]
+
+    async def test_exported_product_name_cannot_carry_a_formula(self, user_factory):
+        await user_factory(telegram_id=770021)
+        await _add_order(770021, lines=(("@SUM(1+1)", 1, 100),))
+
+        response = await export_order_items(_request(session=await _account()))
+        rows = list(csv.reader(io.StringIO(await _collect(response))))
+
+        assert [r[2] for r in rows[1:]] == ["'@SUM(1+1)"]
 
 
 class TestExportEndpoints:
 
-    AUTHED = {"authenticated": True}
-
     async def test_users_export_contains_the_seeded_user(self, user_factory):
         await user_factory(telegram_id=770030, balance=99)
 
-        response = await export_users(_request(session=self.AUTHED))
+        response = await export_users(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
         assert rows[0][0] == "telegram_id"
@@ -173,23 +213,47 @@ class TestExportEndpoints:
         await user_factory(telegram_id=770040)
         await add_operation(770040, 150, NOW)
 
-        response = await export_operations(_request(session=self.AUTHED))
+        response = await export_operations(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
         assert rows[0] == ["id", "user_id", "operation_value", "operation_time"]
         assert rows[1][1] == "770040"
         assert Decimal(rows[1][2]) == Decimal("150")
 
-    async def test_payments_export(self, user_factory):
+    async def test_orders_export(self, user_factory):
         await user_factory(telegram_id=770050)
-        await create_pending_payment("cryptopay", "ext_770050", 770050, 500, "RUB")
+        order_id = await _add_order(770050, total=100)
 
-        response = await export_payments(_request(session=self.AUTHED))
+        response = await export_orders(_request(session=await _account()))
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 
-        assert rows[0][:3] == ["id", "provider", "external_id"]
-        assert rows[1][1:3] == ["cryptopay", "ext_770050"]
-        assert rows[1][6] == "pending"
+        assert rows[0][:4] == ["id", "user_id", "status", "payment_method"]
+        assert rows[1][:5] == [str(order_id), "770050", "new", "cod", "unpaid"]
+        assert Decimal(rows[1][rows[0].index("total")]) == Decimal("100")
+        assert response.headers["content-disposition"] == "attachment; filename=orders.csv"
+
+    async def test_order_items_export(self, user_factory):
+        await user_factory(telegram_id=770051)
+        order_id = await _add_order(770051, total=300, lines=(("Lamp", 2, 200), ("Cable", 1, 100)))
+
+        response = await export_order_items(_request(session=await _account()))
+        rows = list(csv.reader(io.StringIO(await _collect(response))))
+
+        assert rows[0] == ["id", "order_id", "item_name", "quantity", "unit_price", "line_total"]
+        assert [(r[1], r[2], r[3]) for r in rows[1:]] == [
+            (str(order_id), "Lamp", "2"), (str(order_id), "Cable", "1"),
+        ]
+
+    async def test_order_date_filter_applies_to_order_and_its_lines(self, user_factory):
+        await user_factory(telegram_id=770052)
+        old = NOW - datetime.timedelta(days=10)
+        await _add_order(770052, created_at=old)
+
+        cutoff = (NOW - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        for endpoint in (export_orders, export_order_items):
+            response = await endpoint(_request(session=await _account(), **{"from": cutoff}))
+            rows = list(csv.reader(io.StringIO(await _collect(response))))
+            assert len(rows) == 1  # header only
 
     async def test_date_filter_excludes_rows_outside_the_window(self, user_factory):
         await user_factory(telegram_id=770060)
@@ -197,7 +261,7 @@ class TestExportEndpoints:
 
         far_future = (NOW + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
         response = await export_operations(
-            _request(session=self.AUTHED, **{"from": far_future})
+            _request(session=await _account(), **{"from": far_future})
         )
         rows = list(csv.reader(io.StringIO(await _collect(response))))
 

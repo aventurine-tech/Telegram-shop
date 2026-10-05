@@ -6,17 +6,13 @@ import pytest
 
 from sqlalchemy import select
 
-from bot.database.methods.create import (
-    create_user, create_item, add_values_to_item,
-    create_pending_payment,
-)
+from bot.database.methods.create import create_user, create_item
 from bot.database.methods.read import (
     check_user, check_role, get_role_id_by_name,
     check_role_name_by_id,
     select_today_users, get_user_count,
     get_all_users, check_category,
-    get_item_info, check_value,
-    select_item_values_amount,
+    get_item_info, select_item_stock,
     select_count_items, select_count_goods,
     select_count_categories, select_user_items,
     check_user_referrals, get_user_referral,
@@ -32,12 +28,20 @@ from bot.database.methods.update import (
     set_role, set_user_blocked,
     is_user_blocked, update_item, update_category,
 )
-from bot.database.methods.delete import (
-    delete_item,
-    delete_item_from_position, delete_category,
-)
+from bot.database.methods.delete import delete_item, delete_category
 
 NOW = datetime.datetime.now(datetime.timezone.utc)
+
+async def _add_order(user_id, total, *, status="completed", at=None):
+    from bot.database import Database as DB
+    from bot.database.models.main import Orders
+    async with DB().session() as s:
+        s.add(Orders(
+            user_id=user_id, status=status, payment_method="cod", payment_status="unpaid",
+            fulfillment="pickup", customer_name="T", phone="123456", total=total,
+            created_at=at or NOW,
+        ))
+
 TODAY_STR = NOW.strftime("%Y-%m-%d")
 
 
@@ -193,7 +197,7 @@ class TestCategoryCRUD:
         assert await check_category("ToDelete") is None
 
     async def test_delete_category_with_items_no_crash(self, item_factory):
-        await item_factory(name="test", category="lol", values=[("secret", False)])
+        await item_factory(name="test", category="lol", stock=1)
         await delete_category("lol")
         assert await check_category("lol") is None
 
@@ -213,150 +217,17 @@ class TestItemCRUD:
         await create_item("DupItem", "desc2", 200, "DupCat")
         assert await select_count_goods() == 1
 
-    async def test_add_values_to_item(self, item_factory):
-        await item_factory(name="ValItem", category="ValCat")
-        result = await add_values_to_item("ValItem", "code123", False)
-        assert result is True
-        assert await select_item_values_amount("ValItem") == 1
+    async def test_create_item_with_initial_stock(self, item_factory):
+        await item_factory(name="Stocked", category="StockCat", stock=7)
+        assert await select_item_stock("Stocked") == 7
 
-    async def test_add_values_duplicate_returns_false(self, item_factory):
-        await item_factory(name="DupVal", category="DupValCat")
-        await add_values_to_item("DupVal", "abc", False)
-        result = await add_values_to_item("DupVal", "abc", False)
-        assert result is False
-
-    async def test_add_values_lost_race_returns_false(self, item_factory):
-        import sqlalchemy
-        from unittest.mock import patch
-
-        await item_factory(name="RaceVal", category="RaceCat")
-        await add_values_to_item("RaceVal", "abc", False)
-
-        class _NeverExists:
-            def where(self, *a, **k):
-                return sqlalchemy.false()
-
-        with patch('bot.database.methods.create.exists', return_value=_NeverExists()):
-            result = await add_values_to_item("RaceVal", "abc", False)
-
-        assert result is False
-        assert await select_item_values_amount("RaceVal") == 1  # still just the one
-
-    async def test_add_values_empty_returns_false(self, item_factory):
-        await item_factory(name="EmptyVal", category="EmptyValCat")
-        assert await add_values_to_item("EmptyVal", "", False) is False
-        assert await add_values_to_item("EmptyVal", "   ", False) is False
-
-    async def test_bulk_insert_adds_every_value(self, item_factory):
-        from bot.database.methods.create import add_values_bulk
-
-        await item_factory(name="BulkItem", category="BulkCat")
-
-        added, db_dup, batch_dup, invalid = await add_values_bulk(
-            "BulkItem", ["a", "b", "c"], False
-        )
-
-        assert (added, db_dup, batch_dup, invalid) == (3, 0, 0, 0)
-        assert await select_item_values_amount("BulkItem") == 3
-
-    async def test_bulk_insert_reports_each_kind_of_skip(self, item_factory):
-        """The admin's upload report distinguishes values already in the DB,
-        repeats inside the pasted batch, and blanks."""
-        from bot.database.methods.create import add_values_bulk
-
-        await item_factory(name="BulkSkip", category="BulkCat2")
-        await add_values_to_item("BulkSkip", "already", False)
-
-        added, db_dup, batch_dup, invalid = await add_values_bulk(
-            "BulkSkip", ["already", "new", "new", "  ", "", " new "], False
-        )
-
-        assert added == 1              # only "new"
-        assert db_dup == 1             # "already"
-        assert batch_dup == 2          # "new" twice more (trimmed " new " matches)
-        assert invalid == 2            # "  " and ""
-        assert await select_item_values_amount("BulkSkip") == 2
-
-    async def test_bulk_insert_is_atomic_per_batch(self, item_factory):
-        from bot.database.methods.create import add_values_bulk
-
-        await item_factory(name="BulkAtomic", category="BulkCat3")
-
-        # Unknown position: nothing is written and nothing raises.
-        assert await add_values_bulk("NoSuchItem", ["x"], False) == (0, 0, 0, 0)
-        assert await select_item_values_amount("BulkAtomic") == 0
-
-    async def test_bulk_insert_of_nothing_touches_no_rows(self, item_factory):
-        from bot.database.methods.create import add_values_bulk
-
-        await item_factory(name="BulkEmpty", category="BulkCat4")
-
-        assert await add_values_bulk("BulkEmpty", ["", "   "], False) == (0, 0, 0, 2)
-        assert await add_values_bulk("BulkEmpty", [], False) == (0, 0, 0, 0)
-        assert await select_item_values_amount("BulkEmpty") == 0
-
-    async def test_bulk_insert_keeps_one_row_for_an_infinite_position(self, item_factory):
-        """An infinite position holds exactly one row that is never consumed."""
-        from bot.database.methods.create import add_values_bulk
-
-        await item_factory(name="BulkInf", category="BulkCat5")
-
-        added, _db_dup, _batch_dup, _invalid = await add_values_bulk(
-            "BulkInf", ["forever", "ignored"], True
-        )
-
-        assert added == 1
-        assert await select_item_values_amount("BulkInf") == 1
-        assert await check_value("BulkInf") is True
-
-    async def test_bulk_insert_does_not_scale_with_the_batch(self, item_factory):
-        """Regression guard: this path used to be a per-value loop costing three
-        statements and a transaction each (~150 for a 50-value upload)."""
-        from sqlalchemy import event
-        from bot.database.main import Database
-        from bot.database.methods.create import add_values_bulk
-
-        await item_factory(name="BulkCost", category="BulkCat7")
-
-        statements = []
-
-        def _record(conn, cursor, statement, params, context, executemany):
-            statements.append(statement)
-
-        engine = Database().engine.sync_engine
-        event.listen(engine, "before_cursor_execute", _record)
-        try:
-            await add_values_bulk("BulkCost", [f"v{i}" for i in range(50)], False)
-        finally:
-            event.remove(engine, "before_cursor_execute", _record)
-
-        # Resolve the position, look up existing values, one executemany insert.
-        assert len(statements) <= 5, statements
-        assert await select_item_values_amount("BulkCost") == 50
-
-    async def test_bulk_insert_invalidates_the_item_cache_once(self, item_factory, fake_cache):
-        from bot.database.methods.create import add_values_bulk
-
-        await item_factory(name="BulkCache", category="BulkCat6")
-        fake_cache.store["item_values:BulkCache"] = 0
-        fake_cache.store["item_info:BulkCache"] = {"name": "BulkCache"}
-
-        await add_values_bulk("BulkCache", ["v1", "v2"], False)
-        await asyncio.sleep(0)
-
-        assert "item_values:BulkCache" not in fake_cache.store
-        assert "item_info:BulkCache" not in fake_cache.store
-
-    async def test_check_value_infinity(self, item_factory):
-        await item_factory(name="InfItem", category="InfCat", values=[("inf_val", True)])
-        assert await check_value("InfItem") is True
-
-    async def test_check_value_no_infinity(self, item_factory):
-        await item_factory(name="FinItem", category="FinCat", values=[("fin_val", False)])
-        assert await check_value("FinItem") is False
+    async def test_create_item_never_starts_negative(self, category_factory):
+        await category_factory("NegCat")
+        await create_item("NegItem", "d", 5, "NegCat", stock=-4)
+        assert await select_item_stock("NegItem") == 0
 
     async def test_select_count_items(self, item_factory):
-        await item_factory(name="CI1", category="CICat", values=[("v1", False), ("v2", False)])
+        await item_factory(name="CI1", category="CICat", stock=2)
         assert await select_count_items() == 2
 
     async def test_select_count_goods(self, item_factory):
@@ -392,25 +263,29 @@ class TestItemCRUD:
         assert await get_item_info("Keep") is not None
 
     async def test_delete_item(self, item_factory):
-        await item_factory(name="DelItem", category="DelCat", values=[("dv", False)])
+        await item_factory(name="DelItem", category="DelCat", stock=1)
         await delete_item("DelItem")
         assert await get_item_info("DelItem") is None
-        assert await select_item_values_amount("DelItem") == 0
+        assert await select_item_stock("DelItem") == 0
 
-    async def test_delete_item_from_position(self, item_factory):
-        await item_factory(name="PosItem", category="PosCat", values=[("p1", False), ("p2", False)])
-        # Get one item value id via async DB session
+    async def test_delete_item_keeps_order_history(self, user_factory, item_factory):
         from bot.database import Database as DB
-        from bot.database.models import ItemValues
-        from bot.database.models.main import Goods
+        from bot.database.methods.create import add_to_cart
+        from bot.database.methods.orders import create_order_transaction
+        from bot.database.models.main import OrderItems, Fulfillment, PaymentMethod
+        await user_factory(telegram_id=9100)
+        await item_factory(name="Gone", category="GoneCat", price=30, stock=2)
+        await add_to_cart(9100, "Gone")
+        ok, _, order = await create_order_transaction(
+            9100, fulfillment=Fulfillment.PICKUP, customer_name="A", phone="123456",
+            address=None, comment=None, payment_method=PaymentMethod.COD)
+        assert ok
+
+        await delete_item("Gone")
+
         async with DB().session() as s:
-            result = await s.execute(select(Goods).where(Goods.name == "PosItem"))
-            pos = result.scalars().first()
-            result = await s.execute(select(ItemValues).where(ItemValues.item_id == pos.id))
-            iv = result.scalars().first()
-            iv_id = iv.id
-        await delete_item_from_position(iv_id)
-        assert await select_item_values_amount("PosItem") == 1
+            line = (await s.execute(select(OrderItems).where(OrderItems.order_id == order["id"]))).scalars().one()
+        assert (line.item_name, line.unit_price) == ("Gone", Decimal("30"))   # the snapshot survives
 
 
 class TestBalanceOperations:
@@ -463,38 +338,6 @@ class TestBalanceOperations:
         await set_user_blocked(8011, True)
         await set_user_blocked(8011, False)
         assert await is_user_blocked(8011) is False
-
-
-class TestPayments:
-    async def test_create_pending_payment(self, user_factory):
-        await user_factory(telegram_id=9001)
-        await create_pending_payment("cryptopay", "ext_001", 9001, 500, "RUB")
-        # Verify via async DB query
-        from bot.database import Database as DB
-        from bot.database.models import Payments
-        async with DB().session() as s:
-            result = await s.execute(select(Payments).where(Payments.user_id == 9001))
-            p = result.scalars().first()
-            assert p is not None
-            assert p.provider == "cryptopay"
-            assert p.external_id == "ext_001"
-            assert p.amount == Decimal("500")
-            assert p.currency == "RUB"
-            assert p.status == "pending"
-
-    async def test_create_multiple_payments(self, user_factory):
-        await user_factory(telegram_id=9002)
-        await create_pending_payment("stars", "ext_010", 9002, 100, "XTR")
-        await create_pending_payment("stars", "ext_011", 9002, 200, "XTR")
-        from bot.database import Database as DB
-        from bot.database.models import Payments
-        async with DB().session() as s:
-            from sqlalchemy import func
-            result = await s.execute(
-                select(func.count()).select_from(Payments).where(Payments.user_id == 9002)
-            )
-            count = result.scalar()
-            assert count == 2
 
 
 class TestReferrals:
@@ -565,47 +408,25 @@ class TestStats:
         total = await select_all_orders()
         assert total == Decimal("0")
 
-    async def test_select_today_orders_with_bought_goods(self, user_factory):
+    async def test_select_today_orders_with_orders(self, user_factory):
         await user_factory(telegram_id=11001)
-        from bot.database import Database as DB
-        from bot.database.models import BoughtGoods
-        async with DB().session() as s:
-            s.add(BoughtGoods(
-                item_name="Sold1", value="val", price=150,
-                bought_datetime=NOW, unique_id=90001, buyer_id=11001,
-            ))
+        await _add_order(11001, 150)
+        await _add_order(11001, 999, status="cancelled")      # cancelled orders are not revenue
         total = await select_today_orders(TODAY_STR)
         assert total == Decimal("150")
 
-    async def test_select_all_orders_with_bought_goods(self, user_factory):
+    async def test_select_all_orders_with_orders(self, user_factory):
         await user_factory(telegram_id=11002)
-        from bot.database import Database as DB
-        from bot.database.models import BoughtGoods
-        async with DB().session() as s:
-            s.add(BoughtGoods(
-                item_name="SoldA", value="v1", price=100,
-                bought_datetime=NOW, unique_id=90002, buyer_id=11002,
-            ))
-            s.add(BoughtGoods(
-                item_name="SoldB", value="v2", price=200,
-                bought_datetime=NOW, unique_id=90003, buyer_id=11002,
-            ))
+        await _add_order(11002, 100)
+        await _add_order(11002, 200)
         total = await select_all_orders()
         assert total == Decimal("300")
 
     async def test_select_user_items_count(self, user_factory):
         await user_factory(telegram_id=11003)
-        from bot.database import Database as DB
-        from bot.database.models import BoughtGoods
-        async with DB().session() as s:
-            s.add(BoughtGoods(
-                item_name="B1", value="v", price=10,
-                bought_datetime=NOW, unique_id=90004, buyer_id=11003,
-            ))
-            s.add(BoughtGoods(
-                item_name="B2", value="v", price=20,
-                bought_datetime=NOW, unique_id=90005, buyer_id=11003,
-            ))
+        await _add_order(11003, 10)
+        await _add_order(11003, 20)
+        await _add_order(11003, 30, status="cancelled")
         assert await select_user_items(11003) == 2
 
     async def test_select_users_balance_empty(self):

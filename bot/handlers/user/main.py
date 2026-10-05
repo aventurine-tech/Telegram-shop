@@ -10,7 +10,7 @@ from html import escape as _esc
 
 from bot.database.methods import (
     select_max_role_id, create_user, check_role_cached, check_user,
-    select_user_operations_total, select_user_items, check_user_cached
+    select_user_items, check_user_cached
 )
 from bot.database.methods.read import get_cart_count, invalidate_user_cache
 from bot.database.methods.lazy_queries import query_user_operations_history
@@ -88,54 +88,49 @@ async def _is_subscribed(bot, channel_username: str, user_id: int) -> bool | Non
     return await check_sub_channel(chat_member)
 
 
-@router.message(F.text.startswith('/start'))
-async def start(message: Message, state: FSMContext):
-    """
-    Handle /start:
-    - Ensure user exists (register if new)
-    - (Optional) Check channel subscription
-    - Show the main menu
-    """
-    if message.chat.type != ChatType.PRIVATE:
-        return
+async def register_if_new(user_id: int, payload: str | None = None) -> int:
+    """Register the user when they have no row yet; returns their permission bitmask.
 
-    user_id = message.from_user.id
-    await state.clear()
-
+    `payload` is the /start argument: a referrer's id, honoured only for a new user who is not
+    referring themselves and whose referrer exists.
+    """
     role_data = await check_role_cached(user_id)
+    if role_data != 0:
+        return role_data
 
-    if role_data == 0:
-        owner_max_role = await select_max_role_id()
-        user_role = owner_max_role if user_id == EnvKeys.OWNER_ID else 1
+    owner_max_role = await select_max_role_id()
+    user_role = owner_max_role if user_id == EnvKeys.OWNER_ID else 1
 
-        referral_id = None
-        parts = message.text.split(maxsplit=1)
-        if len(parts) > 1:
-            payload = parts[1].strip()
-            if payload.isdigit() and payload != str(user_id):
-                candidate = int(payload)
-                if await check_user(candidate) is not None:
-                    referral_id = candidate
+    referral_id = None
+    if payload:
+        payload = payload.strip()
+        if payload.isdigit() and payload != str(user_id):
+            candidate = int(payload)
+            if await check_user(candidate) is not None:
+                referral_id = candidate
 
-        # registration_date is DateTime
-        await create_user(
-            telegram_id=int(user_id),
-            registration_date=datetime.datetime.now(datetime.timezone.utc),
-            referral_id=referral_id,
-            role=user_role
-        )
+    # registration_date is DateTime
+    await create_user(
+        telegram_id=int(user_id),
+        registration_date=datetime.datetime.now(datetime.timezone.utc),
+        referral_id=referral_id,
+        role=user_role
+    )
 
-        await invalidate_user_cache(user_id)
-        from bot.middleware.security import invalidate_auth_caches
-        invalidate_auth_caches(user_id)
+    await invalidate_user_cache(user_id)
+    from bot.middleware.security import invalidate_auth_caches
+    invalidate_auth_caches(user_id)
 
-        metrics = get_metrics()
-        if metrics:
-            metrics.track_event("registration", user_id)
+    metrics = get_metrics()
+    if metrics:
+        metrics.track_event("registration", user_id)
 
-        # Re-read (now cached) so the menu reflects the freshly assigned role.
-        role_data = await check_role_cached(user_id)
+    # Re-read (now cached) so the menu reflects the freshly assigned role.
+    return await check_role_cached(user_id)
 
+
+async def open_main_menu(message: Message, user_id: int, role_data: int) -> None:
+    """Answer in `message`'s chat with the main menu, or the subscribe prompt when the channel check fails."""
     channel_username = _parse_channel_username()
 
     # Optional subscription check. A failed check (None) does not block entry.
@@ -143,11 +138,35 @@ async def start(message: Message, state: FSMContext):
         subscribed = await _is_subscribed(message.bot, channel_username, user_id)
         if subscribed is False:
             await message.answer(localize("subscribe.prompt"), reply_markup=check_sub(channel_username))
-            await _delete_quietly(message)
             return
 
     markup = main_menu(role=role_data, channel=channel_username, helper=EnvKeys.HELPER_ID)
     await message.answer(localize("menu.title"), reply_markup=markup)
+
+
+def start_payload(text: str | None) -> str | None:
+    """The argument of ``/start <payload>`` (None when absent)."""
+    parts = (text or "").split(maxsplit=1)
+    return parts[1].strip() if len(parts) > 1 else None
+
+
+@router.message(F.text.startswith('/start'))
+async def start(message: Message, state: FSMContext):
+    """
+    Handle /start:
+    - Ensure user exists (register if new)
+    - (Optional) Check channel subscription
+    - Show the main menu
+    (A user who has not picked a language yet is intercepted earlier by the language picker.)
+    """
+    if message.chat.type != ChatType.PRIVATE:
+        return
+
+    user_id = message.from_user.id
+    await state.clear()
+
+    role_data = await register_if_new(user_id, start_payload(message.text))
+    await open_main_menu(message, user_id, role_data)
     await _delete_quietly(message)
     await state.clear()
 
@@ -182,11 +201,8 @@ async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
-@router.callback_query(F.data == "profile")
-async def profile_callback_handler(call: CallbackQuery, state: FSMContext):
-    """
-    Send profile info (balance, purchases count, id, etc.).
-    """
+async def show_profile(call: CallbackQuery) -> None:
+    """Render the profile screen into the callback's message."""
     user_id = call.from_user.id
     tg_user = call.from_user
     user_info = await _ensure_user(user_id)
@@ -195,26 +211,32 @@ async def profile_callback_handler(call: CallbackQuery, state: FSMContext):
         return
 
     balance = user_info.get('balance')
-    overall_balance, items, cart_count = await asyncio.gather(
-        select_user_operations_total(user_id),
+    orders, cart_count = await asyncio.gather(
         select_user_items(user_id),
         get_cart_count(user_id),
     )
     referral = EnvKeys.REFERRAL_PERCENT
 
-    markup = profile_keyboard(referral, items, cart_count=cart_count)
+    markup = profile_keyboard(referral, orders, cart_count=cart_count)
     text = (
         f"{localize('profile.caption', name=_esc(tg_user.first_name or ''), id=user_id)}\n"
         f"{localize('profile.id', id=user_id)}\n"
         f"{localize('profile.balance', amount=balance, currency=EnvKeys.PAY_CURRENCY)}\n"
-        f"{localize('profile.total_topup', amount=overall_balance, currency=EnvKeys.PAY_CURRENCY)}\n"
-        f"{localize('profile.purchased_count', count=items)}"
+        f"{localize('profile.orders_count', count=orders)}"
     )
     try:
         await call.message.edit_text(text, reply_markup=markup, parse_mode='HTML')
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
+
+
+@router.callback_query(F.data == "profile")
+async def profile_callback_handler(call: CallbackQuery, state: FSMContext):
+    """
+    Send profile info (balance, orders count, id, etc.).
+    """
+    await show_profile(call)
     await state.clear()
 
 

@@ -128,7 +128,7 @@ class TestRestockNotifier:
 
         await user_factory(telegram_id=980001)
         await user_factory(telegram_id=980002)
-        await item_factory(name="RestockMe", price=10, values=[])
+        await item_factory(name="RestockMe", price=10, stock=0)
         await subscribe_to_stock(980001, "RestockMe")
         await subscribe_to_stock(980002, "RestockMe")
 
@@ -146,7 +146,7 @@ class TestRestockNotifier:
     async def test_notification_carries_a_close_button(self, mock_bot, user_factory, item_factory):
 
         await user_factory(telegram_id=980020)
-        await item_factory(name="ClosableItem", price=10, values=[])
+        await item_factory(name="ClosableItem", price=10, stock=0)
         await subscribe_to_stock(980020, "ClosableItem")
 
         await notify_restock(mock_bot, "ClosableItem")
@@ -157,7 +157,7 @@ class TestRestockNotifier:
 
     async def test_no_subscribers_sends_nothing(self, mock_bot, item_factory):
 
-        await item_factory(name="NobodyWaiting", price=10, values=[])
+        await item_factory(name="NobodyWaiting", price=10, stock=0)
         assert await notify_restock(mock_bot, "NobodyWaiting") == 0
         mock_bot.send_message.assert_not_awaited()
 
@@ -165,7 +165,7 @@ class TestRestockNotifier:
 
         await user_factory(telegram_id=980010)
         await user_factory(telegram_id=980011)
-        await item_factory(name="HalfBlocked", price=10, values=[])
+        await item_factory(name="HalfBlocked", price=10, stock=0)
         await subscribe_to_stock(980010, "HalfBlocked")
         await subscribe_to_stock(980011, "HalfBlocked")
 

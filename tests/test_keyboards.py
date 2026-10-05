@@ -1,8 +1,9 @@
 import pytest
 
 from bot.keyboards.inline import (
-    main_menu, profile_keyboard, simple_buttons, back, close, item_info, payment_menu,
-    get_payment_choice, question_buttons, check_sub, referral_system_keyboard,
+    main_menu, profile_keyboard, simple_buttons, back, close, item_info,
+    checkout_fulfillment_keyboard, checkout_name_keyboard, checkout_cancel_keyboard, checkout_comment_keyboard,
+    checkout_payment_keyboard, checkout_confirm_keyboard, mia_keyboard, order_keyboard, question_buttons, check_sub, referral_system_keyboard,
     admin_console_keyboard, cart_keyboard, rating_keyboard,
 )
 
@@ -60,39 +61,114 @@ class TestMainMenu:
 class TestProfileKeyboard:
 
     @pytest.mark.parametrize("kwargs,callback,expected", [
-        ({"referral_percent": 0, "user_items": 0}, "replenish_balance", True),
+        ({"referral_percent": 0, "user_orders": 0}, "replenish_balance", False),
         ({"referral_percent": 0}, "back_to_menu", True),
         ({"referral_percent": 10}, "referral_system", True),
         ({"referral_percent": 0}, "referral_system", False),
-        ({"referral_percent": 0, "user_items": 5}, "bought_items", True),
-        ({"referral_percent": 0, "user_items": 0}, "bought_items", False),
+        ({"referral_percent": 0, "user_orders": 5}, "my_orders", True),
+        ({"referral_percent": 0, "user_orders": 0}, "my_orders", False),
     ])
     def test_conditional_buttons(self, kwargs, callback, expected):
         assert (callback in _all_callback_data(profile_keyboard(**kwargs))) is expected
 
 
-class TestPaymentMenu:
+class TestCheckoutKeyboards:
 
-    def test_payment_menu_has_pay_url(self):
-        markup = payment_menu("https://example.com/pay")
-        has_url = False
-        for row in markup.inline_keyboard:
-            for btn in row:
-                if btn.url == "https://example.com/pay":
-                    has_url = True
-        assert has_url
+    def test_fulfillment_offers_only_given_kinds(self):
+        cbs = _all_callback_data(checkout_fulfillment_keyboard(["pickup"]))
+        assert "co_ful:pickup" in cbs and "co_ful:delivery" not in cbs
+        assert "co_cancel" in cbs
 
-    def test_payment_menu_has_check(self):
-        markup = payment_menu("https://example.com/pay")
-        cbs = _all_callback_data(markup)
-        assert "check" in cbs
+    def test_name_button_only_with_a_first_name(self):
+        assert "co_name_tg" in _all_callback_data(checkout_name_keyboard("Ana"))
+        assert "co_name_tg" not in _all_callback_data(checkout_name_keyboard(None))
+
+    def test_text_steps_can_go_back_to_the_cart(self):
+        assert "co_cancel" in _all_callback_data(checkout_cancel_keyboard())
+        cbs = _all_callback_data(checkout_comment_keyboard())
+        assert "co_skip_comment" in cbs and "co_cancel" in cbs
+
+    def test_confirm_screen(self):
+        cbs = _all_callback_data(checkout_confirm_keyboard())
+        assert {"co_confirm", "co_to_payment", "co_cancel"} <= set(cbs)
+
+    def test_cod_is_labelled_by_fulfillment(self):
+        def cod_label(fulfillment):
+            markup = checkout_payment_keyboard(["mia", "cod"], fulfillment)
+            buttons = {b.callback_data: b.text for row in markup.inline_keyboard for b in row}
+            assert "co_pay:mia" in buttons
+            return buttons["co_pay:cod"]
+
+        assert cod_label("delivery") != cod_label("pickup")
+
+    def test_balance_toggle_only_with_a_balance(self):
+        from decimal import Decimal
+        assert "co_balance" not in _all_callback_data(checkout_payment_keyboard(["cod"], "pickup"))
+        assert "co_balance" not in _all_callback_data(
+            checkout_payment_keyboard(["cod"], "pickup", balance=Decimal("0")))
+        assert "co_balance" in _all_callback_data(
+            checkout_payment_keyboard(["cod"], "pickup", balance=Decimal("5")))
+
+    def test_balance_toggle_text_follows_state(self):
+        from decimal import Decimal
+        def toggle(use):
+            m = checkout_payment_keyboard([], "pickup", balance=Decimal("5"), use_balance=use)
+            return next(b.text for row in m.inline_keyboard for b in row if b.callback_data == "co_balance")
+        assert toggle(True) != toggle(False)
+
+    def test_covered_by_balance_offers_continue(self):
+        from decimal import Decimal
+        cbs = _all_callback_data(checkout_payment_keyboard(
+            [], "pickup", balance=Decimal("50"), use_balance=True, covered=True))
+        assert "co_pay:balance" in cbs
+
+
+class TestMiaKeyboard:
+
+    def test_buttons(self):
+        cbs = _all_callback_data(mia_keyboard(12))
+        assert {"mia_paid:12", "my_order:12", "my_orders"} <= set(cbs)
+
+
+class TestOrderKeyboard:
+
+    def _order(self, **kw):
+        base = {"id": 5, "status": "new", "payment_method": "cod", "payment_status": "unpaid"}
+        return {**base, **kw}
+
+    def test_fresh_cod_order_can_be_cancelled(self):
+        cbs = _all_callback_data(order_keyboard(self._order()))
+        assert "my_order_cancel:5" in cbs
+        assert "mia_paid:5" not in cbs
+        assert "my_orders" in cbs                    # default back target
+
+    def test_mia_awaiting_payment_shows_payment_actions(self):
+        cbs = _all_callback_data(order_keyboard(
+            self._order(payment_method="mia", payment_status="awaiting_payment"), back_cb="my-orders-page_2"))
+        assert {"mia_info:5", "mia_paid:5", "my_order_cancel:5", "my-orders-page_2"} <= set(cbs)
+
+    @pytest.mark.parametrize("kw", [
+        {"status": "confirmed"},
+        {"status": "cancelled"},
+        {"payment_method": "mia", "payment_status": "awaiting_confirmation"},
+        {"payment_method": "mia", "payment_status": "paid"},
+    ])
+    def test_no_cancel_once_handled_or_money_is_in(self, kw):
+        cbs = _all_callback_data(order_keyboard(self._order(**kw)))
+        assert "my_order_cancel:5" not in cbs
+        assert "mia_paid:5" not in cbs
 
 
 class TestItemInfoKeyboard:
 
-    @pytest.mark.parametrize("callback", ["buy_item", "gp_0"])
+    @pytest.mark.parametrize("callback", ["buy_item", "add_to_cart", "gp_0"])
     def test_has_buy_and_back(self, callback):
         assert callback in _all_callback_data(item_info("gp_0"))
+
+    def test_out_of_stock_hides_the_order_buttons(self):
+        cbs = _all_callback_data(item_info("gp_0", out_of_stock=True))
+        assert "buy_item" not in cbs and "add_to_cart" not in cbs
+        assert "gp_0" in cbs
 
     @pytest.mark.parametrize("kwargs,expected_sub,expected_unsub", [
         ({}, False, False),                                   # in stock: no notify button
@@ -222,17 +298,6 @@ class TestReferralSystemKeyboard:
         assert "profile" in cbs  # back button is always there
 
 
-class TestGetPaymentChoice:
-
-    def test_has_all_methods(self):
-        markup = get_payment_choice()
-        cbs = _all_callback_data(markup)
-        assert "pay_cryptopay" in cbs
-        assert "pay_stars" in cbs
-        assert "pay_fiat" in cbs
-        assert "replenish_balance" in cbs  # back
-
-
 class TestQuestionButtons:
 
     def test_has_yes_no_back(self):
@@ -308,6 +373,19 @@ class TestCallbackDataFitsTelegramLimit:
         for name in (self.LONG_CYRILLIC, self.LONG_ASCII):
             items = [{"id": 987654, "item_name": name, "quantity": 99}]
             self._assert_all_fit(cart_keyboard(items))
+
+    def test_checkout_and_order_keyboards_fit(self):
+        from decimal import Decimal
+        order = {"id": 2 ** 40, "status": "new", "payment_method": "mia", "payment_status": "awaiting_payment"}
+        for markup in (
+            checkout_fulfillment_keyboard(["delivery", "pickup"]),
+            checkout_name_keyboard(self.LONG_ASCII),
+            checkout_payment_keyboard(["mia", "cod"], "pickup", balance=Decimal("5"), covered=True),
+            checkout_confirm_keyboard(),
+            mia_keyboard(2 ** 40),
+            order_keyboard(order, back_cb="my-orders-page_99999"),
+        ):
+            self._assert_all_fit(markup)
 
     def test_rating_keyboard_fits(self):
         self._assert_all_fit(rating_keyboard())

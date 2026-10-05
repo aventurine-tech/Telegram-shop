@@ -8,7 +8,8 @@ from starlette.routing import Route
 from sqlalchemy import select
 
 from bot.database.main import Database
-from bot.database.models.main import User, BoughtGoods, Operations, Payments
+from bot.database.models.main import User, Orders, OrderItems, Operations
+from bot.web.session import current_web_user
 
 
 BATCH_SIZE = 1000
@@ -85,12 +86,13 @@ def _parse_date_params(request: Request):
     return from_date, to_date
 
 
-def _check_auth(request: Request):
-    return request.session.get("authenticated", False)
+async def _check_auth(request: Request) -> bool:
+    """Any signed-in, still-active account (Admin or Staff) may export."""
+    return await current_web_user(request) is not None
 
 
 async def export_users(request: Request):
-    if not _check_auth(request):
+    if not await _check_auth(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from_date, to_date = _parse_date_params(request)
@@ -113,32 +115,59 @@ async def export_users(request: Request):
     )
 
 
-async def export_purchases(request: Request):
-    if not _check_auth(request):
+async def export_orders(request: Request):
+    if not await _check_auth(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from_date, to_date = _parse_date_params(request)
     query = select(
-        BoughtGoods.id, BoughtGoods.item_name, BoughtGoods.price,
-        BoughtGoods.buyer_id, BoughtGoods.bought_datetime, BoughtGoods.unique_id
-    ).order_by(BoughtGoods.id)
+        Orders.id, Orders.user_id, Orders.status, Orders.payment_method, Orders.payment_status,
+        Orders.fulfillment, Orders.customer_name, Orders.phone, Orders.address,
+        Orders.total, Orders.balance_used, Orders.created_at
+    ).order_by(Orders.id)
 
     if from_date:
-        query = query.where(BoughtGoods.bought_datetime >= from_date)
+        query = query.where(Orders.created_at >= from_date)
     if to_date:
-        query = query.where(BoughtGoods.bought_datetime < to_date)
+        query = query.where(Orders.created_at < to_date)
 
-    columns = ["id", "item_name", "price", "buyer_id", "bought_datetime", "unique_id"]
+    columns = ["id", "user_id", "status", "payment_method", "payment_status", "fulfillment",
+               "customer_name", "phone", "address", "total", "balance_used", "created_at"]
 
     return StreamingResponse(
-        _stream_csv(query, columns, Database().session, BoughtGoods.id),
+        _stream_csv(query, columns, Database().session, Orders.id),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=purchases.csv"},
+        headers={"Content-Disposition": "attachment; filename=orders.csv"},
+    )
+
+
+async def export_order_items(request: Request):
+    if not await _check_auth(request):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    from_date, to_date = _parse_date_params(request)
+    # The date window is the order's, so the lines of one order always travel together.
+    query = select(
+        OrderItems.id, OrderItems.order_id, OrderItems.item_name, OrderItems.quantity,
+        OrderItems.unit_price, OrderItems.line_total
+    ).join(Orders, Orders.id == OrderItems.order_id).order_by(OrderItems.id)
+
+    if from_date:
+        query = query.where(Orders.created_at >= from_date)
+    if to_date:
+        query = query.where(Orders.created_at < to_date)
+
+    columns = ["id", "order_id", "item_name", "quantity", "unit_price", "line_total"]
+
+    return StreamingResponse(
+        _stream_csv(query, columns, Database().session, OrderItems.id),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=order_items.csv"},
     )
 
 
 async def export_operations(request: Request):
-    if not _check_auth(request):
+    if not await _check_auth(request):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     from_date, to_date = _parse_date_params(request)
@@ -161,34 +190,9 @@ async def export_operations(request: Request):
     )
 
 
-async def export_payments(request: Request):
-    if not _check_auth(request):
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
-
-    from_date, to_date = _parse_date_params(request)
-    query = select(
-        Payments.id, Payments.provider, Payments.external_id,
-        Payments.user_id, Payments.amount, Payments.currency,
-        Payments.status, Payments.created_at
-    ).order_by(Payments.id)
-
-    if from_date:
-        query = query.where(Payments.created_at >= from_date)
-    if to_date:
-        query = query.where(Payments.created_at < to_date)
-
-    columns = ["id", "provider", "external_id", "user_id", "amount", "currency", "status", "created_at"]
-
-    return StreamingResponse(
-        _stream_csv(query, columns, Database().session, Payments.id),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=payments.csv"},
-    )
-
-
 export_routes = [
     Route("/export/users", export_users),
-    Route("/export/purchases", export_purchases),
+    Route("/export/orders", export_orders),
+    Route("/export/order_items", export_order_items),
     Route("/export/operations", export_operations),
-    Route("/export/payments", export_payments),
 ]

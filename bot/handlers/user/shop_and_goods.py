@@ -1,40 +1,50 @@
 import asyncio
+import contextlib
 from decimal import Decimal
 from functools import partial
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramAPIError
 from pydantic import ValidationError
 
 from bot.database.methods import (
-    get_bought_item_info, query_categories, query_user_bought_items, get_item_info_cached,
-    select_item_values_amount_cached, effective_price
+    query_categories, get_item_info_cached, select_item_stock_cached, effective_price
 )
 from bot.database.methods.read import (
     get_item_avg_rating, has_purchased_item, validate_promo_for_item,
     get_user_review, invalidate_rating_cache, is_subscribed_to_stock,
-    check_value_cached,
 )
+from bot.database.methods.orders import get_order, cancel_order_transaction
 from bot.database.methods.pricing import apply_promo_discount
 from bot.database.methods.create import create_review, subscribe_to_stock
 from bot.database.methods.delete import unsubscribe_from_stock
-from bot.database.methods.lazy_queries import query_item_reviews, query_goods_search, query_items_in_category
+from bot.database.methods.lazy_queries import (
+    query_item_reviews, query_goods_search, query_items_in_category, query_user_orders,
+)
 from bot.database.methods.transactions import redeem_balance_promo
 from bot.database.methods.audit import log_audit_bg
-from bot.database.models import Permission
-from bot.keyboards import item_info, back, lazy_paginated_keyboard
+from bot.database.methods.cache_utils import safe_create_task
+from bot.database.methods.product_images import (
+    get_item_image_ref, get_item_image_bytes, store_image_file_id,
+)
+from bot.keyboards import item_info, back, lazy_paginated_keyboard, order_keyboard
 from bot.keyboards.inline import simple_buttons, rating_keyboard
 from aiogram.types import InlineKeyboardButton
 from bot.i18n import localize, esc
+from bot.handlers.user._screen import edit_screen, is_photo_message
 from bot.misc import EnvKeys, LazyPaginator, ReviewRequest
 from bot.misc.metrics import get_metrics
+from bot.misc.services.order_view import format_order
+from bot.misc.services.restock_notifier import notify_restock
 from bot.states import ShopStates
 from bot.states.review_state import ReviewFSM
 from bot.states.promo_state import PromoFSM
 
 router = Router()
+
+CAPTION_LIMIT = 1024    # Telegram's cap on a photo caption
 
 
 def _browsing_state_for(back_data: str):
@@ -57,10 +67,12 @@ def _page_arg(raw: str) -> int | None:
 
 # --- Shared helper: render item page ---
 
-async def _render_item_page(target, state: FSMContext, item_name: str, back_data: str = None, user_id: int = None):
+async def _render_item_page(target, state: FSMContext, item_name: str, back_data: str = None,
+                            user_id: int = None, replace: bool = False):
     """
     Render the item detail page with optional promo discount.
-    `target` can be CallbackQuery or Message.
+    `target` can be CallbackQuery or Message. With a picture the card is a photo message with the
+    text as caption; `replace` forces a fresh message instead of editing the caption in place.
     """
     data = await state.get_data()
     if not back_data:
@@ -80,7 +92,7 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
 
     reviews_enabled = EnvKeys.REVIEWS_ENABLED == "1"
 
-    reads = [select_item_values_amount_cached(item_name), check_value_cached(item_name)]
+    reads = [select_item_stock_cached(item_name)]
     if reviews_enabled:
         reads.append(get_item_avg_rating(item_name))
         reads.append(query_item_reviews(item_name, count_only=True))
@@ -88,18 +100,13 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
             reads.append(has_purchased_item(user_id, item_name))
     results = await asyncio.gather(*reads)
 
-    quantity, is_infinite = results[0], results[1]
-    avg_rating = results[2] if reviews_enabled else None
-    review_count_val = results[3] if reviews_enabled else 0
-    purchased = results[4] if (reviews_enabled and user_id) else False
+    stock = results[0]
+    avg_rating = results[1] if reviews_enabled else None
+    review_count_val = results[2] if reviews_enabled else 0
+    purchased = results[3] if (reviews_enabled and user_id) else False
 
-    quantity_line = (
-        localize("shop.item.quantity_unlimited")
-        if is_infinite
-        else localize("shop.item.quantity_left", count=quantity)
-    )
-
-    out_of_stock = (not is_infinite) and quantity == 0
+    out_of_stock = stock <= 0
+    quantity_line = localize("shop.item.out_of_stock") if out_of_stock else localize("shop.item.in_stock", count=stock)
     subscribed = bool(
         out_of_stock and user_id and await is_subscribed_to_stock(user_id, item_name)
     )
@@ -144,25 +151,93 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
         out_of_stock=out_of_stock, subscribed=subscribed,
     )
 
-    text_lines = [
-        localize("shop.item.title", name=esc(item_name)),
-        localize("shop.item.description", description=esc(item_info_data["description"])),
-        price_line,
-        quantity_line,
-    ]
-    if reviews_enabled and avg_rating is not None:
-        text_lines.append(localize("review.avg_rating", rating=avg_rating, count=review_count_val))
+    description = item_info_data["description"]
 
-    text = "\n".join(text_lines)
+    def build_text(desc: str) -> str:
+        lines = [
+            localize("shop.item.title", name=esc(item_name)),
+            localize("shop.item.description", description=esc(desc)),
+            price_line,
+            quantity_line,
+        ]
+        if reviews_enabled and avg_rating is not None:
+            lines.append(localize("review.avg_rating", rating=avg_rating, count=review_count_val))
+        return "\n".join(lines)
+
+    text = build_text(description)
+
+    image_ref = await get_item_image_ref(item_name)
+    message = target.message if hasattr(target, 'message') else None
+    on_photo = is_photo_message(message)
+
+    if image_ref is not None:
+        caption = _fit_caption(build_text, description)
+        try:
+            if on_photo and not replace:
+                # Same card, same picture: only the caption and keyboard change.
+                await message.edit_caption(caption=caption, reply_markup=markup)
+                return
+            sent = await _send_card_photo(message or target, item_name, image_ref, caption, markup)
+        except TelegramBadRequest as e:
+            if "message is not modified" in str(e):
+                return
+            raise
+        if sent:
+            if message is not None:
+                with contextlib.suppress(TelegramAPIError):
+                    await message.delete()
+            return
+        # The picture is gone: show the plain text card instead.
 
     try:
-        if hasattr(target, 'message') and hasattr(target.message, 'edit_text'):
-            await target.message.edit_text(text, reply_markup=markup)
+        if message is not None:
+            await edit_screen(target, text, reply_markup=markup)
         else:
             await target.answer(text, reply_markup=markup)
     except TelegramBadRequest as e:
         if "message is not modified" not in str(e):
             raise
+
+
+def _fit_caption(build_text, description: str) -> str:
+    """The card text, with the description trimmed (ellipsis) so it fits a photo caption."""
+    text = build_text(description)
+    if len(text) <= CAPTION_LIMIT:
+        return text
+    lo, hi = 0, len(description)
+    while lo < hi:                                  # longest description prefix that still fits
+        mid = (lo + hi + 1) // 2
+        if len(build_text(description[:mid].rstrip() + "…")) <= CAPTION_LIMIT:
+            lo = mid
+        else:
+            hi = mid - 1
+    return build_text(description[:lo].rstrip() + "…")[:CAPTION_LIMIT]
+
+
+async def _send_card_photo(target, item_name: str, ref: dict, caption: str, markup):
+    """Send the item card as a photo. True on success, False if the picture is gone.
+
+    A cached `file_id` is tried first; if Telegram refuses it, the stale id is cleared and the
+    stored bytes are uploaded instead, and the new id is remembered.
+    """
+    file_id = ref.get("file_id")
+    if file_id:
+        try:
+            await target.answer_photo(file_id, caption=caption, reply_markup=markup)
+            return True
+        except TelegramBadRequest:
+            await store_image_file_id(item_name, None)
+
+    data = await get_item_image_bytes(item_name)
+    if not data:
+        return False
+    sent = await target.answer_photo(
+        BufferedInputFile(data, filename="item.jpg"), caption=caption, reply_markup=markup,
+    )
+    photos = getattr(sent, 'photo', None)
+    if isinstance(photos, list) and photos:
+        await store_image_file_id(item_name, photos[-1].file_id)
+    return True
 
 
 # --- Shop / categories / items ---
@@ -187,7 +262,7 @@ async def _show_categories_page(call: CallbackQuery, state: FSMContext, page: in
         )]],
     )
 
-    await call.message.edit_text(localize("shop.categories.title"), reply_markup=markup)
+    await edit_screen(call, localize("shop.categories.title"), reply_markup=markup)
     await state.update_data(
         category_page_items=list(page_items),
         category_page_num=page,
@@ -232,7 +307,7 @@ async def _show_goods_page(call: CallbackQuery, state: FSMContext,
         nav_cb_prefix="gp_",
     )
 
-    await call.message.edit_text(localize("shop.goods.choose"), reply_markup=markup)
+    await edit_screen(call, localize("shop.goods.choose"), reply_markup=markup)
     await state.update_data(
         current_category=category_name,
         goods_page_items=list(page_items),
@@ -319,11 +394,13 @@ async def _open_item(call: CallbackQuery, state: FSMContext, item_name: str, bac
 
     # Save item name and back_data in state
     updates = {"csrf_item": item_name, "item_back_data": back_data}
-    if (await state.get_data()).get('csrf_item') != item_name:
+    switched = (await state.get_data()).get('csrf_item') != item_name
+    if switched:
         updates["applied_promo"] = None
     await state.update_data(**updates)
 
-    await _render_item_page(call, state, item_name, back_data, user_id=call.from_user.id)
+    # A photo card of another item cannot have its caption reused: send a fresh message.
+    await _render_item_page(call, state, item_name, back_data, user_id=call.from_user.id, replace=switched)
 
 
 @router.callback_query(F.data.startswith('itm:'))
@@ -363,7 +440,7 @@ async def _show_search_page(target, state: FSMContext, query: str, page: int):
 
     async def _render(text, markup):
         if isinstance(target, CallbackQuery):
-            await target.message.edit_text(text, reply_markup=markup, parse_mode="HTML")
+            await edit_screen(target, text, reply_markup=markup, parse_mode="HTML")
         else:
             await target.answer(text, reply_markup=markup, parse_mode="HTML")
 
@@ -396,7 +473,7 @@ async def _show_search_page(target, state: FSMContext, query: str, page: int):
 @router.callback_query(F.data == "shop_search")
 async def shop_search_handler(call: CallbackQuery, state: FSMContext):
     """Prompt for a search query."""
-    await call.message.edit_text(localize("shop.search.prompt"), reply_markup=back("shop"))
+    await edit_screen(call, localize("shop.search.prompt"), reply_markup=back("shop"))
     await state.set_state(ShopStates.waiting_search_query)
 
 
@@ -491,7 +568,7 @@ async def _leave_promo_input(state: FSMContext) -> None:
 
 @router.callback_query(F.data == "apply_promo")
 async def apply_promo_handler(call: CallbackQuery, state: FSMContext):
-    await call.message.edit_text(localize("promo.enter_code"), reply_markup=back("back_to_item"))
+    await edit_screen(call, localize("promo.enter_code"), reply_markup=back("back_to_item"))
     await state.update_data(pre_promo_state=await state.get_state())
     await state.set_state(PromoFSM.waiting_item_code)
 
@@ -540,7 +617,8 @@ async def back_to_item_handler(call: CallbackQuery, state: FSMContext):
     item_name = data.get('csrf_item')
     if not item_name:
         # Fallback
-        await call.message.edit_text(
+        await edit_screen(
+            call,
             localize("shop.item.not_found"),
             reply_markup=back("back_to_menu"),
         )
@@ -553,7 +631,7 @@ async def back_to_item_handler(call: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "redeem_promo")
 async def redeem_promo_handler(call: CallbackQuery, state: FSMContext):
-    await call.message.edit_text(localize("promo.enter_redeem_code"), reply_markup=back("profile"))
+    await edit_screen(call, localize("promo.enter_redeem_code"), reply_markup=back("profile"))
     await state.set_state(PromoFSM.waiting_redeem_code)
 
 
@@ -603,7 +681,8 @@ async def start_review_handler(call: CallbackQuery, state: FSMContext):
         return
 
     await state.update_data(review_item_name=item_name)
-    await call.message.edit_text(
+    await edit_screen(
+        call,
         localize("review.prompt_rating", name=esc(item_name)),
         reply_markup=rating_keyboard(),
     )
@@ -624,7 +703,8 @@ async def receive_rating_handler(call: CallbackQuery, state: FSMContext):
         (localize("btn.skip_review_text"), "skip_review_text"),
         (localize("btn.back"), "back_to_menu"),
     ]
-    await call.message.edit_text(
+    await edit_screen(
+        call,
         localize("review.prompt_text"),
         reply_markup=simple_buttons(buttons),
     )
@@ -654,7 +734,8 @@ async def _submit_review(user_id: int, state: FSMContext, text: str | None) -> b
 @router.callback_query(F.data == "skip_review_text", ReviewFSM.waiting_text)
 async def skip_review_text_handler(call: CallbackQuery, state: FSMContext):
     ok = await _submit_review(call.from_user.id, state, None)
-    await call.message.edit_text(
+    await edit_screen(
+        call,
         localize("review.created" if ok else "errors.something_wrong"),
         reply_markup=back("back_to_menu"),
     )
@@ -698,7 +779,8 @@ async def view_reviews_handler(call: CallbackQuery, state: FSMContext):
     total_pages = await paginator.get_total_pages()
 
     if not reviews:
-        await call.message.edit_text(
+        await edit_screen(
+            call,
             localize("review.list_empty"),
             reply_markup=back("back_to_item"),
         )
@@ -729,117 +811,127 @@ async def view_reviews_handler(call: CallbackQuery, state: FSMContext):
         kb.row(*nav_buttons)
     kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="back_to_item"))
 
-    await call.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
+    await edit_screen(call, "\n".join(lines), reply_markup=kb.as_markup())
 
 
-# --- Bought items ---
+# --- My orders ---
 
-@router.callback_query(F.data == "bought_items")
-async def bought_items_callback_handler(call: CallbackQuery, state: FSMContext):
-    """
-    Show list of user's purchased items with lazy loading.
-    """
-    user_id = call.from_user.id
+def _orders_back(page: int) -> str:
+    return f"my-orders-page_{page}"
 
-    # Create paginator for user's bought items
-    query_func = partial(query_user_bought_items, user_id)
-    paginator = LazyPaginator(query_func, per_page=10)
 
-    markup = await lazy_paginated_keyboard(
-        paginator=paginator,
-        item_text=lambda item: item.item_name,
-        item_callback=lambda item: f"bought-item:{item.id}:bought-goods-page_user_0",
-        page=0,
-        back_cb="profile",
-        nav_cb_prefix="bought-goods-page_user_"
-    )
-
-    await call.message.edit_text(localize("purchases.title"), reply_markup=markup)
-
-    # Save paginator state
-@router.callback_query(F.data.startswith('bought-goods-page_'))
-async def navigate_bought_items(call: CallbackQuery, state: FSMContext):
-    """
-    Pagination for user's purchased items with lazy loading.
-    Format: 'bought-goods-page_{data}_{page}', where data = 'user' or user_id.
-    """
-    parts = call.data.split('_')
-    if len(parts) < 3:
-        await call.answer(localize("purchases.pagination.invalid"))
+async def _show_orders_page(call: CallbackQuery, user_id: int, page: int):
+    """Render one page of the customer's orders, newest first."""
+    paginator = LazyPaginator(partial(query_user_orders, user_id), per_page=10)
+    if not await paginator.get_total_count():
+        await call.message.edit_text(localize("orders.title") + "\n\n" + localize("orders.empty"),
+                                     reply_markup=back("profile"))
         return
 
-    data_type = parts[1]
-    try:
-        current_index = int(parts[2])
-    except ValueError:
-        current_index = 0
-
-    if data_type == 'user':
-        user_id = call.from_user.id
-        back_cb = 'profile'
-        pre_back = f'bought-goods-page_user_{current_index}'
-    else:
-        # Admin path: viewing another user's purchases. Gate on USERS_MANAGE — this callback prefix is not covered by the auth middleware.
-        from bot.database.methods import check_role_cached
-        caller_perms = await check_role_cached(call.from_user.id) or 0
-        if not Permission.granted(caller_perms, Permission.USERS_MANAGE):
-            await call.answer(localize("middleware.security.not_admin"), show_alert=True)
-            return
-        try:
-            user_id = int(data_type)
-        except ValueError:
-            await call.answer(localize("purchases.pagination.invalid"))
-            return
-        back_cb = f'check-user_{data_type}'
-        pre_back = f'bought-goods-page_{data_type}_{current_index}'
-
-    # Create paginator
-    query_func = partial(query_user_bought_items, user_id)
-    paginator = LazyPaginator(query_func, per_page=10)
-
     markup = await lazy_paginated_keyboard(
         paginator=paginator,
-        item_text=lambda item: item.item_name,
-        item_callback=lambda item: f"bought-item:{item.id}:{pre_back}",
-        page=current_index,
-        back_cb=back_cb,
-        nav_cb_prefix=f"bought-goods-page_{data_type}_"
+        item_text=lambda o: localize(
+            "orders.item", id=o.id, status=localize(f"order.status.{o.status}"),
+            total=o.total, currency=EnvKeys.PAY_CURRENCY,
+        ),
+        item_callback=lambda o: f"my_order:{o.id}:{page}",
+        page=page,
+        back_cb="profile",
+        nav_cb_prefix="my-orders-page_",
     )
+    await call.message.edit_text(localize("orders.title"), reply_markup=markup)
 
-    await call.message.edit_text(localize("purchases.title"), reply_markup=markup)
+
+@router.callback_query(F.data == "my_orders")
+async def my_orders_handler(call: CallbackQuery, state: FSMContext):
+    """The customer's order list. First page."""
+    await _show_orders_page(call, call.from_user.id, 0)
 
 
-@router.callback_query(F.data.startswith('bought-item:'))
-async def bought_item_info_callback_handler(call: CallbackQuery):
-    """
-    Show details for a purchased item.
+@router.callback_query(F.data.startswith("my-orders-page_"))
+async def navigate_my_orders(call: CallbackQuery, state: FSMContext):
+    """Pagination for the order list. Format: my-orders-page_{page}"""
+    page = _page_arg(call.data.split("_", 1)[1])
+    if page is None:
+        await call.answer(localize("errors.pagination_invalid"), show_alert=True)
+        return
+    await _show_orders_page(call, call.from_user.id, page)
 
-    Scoped to the caller's own purchases; an admin with USERS_MANAGE may view
-    any buyer's row (falls back to an unscoped lookup only after the permission
-    check).
-    """
+
+def _order_ref(data: str) -> tuple[int, int] | None:
+    """Parse ``prefix:{order_id}[:{page}]`` into (order_id, page)."""
+    parts = data.split(":")
     try:
-        _prefix, item_id_str, back_data = call.data.split(':', 2)
-        item_id = int(item_id_str)
-    except ValueError:
+        order_id = int(parts[1])
+        page = int(parts[2]) if len(parts) > 2 else 0
+    except (ValueError, IndexError):
+        return None
+    return (order_id, page) if page >= 0 else None
+
+
+async def _show_order(call: CallbackQuery, order_id: int, page: int):
+    """The order card, only ever for the caller's own order."""
+    order = await get_order(order_id, user_id=call.from_user.id)
+    if not order:
+        await call.answer(localize("orders.not_found"), show_alert=True)
+        return
+    try:
+        await call.message.edit_text(
+            format_order(order), reply_markup=order_keyboard(order, back_cb=_orders_back(page)),
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
+
+
+@router.callback_query(F.data.startswith("my_order:"))
+async def my_order_handler(call: CallbackQuery, state: FSMContext):
+    """Order detail. Format: my_order:{id}[:{page}] (the bare form comes from status notices)."""
+    ref = _order_ref(call.data)
+    if ref is None:
         await call.answer(localize("errors.invalid_data"), show_alert=True)
         return
+    await _show_order(call, *ref)
 
-    item = await get_bought_item_info(item_id, buyer_id=call.from_user.id)
-    if not item:
-        from bot.database.methods import check_role_cached
-        caller_perms = await check_role_cached(call.from_user.id) or 0
-        if Permission.granted(caller_perms, Permission.USERS_MANAGE):
-            item = await get_bought_item_info(item_id)
-    if not item:
-        await call.answer(localize("purchases.item.not_found"), show_alert=True)
+
+@router.callback_query(F.data.startswith("my_order_cancel:"))
+async def my_order_cancel_ask_handler(call: CallbackQuery, state: FSMContext):
+    """Ask before cancelling. Format: my_order_cancel:{id}[:{page}]"""
+    ref = _order_ref(call.data)
+    if ref is None:
+        await call.answer(localize("errors.invalid_data"), show_alert=True)
+        return
+    order_id, page = ref
+    await call.message.edit_text(
+        localize("orders.cancel_confirm", id=order_id),
+        reply_markup=simple_buttons([
+            (localize("btn.yes"), f"my_order_cancel_yes:{order_id}:{page}"),
+            (localize("btn.no"), f"my_order:{order_id}:{page}"),
+        ]),
+    )
+
+
+@router.callback_query(F.data.startswith("my_order_cancel_yes:"))
+async def my_order_cancel_handler(call: CallbackQuery, state: FSMContext):
+    """Cancel the caller's own order and put its stock back. Format: my_order_cancel_yes:{id}[:{page}]"""
+    ref = _order_ref(call.data)
+    if ref is None:
+        await call.answer(localize("errors.invalid_data"), show_alert=True)
+        return
+    order_id, page = ref
+
+    ok, code, order = await cancel_order_transaction(order_id, by_customer_id=call.from_user.id, reason="customer")
+    if not ok:
+        error_map = {
+            "order_not_found": localize("orders.not_found"),
+            "not_cancellable": localize("orders.not_cancellable"),
+        }
+        await call.answer(error_map.get(code, localize("errors.something_wrong")), show_alert=True)
+        await _show_order(call, order_id, page)
         return
 
-    text = "\n".join([
-        localize("purchases.item.name", name=esc(item["item_name"])),
-        localize("purchases.item.price", amount=item["price"], currency=EnvKeys.PAY_CURRENCY),
-        localize("purchases.item.datetime", dt=item["bought_datetime"]),
-        localize("purchases.item.unique_id", uid=item["unique_id"]),
-        localize("purchases.item.value", value=esc(item["value"])),
-    ])
-    await call.message.edit_text(text, parse_mode='HTML', reply_markup=back(back_data))
+    await call.answer(localize("orders.cancelled", id=order_id))
+    for name in order.get("restocked", []):
+        # Waiting customers learn the item is back; don't hold up this reply for the broadcast.
+        safe_create_task(notify_restock(call.bot, name))
+    await _show_order(call, order_id, page)

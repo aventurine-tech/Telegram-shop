@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% block content_header %}{% endblock %}
+{% block content %}
+<div class="container-xl py-3">
+  <div class="mb-3">
+    <h2 class="mb-1">{{ _('web.my.title') }}</h2>
+    <div class="text-muted">
+      {{ _('web.my.signed_in_as', username=user.username) }} &middot;
+      {{ _('web.my.role', role=_('web.role.' ~ user.role)) }}
+    </div>
+  </div>
+
+  {% if message %}<div class="alert alert-success" role="status">{{ message }}</div>{% endif %}
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="row row-cards">
+    <div class="col-lg-6">
+      <form class="card" method="POST" action="{{ request.url_for('admin:my-account') }}" autocomplete="off">
+        <input type="hidden" name="form" value="password">
+        <div class="card-header"><h3 class="card-title">{{ _('web.my.password_title') }}</h3></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">{{ _('web.my.current_password') }}</label>
+            <input name="current_password" type="password" class="form-control" autocomplete="current-password" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">{{ _('web.my.new_password') }}</label>
+            <input name="new_password" type="password" class="form-control" autocomplete="new-password" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">{{ _('web.my.confirm_password') }}</label>
+            <input name="confirm_password" type="password" class="form-control" autocomplete="new-password" required>
+          </div>
+          <button type="submit" class="btn btn-primary">{{ _('web.my.password_submit') }}</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="col-lg-6">
+      <form class="card" method="POST" action="{{ request.url_for('admin:my-account') }}">
+        <input type="hidden" name="form" value="language">
+        <div class="card-header"><h3 class="card-title">{{ _('web.my.language_title') }}</h3></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">{{ _('web.language') }}</label>
+            <select name="language" class="form-select">
+              {% for code, label in languages %}
+              <option value="{{ code }}" {{ 'selected' if code == current_language() }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-hint">{{ _('web.my.language_hint') }}</div>
+          </div>
+          <button type="submit" class="btn btn-primary">{{ _('web.my.language_submit') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

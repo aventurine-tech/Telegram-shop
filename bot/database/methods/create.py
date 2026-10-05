@@ -1,10 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select, exists, func as sa_func, insert as sa_insert
+from sqlalchemy import select, exists, func as sa_func
 from sqlalchemy.exc import IntegrityError
 
-from bot.database.models import User, ItemValues, Goods, Categories, Payments, Role
+from bot.database.models import User, Goods, Categories, Role
 from bot.database.models.main import PromoCodes, CartItems, Reviews, StockSubscriptions, promo_scope_for
 from bot.database import Database
 from bot.database.methods.cache_utils import safe_create_task
@@ -36,8 +36,9 @@ async def create_user(telegram_id: int, registration_date: datetime, referral_id
             await s.rollback()
 
 
-async def create_item(item_name: str, item_description: str, item_price: int, category_name: str) -> None:
-    """Insert item (goods); commit. Resolves category_name to category_id."""
+async def create_item(item_name: str, item_description: str, item_price: int, category_name: str,
+                      stock: int = 0) -> None:
+    """Insert item (goods) with its initial stock; commit. Resolves category_name to category_id."""
     async with Database().session() as s:
         result = await s.execute(select(exists().where(Goods.name == item_name)))
         if result.scalar():
@@ -51,127 +52,13 @@ async def create_item(item_name: str, item_description: str, item_price: int, ca
                 description=item_description,
                 price=item_price,
                 category_id=cat,
+                stock=max(int(stock), 0),
             )
         )
 
     safe_create_task(invalidate_stats_cache())
     # The category's cached item count changed.
     safe_create_task(invalidate_category_cache(category_name))
-
-
-async def add_values_to_item(item_name: str, value: str, is_infinity: bool) -> bool:
-    """Add item value if not duplicate; True if inserted. Resolves item_name to item_id."""
-    value_norm = (value or "").strip()
-    if not value_norm:
-        return False
-
-    try:
-        async with Database().session() as s:
-            item_id = (await s.execute(select(Goods.id).where(Goods.name == item_name))).scalar()
-            if not item_id:
-                return False
-
-            dup = (await s.execute(
-                select(exists().where(
-                    ItemValues.item_id == item_id,
-                    ItemValues.value == value_norm,
-                ))
-            )).scalar()
-            if dup:
-                return False
-
-            s.add(ItemValues(item_id=item_id, value=value_norm, is_infinity=bool(is_infinity)))
-    except IntegrityError:
-        return False
-
-    # Invalidate only after the commit succeeded.
-    safe_create_task(invalidate_item_cache(item_name))
-    return True
-
-
-def normalize_values(values: list[str]) -> tuple[list[str], int, int]:
-    """Trim, drop blanks and de-duplicate a batch of stock values.
-
-    Returns ``(normalized, skipped_batch_dup, skipped_invalid)``. Shared by the
-    bulk insert and replace_item_stock_and_meta so the two cannot drift.
-    """
-    seen: set[str] = set()
-    normalized: list[str] = []
-    skipped_dup = 0
-    skipped_invalid = 0
-    for v in values:
-        v_norm = (v or "").strip()
-        if not v_norm:
-            skipped_invalid += 1
-        elif v_norm in seen:
-            skipped_dup += 1
-        else:
-            seen.add(v_norm)
-            normalized.append(v_norm)
-    return normalized, skipped_dup, skipped_invalid
-
-
-async def add_values_bulk(
-        item_name: str, values: list[str], is_infinity: bool = False
-) -> tuple[int, int, int, int]:
-    """Add a whole batch of stock values in one transaction.
-
-    Returns ``(added, skipped_db_dup, skipped_batch_dup, skipped_invalid)``.
-
-    ``is_infinity`` keeps the semantics of the single-value path: an infinite
-    position holds exactly one row that is never consumed, so only the first
-    value counts.
-    """
-    normalized, skipped_batch_dup, skipped_invalid = normalize_values(values)
-    if is_infinity:
-        normalized = normalized[:1]
-    if not normalized:
-        return 0, 0, skipped_batch_dup, skipped_invalid
-
-    try:
-        async with Database().session() as s:
-            item_id = (await s.execute(
-                select(Goods.id).where(Goods.name == item_name)
-            )).scalar()
-            if not item_id:
-                return 0, 0, skipped_batch_dup, skipped_invalid
-
-            existing = set((await s.execute(
-                select(ItemValues.value).where(
-                    ItemValues.item_id == item_id,
-                    ItemValues.value.in_(normalized),
-                )
-            )).scalars().all())
-
-            to_insert = [v for v in normalized if v not in existing]
-            if to_insert:
-                # Core insert with a list of parameter sets: one executemany
-                await s.execute(
-                    sa_insert(ItemValues),
-                    [
-                        {"item_id": item_id, "value": v, "is_infinity": bool(is_infinity)}
-                        for v in to_insert
-                    ],
-                )
-
-            added = len(to_insert)
-            skipped_db_dup = len(normalized) - added
-    except IntegrityError:
-        # Lost the uq_item_value_per_item race against a concurrent upload: the
-        # batch rolled back as a whole, so fall back to inserting one at a time
-        # (idempotent) rather than reporting a failure for values that are fine.
-        added = 0
-        skipped_db_dup = 0
-        for v in normalized:
-            if await add_values_to_item(item_name, v, is_infinity):
-                added += 1
-            else:
-                skipped_db_dup += 1
-        return added, skipped_db_dup, skipped_batch_dup, skipped_invalid
-
-    if added:
-        safe_create_task(invalidate_item_cache(item_name))
-    return added, skipped_db_dup, skipped_batch_dup, skipped_invalid
 
 
 async def create_category(category_name: str) -> None:
@@ -185,19 +72,6 @@ async def create_category(category_name: str) -> None:
     safe_create_task(invalidate_stats_cache())
     # Drops the cached categories:count
     safe_create_task(invalidate_category_cache(category_name))
-
-
-async def create_pending_payment(provider: str, external_id: str, user_id: int, amount: int, currency: str) -> None:
-    """Create pending payment."""
-    async with Database().session() as s:
-        s.add(Payments(
-            provider=provider,
-            external_id=external_id,
-            user_id=user_id,
-            amount=Decimal(amount),
-            currency=currency,
-            status="pending"
-        ))
 
 
 async def create_role(name: str, permissions: int) -> int | None:

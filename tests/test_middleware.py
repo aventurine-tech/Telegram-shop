@@ -100,7 +100,7 @@ class TestRateLimitActionMapping:
     def test_browsing_is_shop_view(self, data):
         assert self._action(data) == "shop_view"
 
-    @pytest.mark.parametrize("data", ["buy_item", "add_to_cart", "cart_checkout_confirm"])
+    @pytest.mark.parametrize("data", ["buy_item", "add_to_cart", "co_confirm"])
     def test_purchase_paths_are_buy_item(self, data):
         assert self._action(data) == "buy_item"
 
@@ -110,10 +110,6 @@ class TestRateLimitActionMapping:
     def test_search_result_navigation_is_not_billed_as_a_search(self):
         assert self._action("sp_2") == "shop_view"
         assert self._action("sp_2") == self._action("gp_2")
-
-    def test_top_up_and_payment(self):
-        assert self._action("replenish_balance") == "top_up"
-        assert self._action("pay_stars") == "payment"
 
     def test_unknown_callback_is_default(self):
         assert self._action("something_else") == "default"
