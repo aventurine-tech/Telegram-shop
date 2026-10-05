@@ -1,7 +1,10 @@
 name: Tests
 
+# One run per change: a PR is tested by the pull_request event only (testing its branch on push as well ran everything
+# twice); pushes are tested only when they land on the long-lived branches.
 on:
   push:
+    branches: [development, main]
   pull_request:
   workflow_dispatch:
 
