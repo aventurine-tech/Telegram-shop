@@ -10,6 +10,7 @@
            class="btn btn-sm {{ 'btn-primary' if code == current_language() else 'btn-outline-secondary' }}">{{ label }}</a>
         {% endfor %}
       </div>
+      <div class="text-center mb-3">{% include '_theme_toggle.html' %}</div>
       <h2 class="card-title text-center mb-4">{{ _('web.login.title', title=admin.title) }}</h2>
       <div class="mb-3">
         <label class="form-label">{{ _('web.login.username') }}</label>

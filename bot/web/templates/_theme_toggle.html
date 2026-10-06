@@ -1,0 +1,6 @@
+{# Light / dark switch; the script at the end of base.html wires it up and picks the label. #}
+<button type="button" class="btn btn-sm {{ theme_btn_class or 'btn-outline-secondary' }} theme-toggle" data-theme-toggle
+  data-label-dark="{{ _('web.theme.dark') }}" data-label-light="{{ _('web.theme.light') }}"
+  title="{{ _('web.theme.toggle') }}" aria-label="{{ _('web.theme.toggle') }}">
+  <i class="theme-icon fa-solid fa-moon"></i> <span class="theme-label">{{ _('web.theme.dark') }}</span>
+</button>

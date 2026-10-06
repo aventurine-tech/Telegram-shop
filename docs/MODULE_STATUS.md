@@ -20,7 +20,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Client profiles** | #22 | ✅ | `test_client_profiles` | names fill as people use the bot; phone/address from latest order; no import by design |
 | **Mailings** (web) | #20, #21 | ✅ 🔧 | `test_mailings_core`, `test_web_mailings` | Admin only; UTC schedule; interrupted ≠ resumed; no per-recipient log; **not yet tried against live Telegram** — send a test first |
 | **Text broadcast** (bot) | upstream | ✅ | `test_broadcast*` | the older in-chat broadcast |
-| **Web panel shell** — grouped sidebar, translated chrome, My account | #19, #21 | ✅ | `test_web_menu`, `test_web_i18n`, `test_web_accounts` | built on SQLAdmin 0.16.1 with template overrides |
+| **Web panel shell** — grouped sidebar, translated chrome, My account, **light/dark theme** | #19, #21, theme PR | ✅ | `test_web_menu`, `test_web_i18n`, `test_web_accounts` | built on SQLAdmin 0.16.1 with template overrides |
 | **Web accounts & roles** | #1, #15 | ✅ | `test_web_accounts`, `test_role_management`, `test_web_roles_orders` | Admin/Staff levels; role permissions as tags; no 2FA |
 | **Languages** (bot + web) | #1, #21 | ✅ | `test_i18n`, `test_language_picker`, `test_web_i18n` | en/ru/ro parity enforced by tests |
 | **Bottom menu + welcome line** | #5, #14, #16, #17 | 🟡 | `test_bottom_nav`, `test_language_picker` | one short line always stays at the top; a real-device check after the last changes is still pending |

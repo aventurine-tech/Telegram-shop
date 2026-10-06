@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Light / dark theme (2026-10-06)
+- **Added** a light/dark switch in the web panel (sidebar and login page): follows the system preference on first visit, remembers the choice
+  in the browser, applied before the first paint (no white flash). Dark palette for cards, tables, forms, dialogs, pagination, Select2 and
+  the date picker; the mailing preview bubble and permission tags are themed too. Labels in en/ru/ro.
+- **Changed** own `base.html`; inline light-only colours replaced by themed classes (`shop-pill`, `tg-bubble`).
+
 ### #25 — CI runs once per change (2026-10-06)
 - **Changed** the workflow no longer triggers on both `push` and `pull_request` (which ran every check twice per PR update): PRs are tested by
   the `pull_request` event, pushes only on `development`/`main`.
