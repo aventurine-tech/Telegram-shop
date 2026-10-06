@@ -16,6 +16,7 @@ from bot.database.methods import check_category_cached
 from bot.database.methods.audit import start_audit_buffer, stop_audit_buffer
 from bot.handlers.admin.shop_management import init_stats_cache
 from bot.misc import EnvKeys
+from bot.misc.bot_commands import setup_bot_commands
 from bot.handlers import register_all_handlers
 from bot.database.models import register_models
 from bot.logger_mesh import configure_logging
@@ -415,6 +416,7 @@ async def start_bot() -> None:
         logging.info(f"Starting bot: @{bot_info.username} (ID: {bot_info.id})")
 
         await _startup(dp, bot, ctx, storage)
+        await setup_bot_commands(bot)
 
         try:
             if EnvKeys.WEBHOOK_ENABLED == "1" and EnvKeys.WEBHOOK_URL:

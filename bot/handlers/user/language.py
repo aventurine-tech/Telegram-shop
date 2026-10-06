@@ -13,6 +13,7 @@ from bot.handlers.user.main import (
 from bot.i18n import localize, use_language, LANGUAGES, LANGUAGE_CODES
 from bot.keyboards.inline import language_keyboard
 from bot.logger_mesh import logger
+from bot.misc.bot_commands import set_user_commands
 
 router = Router()
 
@@ -99,6 +100,7 @@ async def choose_language(call: CallbackQuery, state: FSMContext):
         await call.answer(localize("errors.something_wrong"), show_alert=True)
         return
     await invalidate_user_cache(user_id)
+    await set_user_commands(call.bot, user_id, code)      # the ☰ menu follows the language picked here
 
     with use_language(code):
         await call.answer(localize("language.changed", language=_LABELS[code]))

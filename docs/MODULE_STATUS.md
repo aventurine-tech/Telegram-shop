@@ -10,6 +10,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Weight options** | #7, #12, #13 | 🟡 | `test_product_options_*` | changing an option's **label** in the web rows = delete + create (its stock is lost); renaming a head in the bot does not rename options; head delete removes options in a separate step |
 | **Translated catalog** | #3, #4, #11 | ✅ | `test_localized_catalog_*`, `test_admin_language_*`, `test_web_translations` | product name is one field in the web form; descriptions per language |
 | **Product pictures** | #1 | ✅ | `test_images`, `test_web_images`, `test_item_card_photo` | stored as uploaded (≤ 10 MB); options show the head's picture |
+| **Bot command menu** (☰ next to the input field) | command-menu PR | ✅ | `test_bot_commands` | per-language lists published at startup; per-chat list follows the language chosen in the bot; Telegram may take a moment to refresh the menu |
 | **Favorites** (⭐ on the card, paged list in the profile) | favorites PR | ✅ | `test_favorites` | stars the head product; opened from the profile; command `/favorites` comes with the command menu |
 | **Cart, promo codes (applied in the cart), sales, reviews, restock notify** | upstream, adapted | ✅ | `test_cart_reviews`, `test_cart_promo`, `test_promo_*`, `test_sales`, `test_user_handlers` | |
 | **Checkout** (delivery/pickup, name, phone, address, shipping, comment, payment, summary) | #1, #23 | ✅ | `test_payment_handlers`, `test_shipping` | |

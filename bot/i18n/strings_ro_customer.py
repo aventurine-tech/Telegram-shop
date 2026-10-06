@@ -10,6 +10,13 @@ TRANSLATIONS = {"ro": {
 
         # === Profile / orders list ===
         "profile.orders_count": "📦 <b>Comenzi</b> — {count}",
+        "cmd.start": "Meniu principal",
+        "cmd.catalog": "Catalog",
+        "cmd.cart": "Coș",
+        "cmd.orders": "Comenzile mele",
+        "cmd.favorites": "Favorite",
+        "cmd.profile": "Profil",
+        "cmd.language": "Limbă",
         "profile.name": "🙍 <b>Nume</b> — {value}",
         "profile.phone": "📱 <b>Telefon</b> — {value}",
         "profile.city": "🏙 <b>Oraș</b> — {value}",

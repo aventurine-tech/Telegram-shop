@@ -231,6 +231,7 @@ _LOCALIZING_MODULES = (
     'bot.handlers.user.balance_and_payment',
     'bot.handlers.user.language',
     'bot.handlers.user.profile_details',
+    'bot.handlers.user.commands',
     'bot.handlers.user.bottom_nav',
     'bot.keyboards.reply',
     'bot.handlers.admin.user_management',

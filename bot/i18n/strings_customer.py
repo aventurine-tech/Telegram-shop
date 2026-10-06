@@ -13,6 +13,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # === Profile / orders list ===
         "profile.orders_count": "📦 <b>Заказов</b> — {count}",
+        "cmd.start": "Главное меню",
+        "cmd.catalog": "Каталог",
+        "cmd.cart": "Корзина",
+        "cmd.orders": "Мои заказы",
+        "cmd.favorites": "Избранное",
+        "cmd.profile": "Профиль",
+        "cmd.language": "Язык",
         "profile.name": "🙍 <b>Имя</b> — {value}",
         "profile.phone": "📱 <b>Телефон</b> — {value}",
         "profile.city": "🏙 <b>Город</b> — {value}",
@@ -151,6 +158,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # === Profile / orders list ===
         "profile.orders_count": "📦 <b>Orders</b> — {count}",
+        "cmd.start": "Main menu",
+        "cmd.catalog": "Catalog",
+        "cmd.cart": "Cart",
+        "cmd.orders": "My orders",
+        "cmd.favorites": "Favorites",
+        "cmd.profile": "Profile",
+        "cmd.language": "Language",
         "profile.name": "🙍 <b>Name</b> — {value}",
         "profile.phone": "📱 <b>Phone</b> — {value}",
         "profile.city": "🏙 <b>City</b> — {value}",

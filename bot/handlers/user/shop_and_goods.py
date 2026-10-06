@@ -997,12 +997,12 @@ def _orders_back(page: int) -> str:
     return f"my-orders-page_{page}"
 
 
-async def _show_orders_page(call: CallbackQuery, user_id: int, page: int):
-    """Render one page of the customer's orders, newest first."""
+async def _show_orders_page(call: CallbackQuery | Message, user_id: int, page: int):
+    """Render one page of the customer's orders, newest first (into the pressed message, or as a new message)."""
     paginator = LazyPaginator(partial(query_user_orders, user_id), per_page=10)
     if not await paginator.get_total_count():
-        await call.message.edit_text(localize("orders.title") + "\n\n" + localize("orders.empty"),
-                                     reply_markup=back("profile"))
+        await edit_screen(call, localize("orders.title") + "\n\n" + localize("orders.empty"),
+                          reply_markup=back("profile"))
         return
 
     markup = await lazy_paginated_keyboard(
@@ -1016,7 +1016,7 @@ async def _show_orders_page(call: CallbackQuery, user_id: int, page: int):
         back_cb="profile",
         nav_cb_prefix="my-orders-page_",
     )
-    await call.message.edit_text(localize("orders.title"), reply_markup=markup)
+    await edit_screen(call, localize("orders.title"), reply_markup=markup)
 
 
 @router.callback_query(F.data == "my_orders")
