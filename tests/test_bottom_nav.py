@@ -202,6 +202,9 @@ class TestRouterOrder:
         order = list(dp.sub_routers)
         assert order.index(language_router) < order.index(bottom_nav.router) < order.index(admin_router)
         assert order.index(bottom_nav.router) < order.index(user_router)
+        # the ☰ menu commands sit between the language picker and the bottom keyboard
+        from bot.handlers.user.commands import router as commands_router
+        assert order.index(language_router) < order.index(commands_router) < order.index(bottom_nav.router)
 
 
 class TestCarrierReplacement:

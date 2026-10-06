@@ -10,6 +10,11 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Bot command menu (2026-10-06)
+- **Added** the ☰ menu next to the input field: `/start` Main menu · `/catalog` · `/cart` · `/orders` · `/favorites` · `/profile` · `/language`, published
+  per language (en/ru/ro, default = the shop's main language) at startup; changing the language in the bot also sets that chat's menu.
+- **Added** command handlers (private chats) that open the same screens as the buttons, drop any flow in progress and remove the typed command.
+
 ### Profile details (2026-10-06)
 - **Added** Profile → **My details**: Name and surname, Phone, City, Address, each edited by typing (validated, clearable); the profile shows them.
 - **Added** checkout "use saved" for the name (button), phone (keyboard button) and "city, address" (button); an order saves the name and keeps

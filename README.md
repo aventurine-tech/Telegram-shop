@@ -84,6 +84,8 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 - **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
   a message at every step and can open **My orders** at any time; staff get an alert for every
   new order and every "I've paid" claim.
+- **Command menu** — the ☰ button next to the input field lists `/start`, `/catalog`, `/cart`, `/orders`, `/favorites`, `/profile`, `/language`
+  in the customer's language; each opens the same screen as the matching button.
 - **Favorites** — every product card has a ⭐ button; the profile's **Favorites** list (paged) opens the cards. A weight
   option stars its main product. (The card no longer has *Order now* or a promo button: add to cart, apply the promo there.)
 - **Store balance & referrals** — admins can credit a customer's balance, balance promo codes
