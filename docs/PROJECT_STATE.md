@@ -56,6 +56,7 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 - GitHub through the MCP tools (no `gh`); PR/branch rules in `GIT_WORKFLOW.md`.
 
 ## Resume checklist for a new session
+(Ready-made prompt: [`NEW_SESSION_PROMPT.md`](NEW_SESSION_PROMPT.md).)
 1. Read `AGENTS.md` (+ `CLAUDE.md`), then this file.
 2. `git fetch origin`; check `origin/development` vs. your branch; check open PRs and their CI.
 3. Ask the owner only for the open items above that still block you.
