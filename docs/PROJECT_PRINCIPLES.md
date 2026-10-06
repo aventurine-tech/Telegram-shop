@@ -88,6 +88,7 @@ Everything the owner asked for or ruled on, with where it lives. IDs are stable 
 | R-42 | **Mailings** like Botobot, better: image, rich text (bold/italic/link), placeholders with defaults, segments, schedule, live preview + counter, test to myself, message options, delivered N out of M | #20 |
 | R-43 | Options of a product inside the product form as rows with a **＋** button ("Option 1, Option 2") | #13 |
 | R-44 | Shipping functionality (delivery methods with prices) managed in the panel, off until configured | #23 |
+| R-45 | Product card: **⭐ Favorites** under each product; **no "Order now"** under the product; **Apply promo code lives in the Cart** between Checkout and Clear cart | favorites PR |
 
 ### Catalog source
 | ID | Requirement | Status |

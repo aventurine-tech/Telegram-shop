@@ -14,12 +14,14 @@ from bot.database.methods import (
 )
 from bot.database.methods.read import (
     get_category_by_id, category_children_count, check_category_cached,
-    get_item_avg_rating, has_purchased_item, validate_promo_for_item,
+    get_item_avg_rating, has_purchased_item,
     get_user_review, invalidate_rating_cache, is_subscribed_to_stock,
     get_item_family, get_option_by_id, get_head_name,
 )
+from bot.database.methods.favorites import (
+    PAGE_SIZE as FAVORITES_PAGE_SIZE, is_favorite, item_name_by_id, list_favorites, toggle_favorite,
+)
 from bot.database.methods.orders import get_order, cancel_order_transaction
-from bot.database.methods.pricing import apply_promo_discount
 from bot.database.methods.create import create_review, subscribe_to_stock
 from bot.database.methods.delete import unsubscribe_from_stock
 from bot.database.methods.lazy_queries import (
@@ -33,7 +35,7 @@ from bot.database.methods.product_images import (
     get_item_image_ref, get_item_image_bytes, store_image_file_id,
 )
 from bot.keyboards import item_info, back, lazy_paginated_keyboard, order_keyboard
-from bot.keyboards.inline import simple_buttons, rating_keyboard
+from bot.keyboards.inline import simple_buttons, rating_keyboard, favorites_keyboard
 from aiogram.types import InlineKeyboardButton
 from bot.i18n import localize, esc
 from bot.database.methods.translations import category_labels, item_labels
@@ -107,7 +109,7 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
 
     reviews_enabled = EnvKeys.REVIEWS_ENABLED == "1"
 
-    reads = [select_item_stock_cached(item_name)]
+    reads = [select_item_stock_cached(item_name), is_favorite(user_id, item_name) if user_id else asyncio.sleep(0, False)]
     if reviews_enabled:
         reads.append(get_item_avg_rating(review_name))
         reads.append(query_item_reviews(review_name, count_only=True))
@@ -116,9 +118,10 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
     results = await asyncio.gather(*reads)
 
     stock = results[0]
-    avg_rating = results[1] if reviews_enabled else None
-    review_count_val = results[2] if reviews_enabled else 0
-    purchased = results[3] if (reviews_enabled and user_id) else False
+    favorite = bool(results[1])
+    avg_rating = results[2] if reviews_enabled else None
+    review_count_val = results[3] if reviews_enabled else 0
+    purchased = results[4] if (reviews_enabled and user_id) else False
 
     out_of_stock = stock <= 0
     quantity_line = localize("shop.item.out_of_stock") if out_of_stock else localize("shop.item.in_stock", count=stock)
@@ -126,29 +129,11 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
         out_of_stock and user_id and await is_subscribed_to_stock(user_id, item_name)
     )
 
-    # Build price line. Sale price (if any) is the base; a promo stacks on top.
+    # Price line: the sale price (if any) is the base; promo codes are applied in the cart.
     sale_price, on_sale, original_price = effective_price(item_info_data)
     price = sale_price
 
-    applied_promo = data.get('applied_promo')
-    discounted = None
-    if applied_promo and user_id:
-        valid, _err, promo = await validate_promo_for_item(applied_promo, item_name, user_id)
-        if valid:
-            discounted = apply_promo_discount(
-                price, promo['discount_type'], promo['discount_value'], 1
-            )
-        else:
-            applied_promo = None
-            await state.update_data(applied_promo=None)
-
-    if discounted is not None:
-        price_line = localize(
-            "shop.item.price_discounted",
-            original=original_price, discounted=discounted,
-            currency=EnvKeys.PAY_CURRENCY, code=esc(applied_promo),
-        )
-    elif on_sale:
+    if on_sale:
         percent = (Decimal(str(item_info_data.get("sale_percent") or 0))).quantize(Decimal("1"))
         price_line = localize(
             "shop.item.price_sale",
@@ -161,10 +146,10 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
     markup = item_info(
         back_data,
         avg_rating=avg_rating, review_count=review_count_val,
-        has_purchased=purchased, applied_promo=applied_promo,
+        has_purchased=purchased,
         reviews_enabled=reviews_enabled,
         out_of_stock=out_of_stock, subscribed=subscribed,
-        options=selector, gateway=gateway,
+        options=selector, gateway=gateway, is_favorite=favorite,
     )
 
     # Shown in the viewer's language; every lookup below keeps using the canonical `item_name`.
@@ -556,8 +541,6 @@ async def _open_item(call: CallbackQuery, state: FSMContext, item_name: str, bac
     # Save item name and back_data in state
     updates = {"csrf_item": item_name, "item_back_data": back_data}
     switched = (await state.get_data()).get('csrf_item') != item_name
-    if switched:
-        updates["applied_promo"] = None
     await state.update_data(**updates)
 
     # A photo card of another item cannot have its caption reused: send a fresh message.
@@ -738,59 +721,66 @@ async def unsubscribe_stock_handler(call: CallbackQuery, state: FSMContext):
     await _render_item_page(call, state, item_name, user_id=call.from_user.id)
 
 
-# --- Promo Code Application ---
+# --- Favorites ---
 
-async def _leave_promo_input(state: FSMContext) -> None:
-    """Put back the browsing state that the promo prompt replaced."""
-    pre_state = (await state.get_data()).get('pre_promo_state')
-    if not pre_state:
-        return
-    await state.update_data(pre_promo_state=None)
-    await state.set_state(pre_state)
-
-
-@router.callback_query(F.data == "apply_promo")
-async def apply_promo_handler(call: CallbackQuery, state: FSMContext):
-    await edit_screen(call, localize("promo.enter_code"), reply_markup=back("back_to_item"))
-    await state.update_data(pre_promo_state=await state.get_state())
-    await state.set_state(PromoFSM.waiting_item_code)
-
-
-@router.message(PromoFSM.waiting_item_code, F.text)
-async def promo_code_text_handler(message: Message, state: FSMContext):
-    """Apply a promo code typed on an item page."""
-    data = await state.get_data()
-    item_name = data.get('csrf_item')
-
-    await _leave_promo_input(state)
-
+@router.callback_query(F.data == "fav_toggle")
+async def favorite_toggle_handler(call: CallbackQuery, state: FSMContext):
+    """Star / un-star the product on screen (an option stars its head product)."""
+    item_name = (await state.get_data()).get('csrf_item')
     if not item_name:
-        await message.answer(localize("shop.item.not_found"), reply_markup=back("back_to_menu"))
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
         return
-
-    code = (message.text or "").strip().upper()
-    valid, error_key, promo_data = await validate_promo_for_item(code, item_name, message.from_user.id)
-
-    if not valid:
-        await message.answer(localize(error_key), reply_markup=back("back_to_item"))
+    now = await toggle_favorite(call.from_user.id, item_name)
+    if now is None:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
         return
-
-    # Only the code is kept. The discount itself is re-derived on every render from the live promo row, so a code that stops applying stops showing.
-    await state.update_data(applied_promo=code)
-
-    # Re-render item page with discounted price
-    await _render_item_page(message, state, item_name, user_id=message.from_user.id)
+    await call.answer(localize("favorites.added" if now else "favorites.removed"))
+    await _render_item_page(call, state, item_name, user_id=call.from_user.id)
 
 
-@router.callback_query(F.data == "remove_promo")
-async def remove_promo_handler(call: CallbackQuery, state: FSMContext):
-    await state.update_data(applied_promo=None)
-    data = await state.get_data()
-    item_name = data.get('csrf_item')
-    if item_name:
-        await _render_item_page(call, state, item_name, user_id=call.from_user.id)
-    else:
-        await call.answer(localize("promo.removed"))
+async def show_favorites(target, user_id: int, page: int = 0) -> None:
+    """The favorites list (a page of product buttons)."""
+    total_probe = await list_favorites(user_id, 0, 1)
+    pages = max(1, -(-total_probe[1] // FAVORITES_PAGE_SIZE))
+    page = min(max(page, 0), pages - 1)
+    items, total = await list_favorites(user_id, page, FAVORITES_PAGE_SIZE)
+    title = localize("favorites.title")
+    if not items:
+        await edit_screen(target, title + "\n\n" + localize("favorites.empty"), reply_markup=back("profile"))
+        return
+    await edit_screen(target, title, reply_markup=favorites_keyboard(items, page, total, FAVORITES_PAGE_SIZE))
+
+
+@router.callback_query(F.data == "favorites")
+async def favorites_handler(call: CallbackQuery, state: FSMContext):
+    await call.answer()
+    await show_favorites(call, call.from_user.id)
+
+
+@router.callback_query(F.data.startswith("fav_page:"))
+async def favorites_page_handler(call: CallbackQuery, state: FSMContext):
+    page = _page_arg(call.data.split(":", 1)[1])
+    if page is None:
+        await call.answer(localize("errors.invalid_data"), show_alert=True)
+        return
+    await call.answer()
+    await show_favorites(call, call.from_user.id, page)
+
+
+@router.callback_query(F.data.startswith("fav_open:"))
+async def favorites_open_handler(call: CallbackQuery, state: FSMContext):
+    try:
+        item_id = int(call.data.split(":", 1)[1])
+    except ValueError:
+        await call.answer(localize("errors.invalid_data"), show_alert=True)
+        return
+    name = await item_name_by_id(item_id)
+    if not name:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        await show_favorites(call, call.from_user.id)
+        return
+    await call.answer()
+    await _open_item(call, state, name, "favorites")
 
 
 @router.callback_query(F.data == "back_to_item")
@@ -806,7 +796,6 @@ async def back_to_item_handler(call: CallbackQuery, state: FSMContext):
             reply_markup=back("back_to_menu"),
         )
         return
-    await _leave_promo_input(state)
     await _render_item_page(call, state, item_name, user_id=call.from_user.id)
 
 

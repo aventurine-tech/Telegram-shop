@@ -10,7 +10,8 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Weight options** | #7, #12, #13 | 🟡 | `test_product_options_*` | changing an option's **label** in the web rows = delete + create (its stock is lost); renaming a head in the bot does not rename options; head delete removes options in a separate step |
 | **Translated catalog** | #3, #4, #11 | ✅ | `test_localized_catalog_*`, `test_admin_language_*`, `test_web_translations` | product name is one field in the web form; descriptions per language |
 | **Product pictures** | #1 | ✅ | `test_images`, `test_web_images`, `test_item_card_photo` | stored as uploaded (≤ 10 MB); options show the head's picture |
-| **Cart, promo codes, sales, reviews, restock notify** | upstream, adapted | ✅ | `test_cart_reviews`, `test_promo_*`, `test_sales`, `test_user_handlers` | |
+| **Favorites** (⭐ on the card, paged list in the profile) | favorites PR | ✅ | `test_favorites` | stars the head product; opened from the profile; command `/favorites` comes with the command menu |
+| **Cart, promo codes (applied in the cart), sales, reviews, restock notify** | upstream, adapted | ✅ | `test_cart_reviews`, `test_cart_promo`, `test_promo_*`, `test_sales`, `test_user_handlers` | |
 | **Checkout** (delivery/pickup, name, phone, address, shipping, comment, payment, summary) | #1, #23 | ✅ | `test_payment_handlers`, `test_shipping` | |
 | **Payments** — MIA (staff-verified) + cash on delivery/pickup | #1 | ✅ / 🔧 | `test_orders`, `test_payment_handlers` | MIA needs real `MIA_*` details in the server `.env`; cash recorded on completion |
 | **Orders** — lifecycle, stock reservation, expiry, referral commission | #1 | ✅ | `test_orders`, `test_orders_admin`, `test_recovery` | order ownership intentionally not built |

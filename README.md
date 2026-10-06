@@ -68,7 +68,8 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 - **Search** — find a product by name or description; results are paginated and open the
   normal product page. Backed by trigram (GIN) indexes on PostgreSQL, with a graceful fallback
   when `pg_trgm` isn't available.
-- **Cart & promo codes** — several products with quantities, a promo per item, one atomic
+- **Cart & promo codes** — several products with quantities, **Apply promo code** inside the cart (between *Checkout* and
+  *Clear cart*; the code goes on every line it fits and is spent on the best one), one atomic
   checkout. Promo types: `percent`, `fixed`, `balance`; usage limits, expiry, category/product
   binding. A promo stacks on top of an active sale.
 - **Delivery or pickup** — the customer chooses; delivery collects name, phone, address and an
@@ -83,6 +84,8 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 - **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
   a message at every step and can open **My orders** at any time; staff get an alert for every
   new order and every "I've paid" claim.
+- **Favorites** — every product card has a ⭐ button; the profile's **Favorites** list (paged) opens the cards. A weight
+  option stars its main product. (The card no longer has *Order now* or a promo button: add to cart, apply the promo there.)
 - **Store balance & referrals** — admins can credit a customer's balance, balance promo codes
   credit it too, and a referrer earns `REFERRAL_PERCENT`% of every referred customer's
   **completed** order. Customers can spend their balance at checkout.

@@ -10,7 +10,6 @@ TRANSLATIONS = {"ro": {
     "btn.back": "⬅️ Înapoi",
     "btn.to_menu": "🏠 Meniu",
     "btn.close": "✖ Închide",
-    "btn.buy": "🛍 Comandă acum",
     "btn.yes": "✅ Da",
     "btn.no": "❌ Nu",
     "btn.check": "🔄 Verifică",

@@ -6,8 +6,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 
 from bot.database.methods.create import add_to_cart, CART_MAX_QTY_PER_ITEM
-from bot.database.methods.read import get_cart_items, validate_promos_for_cart, select_item_stock, get_item_family
-from bot.database.methods.update import set_cart_item_quantity, clear_cart_item_promo
+from bot.database.methods.read import (
+    get_cart_items, validate_promos_for_cart, validate_promo_for_item, select_item_stock, get_item_family,
+)
+from bot.database.methods.update import set_cart_item_quantity, clear_cart_item_promo, set_cart_lines_promo
 from bot.database.methods.delete import remove_from_cart, clear_cart
 from bot.keyboards.inline import back, cart_keyboard
 from bot.database.methods.pricing import apply_promo_discount
@@ -16,6 +18,7 @@ from bot.i18n import localize, esc
 from bot.misc.localized import pick
 from bot.database.methods.translations import item_labels
 from bot.handlers.user._screen import edit_screen
+from bot.states.promo_state import PromoFSM
 
 router = Router()
 
@@ -193,7 +196,7 @@ async def _add_selected_item(call: CallbackQuery, state: FSMContext) -> bool:
         await call.answer(localize("cart.stock_limit", available=stock), show_alert=True)
         return False
 
-    success, msg = await add_to_cart(call.from_user.id, item_name, promo_code=data.get('applied_promo'))
+    success, msg = await add_to_cart(call.from_user.id, item_name, promo_code=None)
     if not success:
         error_map = {
             "cart_full": localize("cart.full"),
@@ -211,14 +214,6 @@ async def add_to_cart_handler(call: CallbackQuery, state: FSMContext):
     if await _add_selected_item(call, state):
         item_name = (await state.get_data()).get('csrf_item')
         await call.answer(localize("cart.added", name=await _display_name(item_name)))
-
-
-@router.callback_query(F.data == "buy_item")
-async def buy_item_handler(call: CallbackQuery, state: FSMContext):
-    """"Order now": add the item and jump straight to the cart."""
-    if await _add_selected_item(call, state):
-        await call.answer()
-        await _show_cart(call)
 
 
 @router.callback_query(F.data.startswith("cart_qty:"))
@@ -258,6 +253,8 @@ async def cart_qty_handler(call: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "cart")
 async def view_cart_handler(call: CallbackQuery, state: FSMContext):
+    if await state.get_state() == PromoFSM.waiting_cart_code.state:
+        await state.set_state(None)          # left the promo prompt with "Back"
     await _show_cart(call)
 
 
@@ -290,6 +287,49 @@ async def cart_remove_promo_handler(call: CallbackQuery, state: FSMContext):
     else:
         await call.answer(localize("cart.item_not_found"), show_alert=True)
     await _show_cart(call)
+
+
+@router.callback_query(F.data == "cart_promo")
+async def cart_promo_handler(call: CallbackQuery, state: FSMContext):
+    """"Apply promo code": ask for the code; it is checked against the lines in the cart."""
+    if not await get_cart_items(call.from_user.id):
+        await call.answer(localize("cart.empty"), show_alert=True)
+        await _show_cart(call)
+        return
+    await call.answer()
+    await edit_screen(call, localize("promo.enter_code"), reply_markup=back("cart"))
+    await state.set_state(PromoFSM.waiting_cart_code)
+
+
+@router.message(PromoFSM.waiting_cart_code, F.text)
+async def cart_promo_code_handler(message: Message, state: FSMContext):
+    """Put the typed code on every cart line it validly applies to (the cart then spends it on the best line)."""
+    await state.set_state(None)
+    code = (message.text or "").strip().upper()
+    lines = await get_cart_items(message.from_user.id)
+    if not lines:
+        await message.answer(localize("cart.empty"), reply_markup=back("profile"))
+        return
+
+    eligible: list[int] = []
+    first_error = None
+    for line in lines:
+        valid, error_key, _promo = await validate_promo_for_item(code, line['item_name'], message.from_user.id)
+        if valid:
+            eligible.append(line['id'])
+        elif first_error is None:
+            first_error = error_key
+
+    if not eligible:
+        # The code itself is bad (unknown, expired…) → say why; a valid code that fits no line → say that.
+        bad_code = first_error in ("promo.not_found", "promo.inactive", "promo.expired", "promo.max_uses_reached",
+                                   "promo.already_used", "promo.not_balance_type")
+        key = first_error if bad_code else "promo.not_applicable_cart"
+        await message.answer(localize(key), reply_markup=back("cart"))
+        return
+
+    await set_cart_lines_promo(message.from_user.id, eligible, code)
+    await _show_cart(message)
 
 
 @router.callback_query(F.data == "cart_clear")

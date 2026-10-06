@@ -128,7 +128,7 @@ class TestItemCardPhoto:
     async def test_rerender_on_photo_edits_caption(self, make_callback_query, fsm_context, item_factory):
         await item_factory(name="PicItem5", price=100, stock=5)
         await set_item_image("PicItem5", _png())
-        call = _photo_message(make_callback_query(data="remove_promo", user_id=700007))
+        call = _photo_message(make_callback_query(data="fav_toggle", user_id=700007))
 
         await _render_item_page(call, fsm_context, "PicItem5", "gp_0", user_id=700007)
 
