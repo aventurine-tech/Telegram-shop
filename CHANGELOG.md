@@ -16,6 +16,9 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
   the date picker; the mailing preview bubble and permission tags are themed too. Labels in en/ru/ro.
 - **Changed** own `base.html`; inline light-only colours replaced by themed classes (`shop-pill`, `tg-bubble`).
 
+### New-session prompt (2026-10-06)
+- **Added** `docs/NEW_SESSION_PROMPT.md`: the prompt to paste at the start of a new chat so work continues exactly where it stopped.
+
 ### #25 — CI runs once per change (2026-10-06)
 - **Changed** the workflow no longer triggers on both `push` and `pull_request` (which ran every check twice per PR update): PRs are tested by
   the `pull_request` event, pushes only on `development`/`main`.

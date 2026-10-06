@@ -704,6 +704,7 @@ Alembic migrations (upgrade → downgrade → upgrade on a real PostgreSQL 16) o
 | [`docs/TESTING.md`](docs/TESTING.md) | how the suite works and how to verify migrations / panel scripts |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | controls, rules for changes, operator checklist |
 | [`docs/ENTERPRISE_STANDARDS.md`](docs/ENTERPRISE_STANDARDS.md) | quality bar, definition of done, review checklist |
+| [`docs/NEW_SESSION_PROMPT.md`](docs/NEW_SESSION_PROMPT.md) | the prompt to paste at the start of a new chat session to continue where we stopped |
 | [`docs/run-and-test.pdf`](docs/run-and-test.pdf) | step-by-step run and test guide (source `docs/run-and-test.md`; rebuild with `python docs/build_pdf.py`, needs `reportlab`) |
 
 ## 📄 License
