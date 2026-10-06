@@ -10,6 +10,9 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### New-session prompt (2026-10-06)
+- **Added** `docs/NEW_SESSION_PROMPT.md`: the prompt to paste at the start of a new chat so work continues exactly where it stopped.
+
 ### #25 — CI runs once per change (2026-10-06)
 - **Changed** the workflow no longer triggers on both `push` and `pull_request` (which ran every check twice per PR update): PRs are tested by
   the `pull_request` event, pushes only on `development`/`main`.
