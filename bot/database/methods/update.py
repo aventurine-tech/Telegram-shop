@@ -218,6 +218,19 @@ async def clear_cart_item_promo(cart_item_id: int, user_id: int) -> bool:
         return result.rowcount > 0
 
 
+async def set_cart_lines_promo(user_id: int, cart_item_ids: list[int], code: str) -> int:
+    """Put a promo code on the given cart lines of this user; returns how many lines were updated."""
+    if not cart_item_ids:
+        return 0
+    async with Database().session() as s:
+        result = await s.execute(
+            update(CartItems)
+            .where(CartItems.id.in_(cart_item_ids), CartItems.user_id == user_id)
+            .values(promo_code=code.upper())
+        )
+        return result.rowcount
+
+
 async def is_user_blocked(telegram_id: int) -> bool:
     """Check if user is blocked."""
     async with Database().session() as s:

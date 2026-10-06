@@ -13,7 +13,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.back": "⬅️ Назад",
         "btn.to_menu": "🏠 В меню",
         "btn.close": "✖ Закрыть",
-        "btn.buy": "🛍 Заказать сейчас",
         "btn.yes": "✅ Да",
         "btn.no": "❌ Нет",
         "btn.check": "🔄 Проверить",
@@ -250,8 +249,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.maintenance.disabled": "✅ Режим тех. работ выключён",
 
         # === Promo Codes ===
-        "btn.apply_promo": "🏷 Применить промокод",
-        "btn.remove_promo": "❌ Убрать промокод",
         "admin.menu.promo": "🏷 Промокоды",
         "admin.promo.title": "🏷 <b>Управление промокодами</b>",
         "admin.promo.create": "➕ Создать промокод",
@@ -290,7 +287,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "promo.not_balance_type": "❌ Этот промокод не начисляет баланс.",
         "promo.enter_redeem_code": "Введите промокод для активации:",
         "promo.balance_redeemed": "✅ Промокод <code>{code}</code> активирован! На баланс начислено {amount} {currency}.",
-        "shop.item.price_discounted": "💰 <b>Цена</b>: <s>{original}</s> <b>{discounted}</b> {currency} (промокод {code})",
         "shop.item.price_sale": "🔥 <b>Цена</b>: <s>{original}</s> <b>{sale}</b> {currency} (скидка {percent}%)",
         "admin.promo.type.balance": "💰 Пополнение баланса",
         "admin.promo.prompt.binding_type": "Привязать промокод к категории или товару?",
@@ -391,7 +387,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.back": "⬅️ Back",
         "btn.to_menu": "🏠 Menu",
         "btn.close": "✖ Close",
-        "btn.buy": "🛍 Order now",
         "btn.yes": "✅ Yes",
         "btn.no": "❌ No",
         "btn.check": "🔄 Check",
@@ -628,8 +623,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin.maintenance.disabled": "✅ Maintenance mode disabled",
 
         # === Promo Codes ===
-        "btn.apply_promo": "🏷 Apply promo code",
-        "btn.remove_promo": "❌ Remove promo code",
         "admin.menu.promo": "🏷 Promo Codes",
         "admin.promo.title": "🏷 <b>Promo Code Management</b>",
         "admin.promo.create": "➕ Create promo code",
@@ -668,7 +661,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "promo.not_balance_type": "❌ This promo code does not credit your balance.",
         "promo.enter_redeem_code": "Enter promo code to redeem:",
         "promo.balance_redeemed": "✅ Promo code <code>{code}</code> redeemed! {amount} {currency} added to your balance.",
-        "shop.item.price_discounted": "💰 <b>Price</b>: <s>{original}</s> <b>{discounted}</b> {currency} (promo {code})",
         "shop.item.price_sale": "🔥 <b>Price</b>: <s>{original}</s> <b>{sale}</b> {currency} ({percent}% off)",
         "admin.promo.type.balance": "💰 Balance top-up",
         "admin.promo.prompt.binding_type": "Bind promo code to category or item?",

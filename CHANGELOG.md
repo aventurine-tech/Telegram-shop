@@ -10,6 +10,14 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Favorites and promo code in the cart (2026-10-06)
+- **Added** ⭐ **Favorites** under every product (add / remove on the card) and a paged **Favorites** list in the profile; a weight option stars
+  its main product.
+- **Added** **Apply promo code** in the cart, between *Checkout* and *Clear cart*: the code is checked against the cart lines, put on every line it
+  fits and spent on the best one (total shown = total charged).
+- **Removed** *Order now* and the promo buttons from the product card (add to cart; apply the promo in the cart).
+- **Database** migration `e1a7c9d5f2b8`: table `favorites`.
+
 ### Light / dark theme (2026-10-06)
 - **Added** a light/dark switch in the web panel (sidebar and login page): follows the system preference on first visit, remembers the choice
   in the browser, applied before the first paint (no white flash). Dark palette for cards, tables, forms, dialogs, pagination, Select2 and

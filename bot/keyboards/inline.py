@@ -54,6 +54,7 @@ def profile_keyboard(referral_percent: int, user_orders: int = 0, cart_count: in
         kb.button(text=localize("btn.my_orders"), callback_data="my_orders")
     cart_text = localize("btn.cart", count=cart_count) if cart_count > 0 else localize("btn.cart_empty")
     kb.button(text=cart_text, callback_data="cart")
+    kb.button(text=localize("btn.favorites"), callback_data="favorites")
     kb.button(text=localize("btn.operation_history"), callback_data="operation_history")
     kb.button(text=localize("btn.redeem_promo"), callback_data="redeem_promo")
     kb.button(text=localize("btn.language"), callback_data="profile_language")
@@ -181,59 +182,73 @@ async def lazy_paginated_keyboard(
 def item_info(
         back_data: str, avg_rating: float = None,
         review_count: int = 0, has_purchased: bool = False,
-        applied_promo: str = None, reviews_enabled: bool = True,
+        reviews_enabled: bool = True,
         out_of_stock: bool = False, subscribed: bool = False,
         options: list[tuple[int, str, bool]] | None = None, gateway: bool = False,
+        is_favorite: bool = False,
 ) -> InlineKeyboardMarkup:
     """
-    Product card with order, cart, promo, review buttons.
+    Product card: add to cart, favorites, reviews, back.
 
-    When `out_of_stock`, offers a restock notification toggle instead of
-    the order buttons, so the user is not left at a dead end.
+    When `out_of_stock`, offers a restock notification toggle instead of the cart button, so the user is
+    not left at a dead end. Promo codes are applied in the cart, not here.
 
     `options` — (goods_id, label, is_current) weight options, shown as a selector row on top
-    (``opt:{goods_id}``). `gateway` — a head product with options: only the selector, reviews and
-    Back are offered, never anything to buy.
+    (``opt:{goods_id}``). `gateway` — a head product with options: only the selector, favorites, reviews and
+    Back are offered, never anything to buy. `is_favorite` — the product is starred (the button removes it).
     """
-    kb = InlineKeyboardBuilder()
-    if gateway:
-        out_of_stock = False
-    elif not out_of_stock:
-        kb.button(text=localize("btn.buy"), callback_data="buy_item")
-        kb.button(text=localize("btn.add_to_cart"), callback_data="add_to_cart")
-    if gateway:
-        pass
-    elif applied_promo:
-        kb.button(text=localize("btn.remove_promo"), callback_data="remove_promo")
-    else:
-        kb.button(text=localize("btn.apply_promo"), callback_data="apply_promo")
-    if reviews_enabled:
-        if review_count > 0:
-            kb.button(text=localize("btn.view_reviews", count=review_count), callback_data="reviews:0")
-        if has_purchased:
-            kb.button(text=localize("btn.leave_review"), callback_data="review")
-    if out_of_stock:
-        if subscribed:
-            kb.button(text=localize("btn.notify_stock_off"), callback_data="unsub_stock")
-        else:
-            kb.button(text=localize("btn.notify_stock"), callback_data="sub_stock")
-    kb.button(text=localize("btn.back"), callback_data=back_data)
-    kb.adjust(2)
-    markup = kb.as_markup()
+    rows: list[list[InlineKeyboardButton]] = []
     if options:
         buttons = [
             InlineKeyboardButton(text=f"✅ {label}" if current else label, callback_data=f"opt:{goods_id}")
             for goods_id, label, current in options
         ]
-        rows = [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
-        markup = InlineKeyboardMarkup(inline_keyboard=rows + markup.inline_keyboard)
-    return markup
+        rows += [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
+    if gateway:
+        out_of_stock = False
+    elif not out_of_stock:
+        rows.append([InlineKeyboardButton(text=localize("btn.add_to_cart"), callback_data="add_to_cart")])
+    rows.append([InlineKeyboardButton(
+        text=localize("btn.favorite_remove" if is_favorite else "btn.favorite_add"), callback_data="fav_toggle")])
+    review_row = []
+    if reviews_enabled:
+        if review_count > 0:
+            review_row.append(InlineKeyboardButton(
+                text=localize("btn.view_reviews", count=review_count), callback_data="reviews:0"))
+        if has_purchased:
+            review_row.append(InlineKeyboardButton(text=localize("btn.leave_review"), callback_data="review"))
+    if review_row:
+        rows.append(review_row)
+    if out_of_stock:
+        rows.append([InlineKeyboardButton(
+            text=localize("btn.notify_stock_off" if subscribed else "btn.notify_stock"),
+            callback_data="unsub_stock" if subscribed else "sub_stock")])
+    rows.append([InlineKeyboardButton(text=localize("btn.back"), callback_data=back_data)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def favorites_keyboard(items: list[dict], page: int, total: int, page_size: int) -> InlineKeyboardMarkup:
+    """The favorites list: one button per product (opens its card), paging, back to the profile."""
+    kb = InlineKeyboardBuilder()
+    for item in items:
+        kb.row(InlineKeyboardButton(text=f"⭐ {pick(item, 'name')}", callback_data=f"fav_open:{item['id']}"))
+    pages = max(1, -(-total // page_size))
+    if pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"fav_page:{page - 1}"))
+        nav.append(InlineKeyboardButton(text=f"{page + 1}/{pages}", callback_data="dummy_button"))
+        if page + 1 < pages:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"fav_page:{page + 1}"))
+        kb.row(*nav)
+    kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="profile"))
+    return kb.as_markup()
 
 
 def cart_keyboard(items: list[dict]) -> InlineKeyboardMarkup:
     """
-    Cart view: a quantity stepper, an optional promo-drop button, and a remove
-    button per line.
+    Cart view: a quantity stepper, an optional promo-drop button and a remove button per line, then
+    Checkout, Apply promo code, Clear cart and Back.
     """
     kb = InlineKeyboardBuilder()
     for item in items:
@@ -255,6 +270,7 @@ def cart_keyboard(items: list[dict]) -> InlineKeyboardMarkup:
             callback_data=f"cart_remove:{item['id']}",
         ))
     kb.row(InlineKeyboardButton(text=localize("btn.cart_checkout"), callback_data="cart_checkout"))
+    kb.row(InlineKeyboardButton(text=localize("btn.cart_promo"), callback_data="cart_promo"))
     kb.row(InlineKeyboardButton(text=localize("btn.cart_clear"), callback_data="cart_clear"))
     kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="profile"))
     return kb.as_markup()

@@ -37,8 +37,6 @@ TRANSLATIONS = {"ro": {
         "admin.maintenance.disabled": "✅ Modul de mentenanță a fost dezactivat",
 
         # === Promo Codes ===
-        "btn.apply_promo": "🏷 Aplică cod promoțional",
-        "btn.remove_promo": "❌ Elimină codul promoțional",
         "admin.menu.promo": "🏷 Coduri promoționale",
         "admin.promo.title": "🏷 <b>Gestionarea codurilor promoționale</b>",
         "admin.promo.create": "➕ Creează cod promoțional",
@@ -77,7 +75,6 @@ TRANSLATIONS = {"ro": {
         "promo.not_balance_type": "❌ Acest cod promoțional nu alimentează soldul dumneavoastră.",
         "promo.enter_redeem_code": "Introduceți codul promoțional pentru activare:",
         "promo.balance_redeemed": "✅ Codul promoțional <code>{code}</code> a fost activat! {amount} {currency} au fost adăugați în soldul dumneavoastră.",
-        "shop.item.price_discounted": "💰 <b>Preț</b>: <s>{original}</s> <b>{discounted}</b> {currency} (promo {code})",
         "shop.item.price_sale": "🔥 <b>Preț</b>: <s>{original}</s> <b>{sale}</b> {currency} (reducere {percent}%)",
         "admin.promo.type.balance": "💰 Alimentare sold",
         "admin.promo.prompt.binding_type": "Legați codul promoțional de o categorie sau de un produs?",

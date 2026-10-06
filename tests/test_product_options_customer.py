@@ -15,7 +15,7 @@ from bot.database.methods.product_images import set_item_image
 from bot.database.methods.read import get_cart_items, get_item_info
 from bot.database.models.main import Goods, Orders, OrderItems
 from bot.handlers.user import shop_and_goods as shop
-from bot.handlers.user.cart import add_to_cart_handler, buy_item_handler, view_cart_handler
+from bot.handlers.user.cart import add_to_cart_handler, view_cart_handler
 from bot.handlers.user.shop_and_goods import (
     _render_item_page, item_info_callback_handler, option_callback_handler,
     start_review_handler, navigate_goods,
@@ -190,7 +190,7 @@ class TestGatewayHead:
             assert forbidden not in cbs
         assert any(cb.startswith("opt:") for cb in cbs)
 
-    @pytest.mark.parametrize("handler", [add_to_cart_handler, buy_item_handler])
+    @pytest.mark.parametrize("handler", [add_to_cart_handler])
     @pytest.mark.parametrize("head_price", [0, 50])
     async def test_cannot_add_head_with_options(self, make_callback_query, fsm_context, user_factory,
                                                 handler, head_price):

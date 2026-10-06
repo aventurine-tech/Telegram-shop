@@ -44,7 +44,7 @@ python -m pytest -q -p no:cacheprovider            # ~100 s, 2055 passed / 6 ski
 
 Migration check (PostgreSQL 16 in the container): `pg_ctlcluster 16 main start`; then with
 `POSTGRES_HOST=localhost POSTGRES_DB=migdb POSTGRES_USER=mig POSTGRES_PASSWORD=mig`: `alembic upgrade head` →
-`alembic downgrade -1` → `alembic upgrade head`. **Alembic head: `d1f6b8c4e5a7`** (shipping) ← `c9e5a7b3d4f6` (client profiles)
+`alembic downgrade -1` → `alembic upgrade head`. **Alembic head: `e1a7c9d5f2b8`** (favorites) ← `d1f6b8c4e5a7` (shipping) ← `c9e5a7b3d4f6` (client profiles)
 ← `b8d4f6a2c3e5` (mailings) ← `a7c3e5f1b2d4` (product options) ← …; files in `migrations/versions/`.
 CI: `.github/workflows/tests.yml` — "Unit tests" + "Migrations on PostgreSQL".
 

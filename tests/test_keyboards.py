@@ -161,14 +161,28 @@ class TestOrderKeyboard:
 
 class TestItemInfoKeyboard:
 
-    @pytest.mark.parametrize("callback", ["buy_item", "add_to_cart", "gp_0"])
-    def test_has_buy_and_back(self, callback):
+    @pytest.mark.parametrize("callback", ["add_to_cart", "fav_toggle", "gp_0"])
+    def test_has_cart_favorites_and_back(self, callback):
         assert callback in _all_callback_data(item_info("gp_0"))
 
-    def test_out_of_stock_hides_the_order_buttons(self):
+    def test_no_order_now_and_no_promo_on_the_card(self):
+        cbs = _all_callback_data(item_info("gp_0"))
+        assert not {"buy_item", "apply_promo", "remove_promo"} & set(cbs)
+
+    def test_out_of_stock_hides_the_cart_button_but_keeps_favorites(self):
         cbs = _all_callback_data(item_info("gp_0", out_of_stock=True))
-        assert "buy_item" not in cbs and "add_to_cart" not in cbs
-        assert "gp_0" in cbs
+        assert "add_to_cart" not in cbs
+        assert "fav_toggle" in cbs and "gp_0" in cbs
+
+    def test_favorite_button_label_follows_the_state(self):
+        def label(is_favorite):
+            return next(b.text for row in item_info("gp_0", is_favorite=is_favorite).inline_keyboard
+                        for b in row if b.callback_data == "fav_toggle")
+        assert label(False) != label(True)
+
+    def test_favorites_sit_right_under_the_cart_button(self):
+        rows = [[b.callback_data for b in row] for row in item_info("gp_0").inline_keyboard]
+        assert rows[0] == ["add_to_cart"] and rows[1] == ["fav_toggle"]
 
     @pytest.mark.parametrize("kwargs,expected_sub,expected_unsub", [
         ({}, False, False),                                   # in stock: no notify button
@@ -366,8 +380,8 @@ class TestCallbackDataFitsTelegramLimit:
         )
         self._assert_all_fit(markup)
 
-    def test_item_card_fits_with_promo_applied(self):
-        self._assert_all_fit(item_info("gp_0", applied_promo="SUMMER-2026", review_count=3))
+    def test_item_card_fits_when_starred(self):
+        self._assert_all_fit(item_info("gp_0", review_count=3, is_favorite=True))
 
     def test_cart_keyboard_fits_for_long_names(self):
         for name in (self.LONG_CYRILLIC, self.LONG_ASCII):

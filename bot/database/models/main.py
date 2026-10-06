@@ -546,6 +546,20 @@ class CartItems(Database.BASE):
         return f"cart#{self.id} item={self.item_id} x{self.quantity}"
 
 
+class Favorites(Database.BASE):
+    """A product a customer starred. Always the head product (an option's card stars its head)."""
+    __tablename__ = 'favorites'
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey('users.telegram_id', ondelete='CASCADE'), primary_key=True)
+    item_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('goods.id', ondelete='CASCADE'), primary_key=True, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    def __str__(self):
+        return f"favorite user={self.user_id} item={self.item_id}"
+
+
 class Reviews(Database.BASE):
     __tablename__ = 'reviews'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

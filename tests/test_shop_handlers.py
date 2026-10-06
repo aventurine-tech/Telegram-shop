@@ -11,7 +11,7 @@ from bot.database.methods.read import (
 )
 from bot.database.models.main import PromoCodes
 from bot.handlers.user.cart import (
-    cart_qty_handler, view_cart_handler, add_to_cart_handler, buy_item_handler as buy_item_callback_handler,
+    cart_qty_handler, view_cart_handler, add_to_cart_handler,
     _show_cart,
 )
 from bot.handlers.user.shop_and_goods import (
@@ -19,7 +19,7 @@ from bot.handlers.user.shop_and_goods import (
     items_list_callback_handler, item_info_callback_handler,
     search_item_info_handler, shop_search_handler, receive_search_query_handler,
     subscribe_stock_handler, unsubscribe_stock_handler,
-    apply_promo_handler, promo_code_text_handler, back_to_item_handler,
+    back_to_item_handler,
     my_orders_handler, my_order_handler, my_order_cancel_ask_handler, my_order_cancel_handler,
     _render_item_page,
 )
@@ -131,52 +131,6 @@ class TestBackButtonSurvivesSubFlows:
 
         assert await fsm_context.get_state() == ShopStates.viewing_search_results
 
-    async def test_promo_then_back_to_item_restores_category_state(self, make_callback_query,
-                                                                   fsm_context, user_factory,
-                                                                   item_factory):
-
-        await user_factory(telegram_id=650002)
-        await item_factory(name="PromoBack", price=10, stock=5)
-        await fsm_context.update_data(csrf_item="PromoBack", item_back_data="gp_0")
-        await fsm_context.set_state(ShopStates.viewing_goods)
-
-        await apply_promo_handler(make_callback_query(data="apply_promo", user_id=650002), fsm_context)
-        await back_to_item_handler(make_callback_query(data="back_to_item", user_id=650002), fsm_context)
-
-        # navigate_goods is filtered on this; None would make gp_0 a no-op.
-        assert await fsm_context.get_state() == ShopStates.viewing_goods
-
-    async def test_promo_then_back_to_item_restores_search_state(self, make_callback_query,
-                                                                 fsm_context, user_factory,
-                                                                 item_factory):
-
-        await user_factory(telegram_id=650003)
-        await item_factory(name="PromoBackS", price=10, stock=5)
-        await fsm_context.update_data(csrf_item="PromoBackS", item_back_data="sp_0")
-        await fsm_context.set_state(ShopStates.viewing_search_results)
-
-        await apply_promo_handler(make_callback_query(data="apply_promo", user_id=650003), fsm_context)
-        await back_to_item_handler(make_callback_query(data="back_to_item", user_id=650003), fsm_context)
-
-        assert await fsm_context.get_state() == ShopStates.viewing_search_results
-
-    async def test_applying_a_promo_code_restores_the_browsing_state(self, make_message,
-                                                                     make_callback_query,
-                                                                     fsm_context, user_factory,
-                                                                     item_factory):
-
-        await user_factory(telegram_id=650004)
-        await item_factory(name="PromoTyped", price=10, stock=5)
-        await fsm_context.update_data(csrf_item="PromoTyped", item_back_data="gp_0")
-        await fsm_context.set_state(ShopStates.viewing_goods)
-
-        await apply_promo_handler(make_callback_query(data="apply_promo", user_id=650004), fsm_context)
-        # An invalid code still has to hand the browsing state back.
-        await promo_code_text_handler(make_message(text="NOSUCHCODE", user_id=650004), fsm_context)
-
-        assert await fsm_context.get_state() == ShopStates.viewing_goods
-
-
 class TestCartStockLimits:
     """A cart can never hold more than the shop has on the shelf."""
 
@@ -236,19 +190,6 @@ class TestCartStockLimits:
         await view_cart_handler(call, fsm_context)
 
         assert "cart.low_stock" in call.message.edit_text.call_args[0][0]
-
-    async def test_buy_now_adds_and_opens_the_cart(self, make_callback_query, fsm_context,
-                                                   user_factory, item_factory):
-
-        await user_factory(telegram_id=640005)
-        await item_factory(name="NowItem", price=10, stock=3)
-        await fsm_context.update_data(csrf_item="NowItem")
-
-        call = make_callback_query(data="buy_item", user_id=640005)
-        await buy_item_callback_handler(call, fsm_context)
-
-        assert await get_cart_count(640005) == 1
-        assert "cart.title" in call.message.edit_text.call_args[0][0]
 
 
 class TestRestockButtonFlow:
@@ -566,7 +507,7 @@ class TestItemInfo:
         assert "shop.item.in_stock" in text and "'count': 7" in text
         cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
                for b in row]
-        assert "buy_item" in cbs and "add_to_cart" in cbs
+        assert "add_to_cart" in cbs and "fav_toggle" in cbs and "buy_item" not in cbs
 
     async def test_out_of_stock_item_offers_restock_alert_instead_of_ordering(
             self, make_callback_query, fsm_context, item_factory):
@@ -584,75 +525,6 @@ class TestItemInfo:
         assert "buy_item" not in cbs and "add_to_cart" not in cbs
         assert "sub_stock" in cbs
 
-
-class TestAppliedPromoDoesNotFollowTheUser:
-    async def _promo(self, code, percent="50", **kw):
-        from bot.database.models.main import PromoCodes
-        from bot.database.main import Database
-        from decimal import Decimal
-        async with Database().session() as s:
-            s.add(PromoCodes(
-                code=code, discount_type="percent", discount_value=Decimal(percent),
-                scope=kw.pop("scope", "global"), max_uses=0, current_uses=0,
-                is_active=True, **kw,
-            ))
-
-    async def _open(self, make_callback_query, fsm_context, name, user_id):
-        call = make_callback_query(data="itm:0:0", user_id=user_id)
-        await fsm_context.update_data(
-            goods_page_items=[name], goods_page_num=0, current_category="PromoCat",
-        )
-        await item_info_callback_handler(call, fsm_context)
-        return call
-
-    async def test_switching_items_clears_the_applied_promo(
-        self, make_callback_query, fsm_context, item_factory, user_factory
-    ):
-        await user_factory(telegram_id=600040)
-        await item_factory(name="PromoA", price=100, category="PromoCat", stock=5)
-        await item_factory(name="PromoB", price=100, category="PromoCat", stock=5)
-        await self._promo("CARRY50")
-
-        await self._open(make_callback_query, fsm_context, "PromoA", 600040)
-        await fsm_context.update_data(applied_promo="CARRY50")
-
-        await self._open(make_callback_query, fsm_context, "PromoB", 600040)
-
-        data = await fsm_context.get_data()
-        assert data["csrf_item"] == "PromoB"
-        assert data["applied_promo"] is None
-
-    async def test_reopening_the_same_item_keeps_the_promo(
-        self, make_callback_query, fsm_context, item_factory, user_factory
-    ):
-        await user_factory(telegram_id=600041)
-        await item_factory(name="PromoSame", price=100, category="PromoCat", stock=5)
-        await self._promo("KEEP50")
-
-        await self._open(make_callback_query, fsm_context, "PromoSame", 600041)
-        await fsm_context.update_data(applied_promo="KEEP50")
-        call = await self._open(make_callback_query, fsm_context, "PromoSame", 600041)
-
-        assert (await fsm_context.get_data())["applied_promo"] == "KEEP50"
-        assert "price_discounted" in call.message.edit_text.call_args[0][0]
-
-    async def test_a_promo_that_stopped_applying_is_dropped_on_render(
-        self, make_callback_query, fsm_context, item_factory, user_factory
-    ):
-        """State is not trusted: the code is re-checked against this product."""
-        from datetime import datetime, timedelta, timezone
-
-        await user_factory(telegram_id=600042)
-        await item_factory(name="PromoExp", price=100, category="PromoCat", stock=5)
-        await self._promo("GONE50", expires_at=datetime.now(timezone.utc) - timedelta(hours=1))
-
-        await self._open(make_callback_query, fsm_context, "PromoExp", 600042)
-        await fsm_context.update_data(applied_promo="GONE50")
-        call = await self._open(make_callback_query, fsm_context, "PromoExp", 600042)
-
-        text = call.message.edit_text.call_args[0][0]
-        assert "price_discounted" not in text
-        assert (await fsm_context.get_data())["applied_promo"] is None
 
 
 async def _place_order(user_id: int, item_name: str, qty: int = 1, method: str = "cod"):
@@ -857,8 +729,8 @@ class TestBackFromItemCardAfterPurchase:
                                       current_category="TestCategory")
         await fsm_context.set_state(ShopStates.viewing_goods)
 
-        buy = make_callback_query(data="buy_item", user_id=660001)
-        await buy_item_callback_handler(buy, fsm_context)
+        buy = make_callback_query(data="add_to_cart", user_id=660001)
+        await add_to_cart_handler(buy, fsm_context)
 
         # Receipt -> Back returns to the item card.
         back = make_callback_query(data="back_to_item", user_id=660001)
@@ -879,34 +751,11 @@ class TestBackFromItemCardAfterPurchase:
                                       search_query="Search")
         await fsm_context.set_state(ShopStates.viewing_search_results)
 
-        buy = make_callback_query(data="buy_item", user_id=660002)
-        await buy_item_callback_handler(buy, fsm_context)
+        buy = make_callback_query(data="add_to_cart", user_id=660002)
+        await add_to_cart_handler(buy, fsm_context)
 
         back = make_callback_query(data="back_to_item", user_id=660002)
         await back_to_item_handler(back, fsm_context)
-
-        assert await fsm_context.get_state() == ShopStates.viewing_search_results
-
-    async def test_a_stale_promo_state_does_not_hijack_the_back_target(
-        self, make_callback_query, fsm_context, user_factory, item_factory
-    ):
-        """Applying a promo while browsing a category, then later opening an item
-        from search, must not restore the category state over the search one."""
-
-        await user_factory(telegram_id=660003, balance=1000)
-        await item_factory(name="StalePromoState", price=100, stock=5)
-
-        # Category browsing: open the promo prompt, then leave it.
-        await fsm_context.update_data(csrf_item="StalePromoState", item_back_data="gp_0")
-        await fsm_context.set_state(ShopStates.viewing_goods)
-        await apply_promo_handler(make_callback_query(data="apply_promo", user_id=660003), fsm_context)
-        await back_to_item_handler(make_callback_query(data="back_to_item", user_id=660003), fsm_context)
-        assert await fsm_context.get_state() == ShopStates.viewing_goods
-
-        # Now the same user arrives at an item from search instead.
-        await fsm_context.update_data(item_back_data="sp_0", search_query="Stale")
-        await fsm_context.set_state(ShopStates.viewing_search_results)
-        await back_to_item_handler(make_callback_query(data="back_to_item", user_id=660003), fsm_context)
 
         assert await fsm_context.get_state() == ShopStates.viewing_search_results
 
@@ -951,7 +800,7 @@ class TestBackFromItemCardAfterPurchase:
         await items_list_callback_handler(make_callback_query(data="cat:0:0", user_id=660004), fsm_context)
         await item_info_callback_handler(make_callback_query(data="itm:0:0", user_id=660004), fsm_context)
 
-        await buy_item_callback_handler(make_callback_query(data="buy_item", user_id=660004), fsm_context)
+        await add_to_cart_handler(make_callback_query(data="add_to_cart", user_id=660004), fsm_context)
         await back_to_item_handler(make_callback_query(data="back_to_item", user_id=660004), fsm_context)
 
         # The card's Back is gp_0.
