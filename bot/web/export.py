@@ -97,7 +97,8 @@ async def export_users(request: Request):
 
     from_date, to_date = _parse_date_params(request)
     query = select(
-        User.telegram_id, User.first_name, User.last_name, User.username, User.phone, User.address,
+        User.telegram_id, User.first_name, User.last_name, User.username, User.contact_name, User.phone, User.city,
+        User.address,
         User.language, User.balance, User.role_id, User.referral_id, User.registration_date, User.last_seen_at,
         User.is_blocked
     ).order_by(User.telegram_id)
@@ -107,7 +108,7 @@ async def export_users(request: Request):
     if to_date:
         query = query.where(User.registration_date < to_date)
 
-    columns = ["telegram_id", "first_name", "last_name", "username", "phone", "address", "language", "balance",
+    columns = ["telegram_id", "first_name", "last_name", "username", "contact_name", "phone", "city", "address", "language", "balance",
                "role_id", "referral_id", "registration_date", "last_seen_at", "is_blocked"]
 
     return StreamingResponse(

@@ -7,5 +7,6 @@ from .goods_state import GoodsFSM, AddItemFSM, AddOptionFSM, StockFSM, UpdateIte
 from .orders_admin_state import OrdersAdminFSM
 from .role_state import RoleMgmtFSM
 from .promo_state import PromoFSM
+from .profile_state import ProfileFSM
 from .review_state import ReviewFSM
 from .translation_state import TranslationFSM

@@ -126,13 +126,6 @@ TRANSLATIONS = {"ro": {
 
 
         # === Operation History ===
-        "btn.operation_history": "📋 Istoric operațiuni",
-        "history.title": "📋 <b>Istoric operațiuni</b>",
-        "history.empty": "Istoricul operațiunilor este gol.",
-        "history.topup": "💰 Alimentare sold: +{amount} {currency}",
-        "history.purchase": "🛒 Comandă achitată din sold: {amount} {currency}",
-        "history.referral": "🎲 Bonus de recomandare: +{amount} {currency}",
-        "history.date": "📅 {date}",
 
         # === Reviews ===
         "btn.leave_review": "⭐ Lăsați o recenzie",

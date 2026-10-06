@@ -212,5 +212,5 @@ class TestClientsPages:
     async def test_csv_export_has_the_profile_columns(self, boss, user_factory, item_factory):
         await self._client(user_factory, item_factory)
         text = (await boss.get("/export/users")).text
-        assert text.splitlines()[0].startswith("telegram_id,first_name,last_name,username,phone,address")
+        assert text.splitlines()[0].startswith("telegram_id,first_name,last_name,username,contact_name,phone,city,address")
         assert "anna_p" in text and "+37369111222" in text

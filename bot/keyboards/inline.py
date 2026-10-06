@@ -45,7 +45,7 @@ def main_menu(role: int, channel: str | None = None, helper: str | None = None,
 
 def profile_keyboard(referral_percent: int, user_orders: int = 0, cart_count: int = 0) -> InlineKeyboardMarkup:
     """
-    Profile keyboard with orders, cart, history, promo codes.
+    Profile keyboard: orders, cart, favorites, my details, promo code, language.
     """
     kb = InlineKeyboardBuilder()
     if referral_percent != 0:
@@ -55,7 +55,7 @@ def profile_keyboard(referral_percent: int, user_orders: int = 0, cart_count: in
     cart_text = localize("btn.cart", count=cart_count) if cart_count > 0 else localize("btn.cart_empty")
     kb.button(text=cart_text, callback_data="cart")
     kb.button(text=localize("btn.favorites"), callback_data="favorites")
-    kb.button(text=localize("btn.operation_history"), callback_data="operation_history")
+    kb.button(text=localize("btn.my_details"), callback_data="my_details")
     kb.button(text=localize("btn.redeem_promo"), callback_data="redeem_promo")
     kb.button(text=localize("btn.language"), callback_data="profile_language")
     kb.button(text=localize("btn.back"), callback_data="back_to_menu")
@@ -245,6 +245,24 @@ def favorites_keyboard(items: list[dict], page: int, total: int, page_size: int)
     return kb.as_markup()
 
 
+def my_details_keyboard(profile: dict) -> InlineKeyboardMarkup:
+    """One edit button per detail (name, phone, city, address), then Back to the profile."""
+    kb = InlineKeyboardBuilder()
+    for short in ("name", "phone", "city", "address"):
+        kb.row(InlineKeyboardButton(text=f"✏️ {localize(f'details.label_{short}')}", callback_data=f"mydet_edit:{short}"))
+    kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="profile"))
+    return kb.as_markup()
+
+
+def details_edit_keyboard(short: str, can_clear: bool) -> InlineKeyboardMarkup:
+    """The prompt for one detail: Clear (when it has a value) and Back to My details."""
+    kb = InlineKeyboardBuilder()
+    if can_clear:
+        kb.row(InlineKeyboardButton(text=localize("btn.details_clear"), callback_data=f"mydet_clear:{short}"))
+    kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="my_details"))
+    return kb.as_markup()
+
+
 def cart_keyboard(items: list[dict]) -> InlineKeyboardMarkup:
     """
     Cart view: a quantity stepper, an optional promo-drop button and a remove button per line, then
@@ -302,12 +320,25 @@ def checkout_shipping_keyboard(methods: list[dict], goods_total, currency: str) 
     return kb.as_markup()
 
 
-def checkout_name_keyboard(first_name: str | None) -> InlineKeyboardMarkup:
-    """Offer the Telegram first name as the order name, plus a way out."""
+def checkout_name_keyboard(first_name: str | None, saved_name: str | None = None) -> InlineKeyboardMarkup:
+    """Offer the saved name (My details) and the Telegram first name as the order name, plus a way out."""
     kb = InlineKeyboardBuilder()
-    if first_name:
+    if saved_name:
+        kb.button(text=localize("btn.checkout.use_saved_name", name=saved_name[:40]), callback_data="co_name_saved")
+    if first_name and first_name != saved_name:
         kb.button(text=localize("btn.checkout.use_name", name=first_name), callback_data="co_name_tg")
     kb.button(text=localize("btn.back"), callback_data="co_cancel")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def checkout_address_keyboard(saved_address: str | None = None) -> InlineKeyboardMarkup:
+    """The address step: the saved "city, address" as one tap (when there is one) and a way back to the cart."""
+    kb = InlineKeyboardBuilder()
+    if saved_address:
+        shown = saved_address if len(saved_address) <= 40 else saved_address[:39] + "…"
+        kb.button(text=localize("btn.checkout.use_saved_address", address=shown), callback_data="co_addr_saved")
+    kb.button(text=localize("btn.checkout.cancel"), callback_data="co_cancel")
     kb.adjust(1)
     return kb.as_markup()
 

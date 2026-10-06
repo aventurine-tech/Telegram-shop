@@ -10,6 +10,14 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Profile details (2026-10-06)
+- **Added** Profile → **My details**: Name and surname, Phone, City, Address, each edited by typing (validated, clearable); the profile shows them.
+- **Added** checkout "use saved" for the name (button), phone (keyboard button) and "city, address" (button); an order saves the name and keeps
+  city and address apart.
+- **Added** web Clients: *Name for delivery* and *City* columns, fields, search and CSV.
+- **Removed** the customer's *Operation History* button and screens (data and the admin side stay).
+- **Database** migration `f2b8d0e6a3c9`: `users.contact_name`, `users.city` (name back-filled from the latest order).
+
 ### Favorites and promo code in the cart (2026-10-06)
 - **Added** ⭐ **Favorites** under every product (add / remove on the card) and a paged **Favorites** list in the profile; a weight option stars
   its main product.

@@ -115,6 +115,10 @@ class User(Database.BASE):
     last_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Name for delivery (typed by the customer or taken from their orders) and city; unlike first_name/last_name,
+    # which follow Telegram, these are theirs to set.
+    contact_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_seen_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     user_operations: Mapped[list["Operations"]] = relationship(

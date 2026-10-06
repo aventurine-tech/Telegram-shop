@@ -338,13 +338,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
 
         # === Operation History ===
-        "btn.operation_history": "📋 История операций",
-        "history.title": "📋 <b>История операций</b>",
-        "history.empty": "История операций пуста.",
-        "history.topup": "💰 Начисление на баланс: +{amount} {currency}",
-        "history.purchase": "🛒 Оплата заказа с баланса: {amount} {currency}",
-        "history.referral": "🎲 Реферальный бонус: +{amount} {currency}",
-        "history.date": "📅 {date}",
 
         # === Reviews ===
         "btn.leave_review": "⭐ Оставить отзыв",
@@ -712,13 +705,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
 
         # === Operation History ===
-        "btn.operation_history": "📋 Operation History",
-        "history.title": "📋 <b>Operation History</b>",
-        "history.empty": "Operation history is empty.",
-        "history.topup": "💰 Balance credit: +{amount} {currency}",
-        "history.purchase": "🛒 Order paid from balance: {amount} {currency}",
-        "history.referral": "🎲 Referral bonus: +{amount} {currency}",
-        "history.date": "📅 {date}",
 
         # === Reviews ===
         "btn.leave_review": "⭐ Leave a review",

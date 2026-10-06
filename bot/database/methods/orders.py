@@ -325,8 +325,12 @@ async def create_order_transaction(
 
                 # The client's profile keeps the contact details of their latest order.
                 user.phone = order.phone
+                user.contact_name = order.customer_name
                 if fulfillment == Fulfillment.DELIVERY and order.address:
-                    user.address = order.address
+                    # "city, address" built from the saved profile is not a new address: keep the two parts apart.
+                    saved = ", ".join(p for p in ((user.city or "").strip(), (user.address or "").strip()) if p)
+                    if order.address != saved:
+                        user.address = order.address
 
                 for p in purchases:
                     p['goods'].stock -= p['qty']

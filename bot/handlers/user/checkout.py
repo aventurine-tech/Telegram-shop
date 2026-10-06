@@ -11,12 +11,13 @@ from bot.database.methods.orders import (
     create_order_transaction, get_order, mark_mia_paid,
     available_fulfillments, available_payment_methods,
 )
+from bot.database.methods.profiles import saved_address
 from bot.database.methods.read import check_user
 from bot.database.methods.shipping import active_methods, delivery_fee, get_active_method
 from bot.database.models.main import Fulfillment, PaymentMethod, PaymentStatus, OrderStatus
 from bot.handlers.user.cart import _cart_view_data, _show_cart
 from bot.keyboards.inline import (
-    checkout_fulfillment_keyboard, checkout_shipping_keyboard, checkout_name_keyboard, checkout_cancel_keyboard, checkout_comment_keyboard,
+    checkout_fulfillment_keyboard, checkout_shipping_keyboard, checkout_name_keyboard, checkout_address_keyboard, checkout_cancel_keyboard, checkout_comment_keyboard,
     checkout_payment_keyboard, checkout_confirm_keyboard, mia_keyboard, simple_buttons, back,
 )
 from bot.logger_mesh import logger
@@ -87,21 +88,39 @@ async def _ask_fulfillment(msg: Message, state: FSMContext, edit: bool = True) -
     await _show(msg, localize("checkout.fulfillment_prompt"), checkout_fulfillment_keyboard(kinds), edit)
 
 
+async def _saved_details(user_id: int) -> dict:
+    """What the profile already knows (name, phone, "city, address"); empty strings when nothing is saved."""
+    try:
+        profile = await check_user(user_id) or {}
+    except Exception as e:                      # prefill is a convenience; checkout must go on without it
+        logger.warning("loading saved details of %s failed: %s", user_id, e)
+        profile = {}
+    return {"name": (profile.get("contact_name") or "").strip(), "phone": (profile.get("phone") or "").strip(),
+            "address": saved_address(profile)}
+
+
+async def _saved(state: FSMContext) -> dict:
+    saved = (await state.get_data()).get("co_saved")
+    return saved if isinstance(saved, dict) else {}
+
+
 async def _ask_name(msg: Message, state: FSMContext, first_name: str | None, edit: bool = True) -> None:
     await state.set_state(CheckoutFSM.waiting_name)
+    saved_name = (await _saved(state)).get("name") or None
     await _show(
         msg, localize("checkout.name_prompt"),
-        checkout_name_keyboard((first_name or "").strip()[:60] or None), edit,
+        checkout_name_keyboard((first_name or "").strip()[:60] or None, saved_name=saved_name), edit,
     )
 
 
 async def _ask_phone(msg: Message, state: FSMContext) -> None:
     """Always a new message: the contact-share button is a reply keyboard, which an edit cannot carry."""
     await state.set_state(CheckoutFSM.waiting_phone)
-    share = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=localize("btn.checkout.share_phone"), request_contact=True)]],
-        resize_keyboard=True, one_time_keyboard=True,
-    )
+    rows = [[KeyboardButton(text=localize("btn.checkout.share_phone"), request_contact=True)]]
+    saved_phone = (await _saved(state)).get("phone")
+    if saved_phone:
+        rows.append([KeyboardButton(text=saved_phone)])      # a tap sends it as typed text
+    share = ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, one_time_keyboard=True)
     await msg.answer(localize("checkout.phone_prompt"), reply_markup=share)
 
 
@@ -110,7 +129,8 @@ async def _ask_address(msg: Message, state: FSMContext, edit: bool = False) -> N
     text = localize("checkout.address_prompt")
     if EnvKeys.DELIVERY_INFO:
         text += "\n\n" + localize("checkout.delivery_info", info=esc(EnvKeys.DELIVERY_INFO))
-    await _show(msg, text, checkout_cancel_keyboard(), edit)
+    saved_addr = (await _saved(state)).get("address") or None
+    await _show(msg, text, checkout_address_keyboard(saved_addr), edit)
 
 
 async def _after_address(msg: Message, state: FSMContext, user_id: int, edit: bool = False) -> None:
@@ -253,7 +273,7 @@ async def cart_checkout_handler(call: CallbackQuery, state: FSMContext):
 
     await call.answer()
     await state.clear()
-    await state.update_data(co_total=str(total), co_use_balance=False)
+    await state.update_data(co_total=str(total), co_use_balance=False, co_saved=await _saved_details(user_id))
 
     kinds = available_fulfillments()
     if len(kinds) == 1:
@@ -297,6 +317,18 @@ async def _name_given(msg: Message, state: FSMContext, name: str, edit: bool) ->
 async def name_from_telegram_handler(call: CallbackQuery, state: FSMContext):
     try:
         name = validate_customer_name(call.from_user.first_name)
+    except ValueError:
+        await call.answer(localize("checkout.name_invalid"), show_alert=True)
+        return
+    await call.answer()
+    await _name_given(call.message, state, name, edit=True)
+
+
+@router.callback_query(F.data == "co_name_saved", CheckoutFSM.waiting_name)
+async def name_from_profile_handler(call: CallbackQuery, state: FSMContext):
+    name = (await _saved(state)).get("name")
+    try:
+        name = validate_customer_name(name)
     except ValueError:
         await call.answer(localize("checkout.name_invalid"), show_alert=True)
         return
@@ -358,6 +390,19 @@ async def address_handler(message: Message, state: FSMContext):
         return
     await state.update_data(co_address=address)
     await _after_address(message, state, message.from_user.id)
+
+
+@router.callback_query(F.data == "co_addr_saved", CheckoutFSM.waiting_address)
+async def address_from_profile_handler(call: CallbackQuery, state: FSMContext):
+    address = (await _saved(state)).get("address")
+    try:
+        address = clean_text(address, ADDRESS_MAX_LEN)
+    except ValueError:
+        await call.answer(localize("checkout.address_invalid", max=ADDRESS_MAX_LEN), show_alert=True)
+        return
+    await call.answer()
+    await state.update_data(co_address=address)
+    await _after_address(call.message, state, call.from_user.id, edit=True)
 
 
 @router.callback_query(F.data.startswith("co_ship:"), CheckoutFSM.choosing_shipping)
