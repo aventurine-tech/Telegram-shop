@@ -22,6 +22,7 @@
           {{ display_menu(admin._menu, request) }}
         </div>
       </nav>
+      <div class="mb-2 w-100">{% with theme_btn_class='btn-outline-light' %}{% include '_theme_toggle.html' %}{% endwith %}</div>
       {% if admin.authentication_backend and request.session.get('role') %}
       <div class="text-muted small mb-2">{{ _('web.role.' ~ request.session.get('role')) }}</div>
       {% endif %}

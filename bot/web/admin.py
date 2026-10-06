@@ -407,13 +407,12 @@ class PermissionsField(Field):
 def _format_perms_html(model, name):
     perms = getattr(model, name, 0) or 0
     if not perms:
-        return Markup('<span style="color:#999">\u2014</span>')
+        return Markup('<span class="text-muted">\u2014</span>')
     badges = []
     for bit, flag in _PERM_FLAGS:
         if perms & bit:
             badges.append(
-                f'<span style="display:inline-block;background:#e2e8f0;padding:1px 6px;'
-                f'border-radius:4px;margin:1px;font-size:12px">{escape(_perm_label(flag))}</span>'
+                f'<span class="shop-pill">{escape(_perm_label(flag))}</span>'
             )
     return Markup(" ".join(badges))
 
@@ -1450,14 +1449,11 @@ def _format_promo_scope_html(model, name):
     )
     if not dangling:
         return Markup(
-            f'<span style="display:inline-block;background:#e2e8f0;padding:1px 6px;'
-            f'border-radius:4px;font-size:11px">{escape(scope)}</span>'
+            f'<span class="shop-pill">{escape(scope)}</span>'
         )
     return Markup(
-        f'<span style="display:inline-block;background:#e2e8f0;padding:1px 6px;'
-        f'border-radius:4px;font-size:11px">{escape(scope)}</span> '
-        f'<span style="display:inline-block;background:#fed7d7;color:#9b2c2c;'
-        f'padding:1px 6px;border-radius:4px;font-size:11px;font-weight:600" '
+        f'<span class="shop-pill">{escape(scope)}</span> '
+        f'<span class="shop-pill shop-pill-danger" '
         f'title="{escape(localize("web.promo.dangling_hint"))}">'
         f'{escape(localize("web.promo.dangling"))}</span>'
     )

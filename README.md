@@ -474,7 +474,8 @@ Two ways to manage the shop:
 The sidebar is grouped, in this order: **Orders** · **Clients** (customers, referral earnings, carts) · **Payments**
 (MIA payments waiting to be verified, balance operations) · **Catalog** (products, categories) · **Marketing**
 (**mailings**, promo codes, reviews) · **Settings** (web accounts, roles, audit log, My account) · **Log out**. Groups collapse and stay
-open while you are inside one; names follow the panel language.
+open while you are inside one; names follow the panel language. A **light / dark** switch (sidebar and login page) follows the
+system preference first, then remembers your choice in the browser.
 
 ### Clients (Clients → Customers)
 
