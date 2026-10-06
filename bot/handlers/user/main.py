@@ -15,7 +15,7 @@ from bot.database.methods import (
     select_user_items, check_user_cached
 )
 from bot.database.methods.read import get_cart_count, invalidate_user_cache
-from bot.database.methods.lazy_queries import query_user_operations_history, query_top_categories_with_ids
+from bot.database.methods.lazy_queries import query_top_categories_with_ids
 from bot.database.methods.translations import category_labels
 from bot.handlers.other import check_sub_channel, _parse_channel_username
 from bot.keyboards import main_menu, back, profile_keyboard, check_sub
@@ -250,6 +250,17 @@ async def rules_callback_handler(call: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
+def _details_lines(user_info: dict) -> str:
+    """The customer's saved name, phone, city and address, one line each (only those that are set)."""
+    out = []
+    for key, column in (("profile.name", "contact_name"), ("profile.phone", "phone"),
+                        ("profile.city", "city"), ("profile.address", "address")):
+        value = (user_info.get(column) or "").strip()
+        if value:
+            out.append(localize(key, value=_esc(value)))
+    return ("\n" + "\n".join(out)) if out else ""
+
+
 async def show_profile(call: CallbackQuery | Message, *, as_new: bool = False) -> None:
     """Render the profile screen into the callback's message (or as a new message for a Message).
 
@@ -278,6 +289,7 @@ async def show_profile(call: CallbackQuery | Message, *, as_new: bool = False) -
         f"{localize('profile.id', id=user_id)}\n"
         f"{localize('profile.balance', amount=balance, currency=EnvKeys.PAY_CURRENCY)}\n"
         f"{localize('profile.orders_count', count=orders)}"
+        f"{_details_lines(user_info)}"
     )
     try:
         if as_new and not isinstance(call, Message):
@@ -318,71 +330,3 @@ async def check_sub_to_channel(call: CallbackQuery, state: FSMContext):
             return
 
     await call.answer(localize("errors.not_subscribed"))
-
-
-# --- Operation History ---
-
-@router.callback_query(F.data == "operation_history")
-async def operation_history_handler(call: CallbackQuery, state: FSMContext):
-    user_id = call.from_user.id
-    await _show_operations_page(call, state, user_id, 0)
-
-
-@router.callback_query(F.data.startswith("ops-page_"))
-async def navigate_operations(call: CallbackQuery, state: FSMContext):
-    try:
-        page = int(call.data.split("_")[1])
-    except (ValueError, IndexError):
-        await call.answer(localize("errors.pagination_invalid"))
-        return
-    await _show_operations_page(call, state, call.from_user.id, page)
-
-
-async def _show_operations_page(call: CallbackQuery, state: FSMContext, user_id: int, page: int):
-    from functools import partial
-    from bot.misc import LazyPaginator
-
-    paginator = LazyPaginator(partial(query_user_operations_history, user_id), per_page=10)
-    items = await paginator.get_page(page)
-    total_pages = await paginator.get_total_pages()
-
-    if not items:
-        await call.message.edit_text(
-            localize("history.title") + "\n\n" + localize("history.empty"),
-            reply_markup=back("profile"),
-        )
-        return
-
-    lines = [localize("history.title"), ""]
-    for op in items:
-        op_type = op['type']
-        amount = op['amount']
-        date = op['date']
-        date_str = str(date)[:19] if date else ""
-
-        if op_type == 'topup':
-            lines.append(localize("history.topup", amount=amount, currency=EnvKeys.PAY_CURRENCY))
-        elif op_type == 'purchase':
-            lines.append(localize("history.purchase", amount=amount, currency=EnvKeys.PAY_CURRENCY))
-        elif op_type == 'referral':
-            lines.append(localize("history.referral", amount=amount, currency=EnvKeys.PAY_CURRENCY))
-        lines.append(localize("history.date", date=date_str))
-        lines.append("")
-
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
-    kb = InlineKeyboardBuilder()
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton(text="◀️", callback_data=f"ops-page_{page - 1}"))
-    if total_pages > 1:
-        nav_buttons.append(InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="dummy_button"))
-    if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton(text="▶️", callback_data=f"ops-page_{page + 1}"))
-    if nav_buttons:
-        kb.row(*nav_buttons)
-    kb.row(InlineKeyboardButton(text=localize("btn.back"), callback_data="profile"))
-
-    await call.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
-
-

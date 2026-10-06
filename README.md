@@ -498,6 +498,13 @@ on the confirmation, the order card and the web order page (*Shipping method*, *
 delivery. **With no active method, delivery stays free and unpriced** (as before), so nothing changes until you add one.
 `DELIVERY_ENABLED` still switches delivery on or off as a whole.
 
+### Customer details (bot: Profile → My details)
+
+Customers keep their **name and surname, phone, city and address** under *Profile → My details* (each edited by typing, with *Clear*).
+The profile shows what is set, and checkout offers it: *Use "Name"*, the saved phone as a keyboard button, *Use: city, address*.
+After an order the name and phone are remembered; the delivery address is kept apart from the city. Staff see and edit the same
+fields (and notes) under *Clients*. The old *Operation History* screen was removed from the profile.
+
 ### Mailings (Marketing → Mailings)
 
 Mass messages written in the browser (Admin role): a title, a **group** (all customers, Romanian / Russian / English

@@ -293,15 +293,15 @@ def _format_when(model, name):
 class UserAdmin(AuditModelView, model=User):
     """Clients: who they are (Telegram name and @username), how to reach them (phone, address from their orders)
     and their order history on the details page."""
-    column_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.phone, User.address,
-                   User.language, User.balance, User.registration_date, User.last_seen_at, User.is_blocked]
-    column_searchable_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.phone,
-                              User.address]
+    column_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.contact_name, User.phone,
+                   User.city, User.address, User.language, User.balance, User.registration_date, User.last_seen_at, User.is_blocked]
+    column_searchable_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.contact_name,
+                              User.phone, User.city, User.address]
     column_sortable_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.balance,
                             User.registration_date, User.last_seen_at]
     column_default_sort = (User.registration_date, True)
-    column_details_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.phone,
-                           User.address, User.language, User.balance, User.role_id, User.referral_id,
+    column_details_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.contact_name,
+                           User.phone, User.city, User.address, User.language, User.balance, User.role_id, User.referral_id,
                            User.is_blocked, User.registration_date, User.last_seen_at, User.notes, User.user_orders]
     column_formatters = {"username": _format_username, "registration_date": _format_when,
                          "last_seen_at": _format_when}
@@ -320,7 +320,8 @@ class UserAdmin(AuditModelView, model=User):
     def _column_labels(self) -> dict:
         labels = LocalizedModelView._column_labels.fget(self)
         labels.update({"username": localize("web.client.username"), "first_name": localize("web.client.first_name"),
-                       "last_name": localize("web.client.last_name"), "notes": localize("web.client.notes"),
+                       "last_name": localize("web.client.last_name"), "contact_name": localize("web.client.contact_name"),
+                       "notes": localize("web.client.notes"),
                        "last_seen_at": localize("web.client.last_seen_at"),
                        "registration_date": localize("web.client.registered"),
                        "user_orders": localize("web.client.orders")})

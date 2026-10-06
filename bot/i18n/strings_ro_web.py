@@ -303,6 +303,8 @@ TRANSLATIONS = {
         "web.my.language_hint": "Se reține pentru contul dumneavoastră, pe toate dispozitivele.",
         "web.my.language_submit": "Salvează limba",
         "web.my.language_saved": "Limba a fost salvată.",
+        "web.client.contact_name": "Nume pentru livrare",
+        "web.col.city": "Oraș",
         "web.theme.toggle": "Comută între tema luminoasă și cea întunecată",
         "web.theme.light": "Temă luminoasă",
         "web.theme.dark": "Temă întunecată",

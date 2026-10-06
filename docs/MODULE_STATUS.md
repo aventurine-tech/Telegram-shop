@@ -18,6 +18,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Order management in chat** | #1 | ✅ | `test_orders_admin`, `test_admin_handlers` | |
 | **Order management in web** (action buttons, Payments to verify) | #1, #15, #19 | ✅ | `test_web_roles_orders`, `test_web_menu` | actions only (no free edit) by design; statuses in the *list* are raw values (roadmap 4.7) |
 | **Shipping methods** | #23 | ✅ 🔧 | `test_shipping` | no method active ⇒ delivery free/unpriced; shipping name stored in canonical language only (roadmap 4.10); referral commission includes the fee (6.1) |
+| **My details** (customer edits name, phone, city, address; checkout "use saved") | profile-details PR | ✅ | `test_profile_details` | Operation History button removed (data stays); typed name is separate from Telegram's |
 | **Client profiles** | #22 | ✅ | `test_client_profiles` | names fill as people use the bot; phone/address from latest order; no import by design |
 | **Mailings** (web) | #20, #21 | ✅ 🔧 | `test_mailings_core`, `test_web_mailings` | Admin only; UTC schedule; interrupted ≠ resumed; no per-recipient log; **not yet tried against live Telegram** — send a test first |
 | **Text broadcast** (bot) | upstream | ✅ | `test_broadcast*` | the older in-chat broadcast |
