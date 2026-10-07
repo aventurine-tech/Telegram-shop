@@ -15,6 +15,10 @@ Bottom keyboard, subcategories, weight options, clean chat, welcome line, role t
 Grouped sidebar · Mailings (editor, audiences, schedule, delivery report) · fully translated panel · client profiles with order
 history · shipping methods with prices.
 
+## Phase 2b — Customer polish ✅ (PR #27–#31)
+Light/dark panel theme · ⭐ Favorites and promo code in the cart · Profile → My details with checkout "use saved" · ☰ bot command
+menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
+
 ## Phase 3 — Go live 🟡 (blocked on the owner)
 | # | Item | Status | Needs |
 |---|---|---|---|
@@ -26,7 +30,7 @@ history · shipping methods with prices.
 ## Phase 4 — Back-office parity with Botobot (proposals)
 | # | Item | Notes |
 |---|---|---|
-| 4.1 | **Import page in the web panel** (CSV/XLSX price list: dry-run preview, apply, history) | Botobot's *Catalog → Import*. Skipped earlier on purpose; confirm priority. |
+| 4.1 | **Import page in the web panel** (CSV/XLSX price list: dry-run preview, apply, history) | Botobot's *Catalog → Import*. The old UMBRA crawler/importer was removed (#31, D-21); only comes back if the owner asks. |
 | 4.2 | **Print order / packing slip** (printable order page) | Botobot has *Print* on the order |
 | 4.3 | **Customer groups** (manual tags like "VIP", used as mailing audiences) | Botobot's *Group*; today audiences are computed (language / has orders) |
 | 4.4 | **Unsubscribe / "mailing: yes/no"** per customer + opt-out button in mailings | Compliance and fewer blocks |
@@ -40,11 +44,11 @@ history · shipping methods with prices.
 ## Phase 5 — Customer experience (proposals)
 | # | Item |
 |---|---|
-| 5.1 | Prefill checkout name/phone/address from the saved profile ("use my last address") |
+| 5.1 | ✅ Prefill checkout name/phone/address from the saved profile — delivered in #29 |
 | 5.2 | Re-order from *My orders* |
 | 5.3 | Order status notifications with tracking text (staff comment on *shipped*) |
 | 5.4 | Wishlist / "notify me" for sold-out options (restock notifier already exists per product) |
-| 5.5 | Product search by flavour/strength attributes (UMBRA catalog shape) |
+| 5.5 | Product search by flavour/strength attributes |
 
 ## Phase 6 — Platform & quality (proposals)
 | # | Item |

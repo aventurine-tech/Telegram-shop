@@ -26,7 +26,6 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 - [Configuration](#-configuration)
 - [Installation](#-installation)
 - [Admin panel](#-admin-panel)
-- [Importing the UMBRA catalog](#-importing-the-umbra-catalog)
 - [Upgrading from the digital-goods shop](#-upgrading-from-the-digital-goods-shop)
 - [Testing](#-testing)
 - [Development workflow](#-development-workflow)

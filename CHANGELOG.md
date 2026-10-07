@@ -10,6 +10,11 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Docs drift check (2026-10-07)
+- **Changed** ROADMAP, PROJECT_STATE, MODULE_STATUS, PROJECT_PRINCIPLES and NEW_SESSION_PROMPT to match `development` after #31: PR references, alembic head
+  `f2b8d0e6a3c9`, delivered items (roadmap 5.1, theme, favorites, profile details, command menu), no importer.
+- **Removed** the dead "Importing the UMBRA catalog" link from the README contents.
+
 ### Catalog is entered by staff (2026-10-07)
 - **Removed** the UMBRA crawler and importer (`scripts/`, scraped catalog data and pictures, price template, `tests/test_import_catalog.py`) and
   the guide section that described them; staff add products, options, prices and stock themselves (D-21).
