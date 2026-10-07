@@ -144,5 +144,3 @@ cython_debug/
 
 data
 
-# One-time catalog import: pictures are downloaded by the crawler/importer, not committed
-scripts/umbramd/images/

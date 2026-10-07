@@ -37,7 +37,7 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 3. Don't log secrets, tokens, full phone numbers or addresses; keep audit details short and structured.
 4. Anything that sends messages to many people needs a cancel path, a throttle and a test with a fake bot.
 5. Migrations must not relax constraints; new money columns are `Numeric(12, 2)` with a non-negative `CHECK`.
-6. Third-party input (crawled pages, uploads, Telegram profile fields) is untrusted: validate, limit, escape.
+6. Third-party input (uploads, Telegram profile fields) is untrusted: validate, limit, escape.
 7. Dependencies are pinned exactly; add one only with a reason, check its licence and maintenance.
 8. Never edit the owner's `.env`; never commit real credentials, IBANs or phone numbers (use placeholders in `.env.example`).
 

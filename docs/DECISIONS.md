@@ -108,7 +108,8 @@ anchor when two PRs add keys: keep both sides and drop exact duplicate keys, the
 Mass messaging is the riskiest action in the panel; the *Mailings* view and the image route require the Admin web role. Staff
 see Orders/Clients/Catalog etc. as before.
 
-### D-20 UMBRA catalog import
-The crawler reads umbramd.com (no age gate in the HTML; originals up to 14 MB fall back to the 450×450 thumbnail); a flavour
-available in two strengths becomes two products (`SOLO 11` / `SOLO 11 Intense`); the importer is idempotent with `--dry-run` and
-reads prices from `data/prices.csv` (template in `scripts/umbramd/prices.template.csv`). Not run live until the owner supplies prices.
+### D-20 UMBRA catalog import — superseded by D-21
+A crawler/importer for umbramd.com was built (#10); it was never run on the live shop and has been removed (D-21).
+
+### D-21 Catalog is entered by staff
+**Context** the owner cancelled the open items *prices per weight* and *Puff/accessories import*. **Decision** products, options, prices and stock are created in the bot or the web panel by staff; the crawler, importer, scraped data and price template were deleted. **Consequences** no import code path to maintain; bulk import may return as a web-panel feature (roadmap 4.1) if the owner asks.

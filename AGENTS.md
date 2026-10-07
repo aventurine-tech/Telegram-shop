@@ -7,7 +7,7 @@ wins and this file should then be updated (see §10).
 **Project:** a Telegram shop bot for **physical goods** (aiogram 3 · async SQLAlchemy 2 + PostgreSQL · optional Redis ·
 SQLAdmin/Starlette web panel). Exactly **two payments**: **MIA** (manual instant transfer, verified by staff) and **cash on
 delivery / pickup**. **English, Russian and Romanian everywhere** (bot *and* web). Currency **MDL**. Integer stock.
-First real catalog: **UMBRA hookah tobacco** (umbramd.com). Repo: `aventurine-tech/Telegram-shop`.
+First real catalog: **UMBRA hookah tobacco**. Catalog entered by staff. Repo: `aventurine-tech/Telegram-shop`.
 
 ## 0. Read first (in this order)
 
@@ -124,7 +124,7 @@ honest test plan + CI green. Then merge (squash) — or leave to the owner if th
 - Needs `TOKEN, OWNER_ID, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD` in the environment to import settings.
 - Local PostgreSQL 16 for migration checks: `pg_ctlcluster 16 main start` (DB `migdb`, user/password `mig`, `POSTGRES_HOST=localhost`).
 - Headless Chromium for panel scripts: `/opt/pw-browsers/chromium-*/chrome-linux/chrome --headless --no-sandbox --dump-dom file://…`.
-- Outbound network may be proxied/allow-listed; `umbramd.com` is reachable for the catalog crawler.
+- Outbound network may be proxied/allow-listed.
 
 ## 10. Keeping these rules alive
 

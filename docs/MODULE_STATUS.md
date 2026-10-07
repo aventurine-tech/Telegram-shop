@@ -32,7 +32,6 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Audit log, CSV export** | upstream | ✅ | `test_audit`, `test_export` | export includes profile columns (#22) |
 | **Rate limiting, security middleware** | upstream | ✅ | `test_middleware`, `test_login_rate_limiter` | web login limiter is per-process |
 | **Caching (Redis optional)** | upstream | ✅ | `test_cache_invalidation` | |
-| **UMBRA crawler + importer** | #10 | 🔧 | `test_import_catalog` | **not run on the live shop**: waiting for the owner's prices (50 g / 200 g, MDL) and the Puff/accessories decision |
 | **Docs & process** | #2, #18, docs set | ✅ | — | AGENTS/CLAUDE/CHANGELOG/ROADMAP/docs set |
 | Import page in web (price list) | — | ⬜ | | roadmap 4.1 |
 | Print order / packing slip | — | ⬜ | | roadmap 4.2 |

@@ -26,13 +26,11 @@ Standing rules (details in AGENTS.md):
 - I may merge PRs myself before CI finishes: re-check origin/development after any merge and re-apply anything that missed it on a fresh branch.
 - GitHub goes through the mcp__github__* tools (no gh CLI); load them with ToolSearch if they are missing.
 
-What exists (all merged): physical-goods shop, MIA + cash on delivery, subcategories, weight options, clean chat + welcome line above the persistent menu, EN/RU/RO bot and fully translated web panel, grouped sidebar (Orders, Clients, Payments, Catalog incl. Shipping, Marketing incl. Mailings, Settings), Mailings with rich editor/segments/schedule/test, client profiles with order history (no import by design), shipping methods with price/free-from, UMBRA crawler + importer (built, NOT yet run live).
+What exists (all merged): physical-goods shop, MIA + cash on delivery, subcategories, weight options, clean chat + welcome line above the persistent menu, EN/RU/RO bot and fully translated web panel, grouped sidebar (Orders, Clients, Payments, Catalog incl. Shipping, Marketing incl. Mailings, Settings), Mailings with rich editor/segments/schedule/test, client profiles with order history (no import by design), shipping methods with price/free-from.
 
 Open items waiting on me (ask me again only if still blocking):
-1. UMBRA prices per weight (50 g / 200 g, MDL) for scripts/umbramd/prices.template.csv → data/prices.csv.
-2. Whether to also import the Puff and accessories sections.
-3. Whether the requirements register (docs/PROJECT_PRINCIPLES.md §4) and ROADMAP.md are correct — I have not reviewed them yet.
-4. I will deploy the latest code and test live; I will report problems with screenshots.
+1. Whether the requirements register (docs/PROJECT_PRINCIPLES.md §4) and ROADMAP.md are correct — I have not reviewed them yet.
+2. I will deploy the latest code and test live; I will report problems with screenshots.
 
 First task in this session: give me a 5-line status (what is on development, open PRs, CI state, what is blocked on me), then wait for my instructions. Candidate next work from ROADMAP.md (do NOT start without my choice): import page in the web panel (price list), print order, customer groups + unsubscribe, orders list with localized statuses/filters, prefill checkout from profile.
 ```

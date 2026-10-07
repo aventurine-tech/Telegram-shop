@@ -64,7 +64,6 @@ Deploy (owner): `git pull && docker compose up -d --build`, then `/start` once i
 | i18n | `bot/i18n/` — `strings*.py` (en/ru) and `strings_ro_*.py`; `localize()` uses a per-update ContextVar language |
 | Localized names | `bot/misc/localized.py` — `pick`, `derive_canonical`, `clean_name`, `LANGS` |
 | Clean chat / profile | `bot/middleware/clean_chat.py`, `bot/middleware/profile.py` |
-| UMBRA import | `scripts/crawl_umbramd.py`, `scripts/import_catalog.py`, `scripts/umbramd/` |
 
 ## Quirks learned the hard way
 

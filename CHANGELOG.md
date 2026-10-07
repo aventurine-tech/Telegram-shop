@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Catalog is entered by staff (2026-10-07)
+- **Removed** the UMBRA crawler and importer (`scripts/`, scraped catalog data and pictures, price template, `tests/test_import_catalog.py`) and
+  the guide section that described them; staff add products, options, prices and stock themselves (D-21).
+- **Removed** the two open items *UMBRA prices per weight* and *Puff/accessories import* from the state, roadmap, requirements (R-50 – R-52
+  → R-53), module status and new-session prompt. Entry #10 below stays as history.
+
 ### Bot command menu (2026-10-06)
 - **Added** the ☰ menu next to the input field: `/start` Main menu · `/catalog` · `/cart` · `/orders` · `/favorites` · `/profile` · `/language`, published
   per language (en/ru/ro, default = the shop's main language) at startup; changing the language in the bot also sets that chat's menu.

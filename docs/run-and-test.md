@@ -89,14 +89,7 @@ Use a second Telegram account.
 - Shipping: Catalog, Shipping. Add a method (name in each language, price 30, free from 500, active). Place a delivery order: after the address you choose the method; the total includes the delivery price; the order card and the web order page show the method and fee. A pickup order has no delivery price. Deactivate all methods: delivery is free again.
 - Mailings: Settings, My account: save your Telegram ID. Marketing, Mailings, New: write a text with bold, a link and `{first_name|friend}`, add a picture, pick the group, press Save, open the mailing and press Send test to me. Then create one for a small group and use Send now or a date a few minutes ahead; watch the progress bar and "Delivered N out of M". Cancel a scheduled one.
 
-## 8. Import the UMBRA catalog (optional, once)
-The catalog crawled from umbramd.com (54 products, 73 weight options, 3 languages, pictures) is in scripts/umbramd/.
-1. Copy scripts/umbramd/prices.template.csv to data/prices.csv and fill in the price per weight (MDL).
-2. Dry run: `docker compose exec bot python -m scripts.import_catalog scripts/umbramd/catalog.json --prices data/prices.csv --dry-run`
-3. Import: the same command without --dry-run. Add `--top-category "Premium hookah tobacco"` to reuse an existing empty top category.
-4. Stock is 0 for everything: set it per option. The import never changes existing items, so it can be repeated.
-
-## 9. Optional extras
+## 8. Optional extras
 - Referral: set REFERRAL_PERCENT=10, restart the bot, and use another account's referral link. Completing that account's order credits the referrer's balance.
 - Balance: Admin, Users, open a customer and add balance. The customer can then use it at checkout.
 - Language: change BOT_LOCALE, then docker compose restart bot.

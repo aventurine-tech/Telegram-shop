@@ -3,7 +3,7 @@
 ## 1. What we are building
 
 A Telegram shop for **physical goods**, run by a small team from chat and from a web panel, replacing an older bot that ran on
-Botobot. First catalog: UMBRA hookah tobacco (umbramd.com). The owner is the product owner and tester; work is delivered in
+Botobot. First catalog: UMBRA hookah tobacco, entered by staff. The owner is the product owner and tester; work is delivered in
 small pull requests that the owner can review, merge and roll back one by one.
 
 ## 2. Product principles
@@ -95,9 +95,7 @@ Everything the owner asked for or ruled on, with where it lives. IDs are stable 
 ### Catalog source
 | ID | Requirement | Status |
 |---|---|---|
-| R-50 | First catalog = UMBRA (umbramd.com), crawled with its 18+ prompt bypassed; a flavour sold in two strengths = two products; originals ≤ 14 MB fall back to the thumbnail | built (#10) |
-| R-51 | Prices per weight supplied by the owner (`data/prices.csv`) before the live import | **open** |
-| R-52 | Puff/accessories sections: owner to decide | **open** |
+| R-53 | The catalog (products, prices per weight, Puff/accessories if ever sold) is **entered manually by staff**; no crawler/importer, no price file (supersedes R-50 – R-52, removed) | decided |
 
 ## 5. Changing a requirement
 Requirements change only when the owner says so. Record the change here (new ID or a *superseded by* note), in
