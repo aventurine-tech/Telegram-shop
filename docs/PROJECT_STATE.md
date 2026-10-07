@@ -1,13 +1,13 @@
 # Project state
 
-_Last updated: 2026-10-06, after PR #23. Branch of record: `development`; `main` is untouched on purpose._
+_Last updated: 2026-10-07, after PR #31. Branch of record: `development`; `main` is untouched on purpose._
 History: [`../CHANGELOG.md`](../CHANGELOG.md) · plans: [`../ROADMAP.md`](../ROADMAP.md) · per-module detail: [`MODULE_STATUS.md`](MODULE_STATUS.md).
 
 ## In one paragraph
 A Telegram shop bot for physical goods (MIA transfer verified by staff, or cash on delivery / pickup) with a catalog of categories →
 subcategories → products → weight options, order tracking, staff roles, a Botobot-style multi-account web panel (grouped menu, mailings,
 client profiles with order history, shipping methods, payments to verify) and English / Russian / Romanian everywhere. Everything is
-**built, merged into `development` and covered by automated tests (2055 passing)**. Nothing has been signed off in a live shop yet:
+**built, merged into `development` and covered by automated tests** (last full count 2055 passed; not re-counted after #27–#31). Nothing has been signed off in a live shop yet:
 the owner is testing the deployed bot and reporting issues from screenshots.
 
 ## What exists (all merged)
@@ -23,13 +23,15 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 | Languages en/ru/ro in bot and web; per-user language remembered | Done |
 | Weight options, subcategories, pictures, translated catalog | Done |
 | Bottom keyboard + welcome line, clean chat | Done (see risks) |
+| ☰ command menu (`/start /catalog /cart /orders /favorites /profile /language`), ⭐ Favorites, Profile → My details with checkout "use saved" | Done (#28–#30) |
+| Web panel light/dark theme | Done (#27) |
 
 ## Open items (need the owner)
 1. Add real `MIA_*` details, `PICKUP_ADDRESS` / `DELIVERY_INFO` to the server `.env`, and create the first **shipping method(s)**.
 2. Send yourself a **mailing test** (Settings → My account → Telegram ID; Marketing → Mailings → *Send test to me*) before the first real campaign.
 3. Deploy the latest code: `git pull && docker compose up -d --build`, then `/start` (migrations run on start).
 4. Promote `development` → `main` when satisfied (manual, owner only).
-5. Priorities for the next phase — see `ROADMAP.md` Phase 4–6 (import page, print order, customer groups, unsubscribe, …).
+5. Priorities for the next phase — see `ROADMAP.md` Phase 4–6 (print order, customer groups, unsubscribe, orders-list filters, …).
 
 ## Known limitations / risks
 - **Welcome line.** Telegram needs a message to hold the reply keyboard, so one short welcome line always stays at the top of the chat.
@@ -39,9 +41,8 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 - Shipping: the order keeps the method's canonical name only; referral commission is computed on the paid total including the delivery fee.
 - Orders list in the web shows raw status values (details page and buttons are localized).
 - Option label change in the web rows = delete + create (stock of that option is lost); renaming a head in the bot does not rename options.
-- Importer clears no in-process caches of a running bot (flushes Redis if enabled): restart after a big import if anything looks stale.
 - Web login limiter is per-process; no 2FA.
-- Not built on purpose: order **ownership**; client **import**.
+- Not built on purpose: order **ownership**; client **import**; catalog crawler/importer (removed in #31 — staff enter the catalog, D-21).
 
 ## Environment notes for a new session
 - Outbound network is proxied/allow-listed.
@@ -57,7 +58,7 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 4. Work in a branch per change; keep `CHANGELOG.md`, `ROADMAP.md`, `MODULE_STATUS.md` and this file current.
 
 ## Where things are documented
-`AGENTS.md` (rulebook) · `CLAUDE.md` (Claude Code handoff + quirks) · `README.md` (manual: features, config, admin, import) ·
+`AGENTS.md` (rulebook) · `CLAUDE.md` (Claude Code handoff + quirks) · `README.md` (manual: features, config, admin) ·
 `CHANGELOG.md` · `ROADMAP.md` · `docs/` — `PROJECT_PRINCIPLES` (requirements register), `DECISIONS`, `GIT_WORKFLOW`, `NAMING_STANDARDS`,
 `TESTING`, `SECURITY`, `ENTERPRISE_STANDARDS`, `MODULE_GUIDE`, `MODULE_STATUS`, `run-and-test.pdf` (source `run-and-test.md`,
 `python docs/build_pdf.py`) · `.env.example`.
