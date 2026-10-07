@@ -23,19 +23,13 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 | Languages en/ru/ro in bot and web; per-user language remembered | Done |
 | Weight options, subcategories, pictures, translated catalog | Done |
 | Bottom keyboard + welcome line, clean chat | Done (see risks) |
-| UMBRA crawler + importer | Built; **not run on the live shop** |
 
 ## Open items (need the owner)
-1. **Prices for the UMBRA import** — price per weight (50 g, 200 g) in MDL: copy `scripts/umbramd/prices.template.csv` → `data/prices.csv`,
-   then run the importer (steps in the README).
-2. **Decide:** also import the site's *Puff* (e-cigarettes) and accessories sections? Currently hookah tobacco only.
-3. The owner's existing test categories ("Premium hookah tobacco", "Accessories", "Electronic cigarettes") can be reused with
-   `--top-category` or cleaned up.
-4. Add real `MIA_*` details, `PICKUP_ADDRESS` / `DELIVERY_INFO` to the server `.env`, and create the first **shipping method(s)**.
-5. Send yourself a **mailing test** (Settings → My account → Telegram ID; Marketing → Mailings → *Send test to me*) before the first real campaign.
-6. Deploy the latest code: `git pull && docker compose up -d --build`, then `/start` (migrations run on start).
-7. Promote `development` → `main` when satisfied (manual, owner only).
-8. Priorities for the next phase — see `ROADMAP.md` Phase 4–6 (import page, print order, customer groups, unsubscribe, …).
+1. Add real `MIA_*` details, `PICKUP_ADDRESS` / `DELIVERY_INFO` to the server `.env`, and create the first **shipping method(s)**.
+2. Send yourself a **mailing test** (Settings → My account → Telegram ID; Marketing → Mailings → *Send test to me*) before the first real campaign.
+3. Deploy the latest code: `git pull && docker compose up -d --build`, then `/start` (migrations run on start).
+4. Promote `development` → `main` when satisfied (manual, owner only).
+5. Priorities for the next phase — see `ROADMAP.md` Phase 4–6 (import page, print order, customer groups, unsubscribe, …).
 
 ## Known limitations / risks
 - **Welcome line.** Telegram needs a message to hold the reply keyboard, so one short welcome line always stays at the top of the chat.
@@ -50,7 +44,7 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 - Not built on purpose: order **ownership**; client **import**.
 
 ## Environment notes for a new session
-- Outbound network is proxied/allow-listed; `umbramd.com` is reachable (owner opened full internet).
+- Outbound network is proxied/allow-listed.
 - Local PostgreSQL 16 for migration checks: `pg_ctlcluster 16 main start` (DB `migdb`, user/password `mig`).
 - Headless Chromium at `/opt/pw-browsers/chromium-*/chrome-linux/chrome` for panel-script smoke tests; no Playwright Python package.
 - GitHub through the MCP tools (no `gh`); PR/branch rules in `GIT_WORKFLOW.md`.

@@ -9,7 +9,7 @@ Physical-goods shop from the digital-goods upstream: orders with stock reservati
 pickup, web accounts, EN/RU/RO, translated catalog, CI with PostgreSQL migration check.
 
 ## Phase 1 — Catalog shape & chat experience ✅ (PR #5–#17)
-Bottom keyboard, subcategories, weight options, clean chat, welcome line, role tags, status-aware order buttons, UMBRA crawler/importer.
+Bottom keyboard, subcategories, weight options, clean chat, welcome line, role tags, status-aware order buttons.
 
 ## Phase 2 — Botobot-style back office ✅ (PR #19–#23)
 Grouped sidebar · Mailings (editor, audiences, schedule, delivery report) · fully translated panel · client profiles with order
@@ -18,8 +18,6 @@ history · shipping methods with prices.
 ## Phase 3 — Go live 🟡 (blocked on the owner)
 | # | Item | Status | Needs |
 |---|---|---|---|
-| 3.1 | **Fill UMBRA prices** (50 g / 200 g, MDL) in `data/prices.csv` and run the importer on the live shop | 🟡 | owner: prices |
-| 3.2 | Decide whether to import the site's **Puff** (e-cigarette) and **accessories** sections | 🟡 | owner: decision |
 | 3.3 | Real `MIA_*`, `PICKUP_ADDRESS`, `DELIVERY_INFO`; add the first **shipping methods** | 🟡 | owner: data |
 | 3.4 | Live acceptance pass of the whole flow on a real phone (order → MIA → staff verify → shipped → completed; mailing test; language switch; clean chat) | 🟡 | owner + Claude fixes from screenshots |
 | 3.5 | Promote `development` → `main` | ⬜ | owner's decision |
@@ -28,7 +26,7 @@ history · shipping methods with prices.
 ## Phase 4 — Back-office parity with Botobot (proposals)
 | # | Item | Notes |
 |---|---|---|
-| 4.1 | **Import page in the web panel** (CSV/XLSX price list: dry-run preview, apply, history) | Botobot's *Catalog → Import*; reuse `scripts/import_catalog.py` logic. Skipped earlier on purpose; confirm priority. |
+| 4.1 | **Import page in the web panel** (CSV/XLSX price list: dry-run preview, apply, history) | Botobot's *Catalog → Import*. Skipped earlier on purpose; confirm priority. |
 | 4.2 | **Print order / packing slip** (printable order page) | Botobot has *Print* on the order |
 | 4.3 | **Customer groups** (manual tags like "VIP", used as mailing audiences) | Botobot's *Group*; today audiences are computed (language / has orders) |
 | 4.4 | **Unsubscribe / "mailing: yes/no"** per customer + opt-out button in mailings | Compliance and fewer blocks |

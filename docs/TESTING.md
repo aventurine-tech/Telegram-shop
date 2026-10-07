@@ -47,7 +47,6 @@ the background — read its output file rather than restarting it.
 |---|---|---|
 | **Migrations on PostgreSQL** | every PR that touches `migrations/` (CI runs it for all PRs) | `pg_ctlcluster 16 main start`; `export POSTGRES_HOST=localhost POSTGRES_DB=migdb POSTGRES_USER=mig POSTGRES_PASSWORD=mig`; `alembic upgrade head`, `alembic downgrade -1`, `alembic upgrade head`; `alembic heads` shows exactly one head. For a back-fill, insert rows at the previous revision first (create the `roles` row before `users`) and inspect the result with `psql`. |
 | **Panel JavaScript** (mailing editor, option rows, role tags) | when you change widget scripts | write a small HTML harness that embeds the widget output, run `chrome --headless --no-sandbox --dump-dom file://…` (`/opt/pw-browsers/chromium-*/chrome-linux/chrome`) and read the resulting DOM. |
-| **Importer** | catalog changes | `python -m scripts.import_catalog --dry-run …` against a scratch database. |
 | **Live acceptance** | before promoting to `main` | step-by-step guide `docs/run-and-test.pdf` (source `run-and-test.md`) on a real bot — **owner-run**; Claude has not done this. |
 
 ## 5. What is *not* covered (be honest about it)

@@ -70,10 +70,6 @@ dictionaries (`strings*.py` en/ru, `strings_ro_*.py` ro; `localize()` reads the 
 | `language.py`, `session.py`, `passwords.py` | panel language middleware (`LazyText`, `Localized`), signed-in user lookup, password hashing |
 | `templates/` | `layout.html`, `_macros.html` (grouped sidebar), own copies of SQLAdmin `list/create/edit/details` + `modals/`, `order_details.html`, `client_details.html`, `mailing_details.html`, `my_account.html`, `login.html`, `index.html` (cheat-sheet), `error.html` |
 
-### `scripts/`
-`crawl_umbramd.py` (site → `scripts/umbramd/catalog.json` + images), `import_catalog.py` (idempotent import, `--dry-run`, prices CSV),
-`umbramd/` (data, report, `prices.template.csv`).
-
 ### `migrations/`, `tests/`, `docs/`
 Alembic revisions (single head), the suite (`TESTING.md`), documentation.
 
