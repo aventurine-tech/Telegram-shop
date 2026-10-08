@@ -13,6 +13,7 @@ spec.loader.exec_module(scan)
 TG_TOKEN = "123456789" + ":" + "A" * 35
 GH_TOKEN = "ghp_" + "a1B2" * 9
 PEM = "-----BEGIN " + "RSA PRIVATE KEY-----"
+DB_URL = "postgresql://shop:" + "hunter2hunter2" + "@db.example.com/shop"
 
 
 def rules(text):
@@ -24,7 +25,7 @@ def test_finds_each_kind():
     assert rules(f"x = '{GH_TOKEN}'") == {"GitHub token"}
     assert rules(PEM) == {"private key block"}
     assert rules("AWS=AKIA" + "ABCDEFGHIJKLMNOP") == {"AWS access key id"}
-    assert rules("DB=postgresql://shop:hunter2hunter2@db.example.com/shop") == {"password in a URL"}
+    assert rules(f"DB={DB_URL}") == {"password in a URL"}
 
 
 def test_placeholders_are_fine():
