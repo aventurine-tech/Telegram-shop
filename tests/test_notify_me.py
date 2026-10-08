@@ -76,3 +76,9 @@ class TestOpenFromNotice:
             await restock_open_handler(call, fsm_context)
             assert call.answer.call_args[1].get("show_alert") is True
         opened.assert_not_awaited()
+
+
+def test_the_open_button_text_is_registered_in_every_language():
+    from bot.i18n.strings import TRANSLATIONS
+    for lang in ("en", "ru", "ro"):
+        assert TRANSLATIONS[lang]["btn.restock_open"].strip()
