@@ -42,12 +42,19 @@ class RecoveryManager:
             self._run_periodically(self.periodic_health_check, self.HEALTH_CHECK_INTERVAL)
         ))
 
-        # A mailing still 'sending' lost its sender with the previous process: never resume (nobody gets it twice).
+        # A mailing still 'sending' lost its sender with the previous process. It carries on with the people the delivery
+        # log does not list (MAILING_RESUME=0: it is marked Interrupted instead).
         try:
-            from bot.database.methods.mailings import fail_interrupted_mailings
-            interrupted = await fail_interrupted_mailings()
-            if interrupted:
-                logger.warning("%s mailing(s) were interrupted by a restart and marked failed", interrupted)
+            from bot.database.methods.mailings import fail_interrupted_mailings, resume_interrupted_mailings
+            from bot.misc import EnvKeys
+            if EnvKeys.MAILING_RESUME == "1":
+                resumed, failed = await resume_interrupted_mailings()
+                if resumed or failed:
+                    logger.warning("%s mailing(s) resume after a restart, %s too old and marked failed", resumed, failed)
+            else:
+                interrupted = await fail_interrupted_mailings()
+                if interrupted:
+                    logger.warning("%s mailing(s) were interrupted by a restart and marked failed", interrupted)
         except Exception as e:
             logger.error("could not check interrupted mailings: %s", e)
         self.recovery_tasks.append(asyncio.create_task(

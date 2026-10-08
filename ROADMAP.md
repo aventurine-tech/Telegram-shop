@@ -54,7 +54,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | # | Item |
 |---|---|
 | 6.1 | ✅ Referral commission **excluding the delivery fee** |
-| 6.2 | Resumable mailings after a restart (with idempotency keys) — currently *Interrupted* by design |
+| 6.2 | ✅ Resumable mailings after a restart (uses the delivery log; ≤ 24 h; `MAILING_RESUME=0` = old behaviour) | A crash mid-batch can repeat up to 25 messages |
 | 6.3a | ✅ Payment reminders for customers and stale-order alerts for staff (MIA / cash) |
 | 6.3b | ✅ Error alerts to the owner / a staff chat (deduplicated, rate-limited) and a secret scan in CI |
 | 6.3 | Structured JSON logging; metrics dashboard for the existing `/metrics` |

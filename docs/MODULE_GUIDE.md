@@ -94,7 +94,7 @@ validates promo/shipping, checks `expected_total`, reserves stock, writes order 
 the same functions; completing pays the referral commission once.
 
 **Mailing:** draft/scheduled row → `claim_due_mailing` (atomic scheduled→sending) → `MailingSender.run` (audience at that moment, batches, progress
-counters, cancel checks) → `sent` | `cancelled` | `failed`. Restart: *sending* → *Interrupted*.
+counters, cancel checks) → `sent` | `cancelled` | `failed`. Restart: *sending* started < 24 h ago → *scheduled* again and resumed (the sender skips people in the delivery log); older → *Interrupted*.
 
 **Language:** per update `LanguageMiddleware` sets the ContextVar from the user row; `localize()` formats with it; staff alerts are built once per
 recipient language; the panel resolves language from the account/cookie (`LanguageMiddleware` in `bot/web/language.py`).

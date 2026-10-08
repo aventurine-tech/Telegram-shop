@@ -8,8 +8,8 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, Teleg
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 
 from bot.database.methods.mailings import (
-    add_progress, finish_mailing, get_mailing, get_mailing_image, log_recipients, mailing_status, segment_user_ids,
-    set_mailing_file_id, set_total,
+    add_progress, finish_mailing, get_mailing, get_mailing_image, log_recipients, mailing_status, reached_user_ids,
+    segment_user_ids, set_mailing_file_id, set_total,
 )
 from bot.database.methods.read import get_user_languages
 from bot.database.models.main import MailingStatus
@@ -117,7 +117,12 @@ class MailingSender:
             return mailing["status"] if mailing else "not_found"
         image = await get_mailing_image(mailing_id) if mailing["has_image"] else None
         user_ids = await segment_user_ids(mailing["segment"], mailing.get("retry_of"))
-        await set_total(mailing_id, len(user_ids))
+        # After a restart the log tells who was already reached: they are skipped, the counters carry on from where they were.
+        reached = await reached_user_ids(mailing_id)
+        if reached:
+            logger.info("mailing %s resumes: %s people already reached", mailing_id, len(reached))
+            user_ids = [uid for uid in user_ids if uid not in reached]
+        await set_total(mailing_id, len(user_ids) + len(reached))
         needs_profile = has_placeholders(mailing["text"])
         final = MailingStatus.SENT
         try:

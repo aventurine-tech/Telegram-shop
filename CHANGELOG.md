@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Mailings resume after a restart (2026-10-08)
+- **Changed** a mailing that was still sending when the bot restarted now carries on instead of being marked *Interrupted*: it goes back to *scheduled* (due
+  now) and the sender skips everyone already in its delivery log; counters and total continue. Only mailings that started within the last 24 hours resume,
+  older ones are marked *Interrupted*. `MAILING_RESUME=0` turns it off (roadmap 6.2, decision D-22, supersedes D-12).
+- **Known limit** the log is written after each batch of 25, so a crash between sending a batch and logging it can send those 25 messages twice.
+
 ### Search by words that describe a product (2026-10-08)
 - **Changed** the 🔍 search now takes several words and shows the products that match **all** of them, in any order and any language: in the name,
   the description (flavour, strength, size …), an option's label (`50mg` finds `50 mg`) or the category. Products with the words in their name come first,
