@@ -108,7 +108,8 @@
           {% elif two_step.pending %}
           <p>{{ _('web.twofa.setup_intro') }}</p>
           <ol>
-            <li>{{ _('web.twofa.setup_step1') }}</li>
+            <li>{{ _('web.twofa.setup_step1') }}
+              {% if two_step.qr %}<div id="two-step-qr" class="my-2 d-inline-block bg-white p-1 border rounded">{{ two_step.qr|safe }}</div>{% endif %}</li>
             <li>{{ _('web.twofa.setup_step2') }}<br>
               <code id="two-step-key" class="fs-3">{{ two_step.key }}</code><br>
               <a href="{{ two_step.uri }}" class="small">{{ _('web.twofa.setup_link') }}</a></li>

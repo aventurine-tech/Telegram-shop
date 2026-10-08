@@ -105,6 +105,22 @@ class TestCodes:
         uri = totp.provisioning_uri("ABCDEFGH", "ana pop", "Telegram Shop")
         assert uri.startswith("otpauth://totp/Telegram%20Shop%3Aana%20pop?secret=ABCDEFGH&issuer=Telegram%20Shop")
 
+    def test_qr_svg_is_an_inline_svg_without_an_xml_header(self):
+        svg = totp.qr_svg(totp.provisioning_uri("ABCDEFGH", "ana", "Telegram Shop"))
+        assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>") and "<?xml" not in svg
+
+    def test_qr_svg_is_empty_when_segno_is_missing(self, monkeypatch):
+        import builtins
+        real_import = builtins.__import__
+
+        def no_segno(name, *args, **kwargs):
+            if name == "segno":
+                raise ImportError(name)
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", no_segno)
+        assert totp.qr_svg("otpauth://totp/x?secret=ABCDEFGH") == ""
+
 
 class TestSetUp:
 
@@ -122,6 +138,13 @@ class TestSetUp:
         assert totp.group(secret) in resp.text
         state = await get_totp((await get_web_user_auth(BOSS[0]))["id"])
         assert state["enabled"] is False and secret not in state["secret"]
+
+    async def test_start_shows_a_qr_code_next_to_the_typed_key(self, app):
+        async with make_client(app) as c:
+            await sign_in(c, BOSS)
+            resp = await c.post("/admin/my-account", data={"form": "totp_start"})
+        assert 'id="two-step-qr"' in resp.text and "<svg" in resp.text.split('id="two-step-qr"', 1)[1][:200]
+        assert 'id="two-step-key"' in resp.text
 
     async def test_a_wrong_first_code_does_not_turn_it_on(self, app):
         async with make_client(app) as c:
