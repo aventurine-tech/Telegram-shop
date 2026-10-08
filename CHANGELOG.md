@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Dashboard on the panel home page (2026-10-08)
+- **Added** the panel's home page now opens on the shop's numbers for the last 7 / 30 / 90 days (`?days=`): orders, revenue (completed orders, delivery
+  included), average order, share cancelled and new clients; a "needs attention" box (new orders waiting, MIA payments to check, products running low or
+  sold out, each linking to the right list); top products by quantity sold (cancelled orders left out); orders by status; and a day-by-day table with bars.
+  Days follow `SHOP_TIMEZONE`. The help cards stay below. Visible to every signed-in panel account; read-only, no migration (roadmap 4.8).
+
 ### Fix: placing an order as the owner (2026-10-08)
 - **Fixed** when the person placing an order is also staff (the owner testing the shop), the "new order" alert sent into their own chat counted as their new
   screen, clean chat deleted the confirm screen, and the next edit failed with *message to edit not found* (the order itself was saved). Staff alerts and

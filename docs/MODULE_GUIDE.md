@@ -34,6 +34,7 @@ routers: `language` → `bottom_nav` → `admin` → `other` → `user`.
 | `main.py`, `dsn.py` | async engine, `Database().session()`, declarative base |
 | `models/main.py` | **all ORM models** and status/enum classes (`OrderStatus`, `PaymentMethod`, `Fulfillment`, `MailingStatus`, `MailingSegment`, `Permission`, `WebRole`) |
 | `methods/orders.py` | **order transactions**: create (stock reservation, promo, balance, shipping fee), cancel, MIA verify, status changes, expiry, referral commission |
+| `methods/dashboard.py` | numbers for the panel home page (`dashboard_data`: per-day orders/revenue/clients in the shop timezone, top products, attention box) |
 | `methods/shipping.py` | active shipping methods, `delivery_fee` |
 | `methods/mailings.py` | audiences, claim/progress/finish/cancel, restart handling |
 | `methods/profiles.py` | `refresh_profile` (Telegram names/username/last seen) |
