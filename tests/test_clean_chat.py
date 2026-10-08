@@ -158,3 +158,38 @@ class TestOutsideScreen:
         finally:
             cc._serving_chat.reset(token)
         assert not bot.delete_message.await_count and cc.tracker.get(5) == 7
+
+
+class TestStaffAlertsInTheServedChat:
+    """The owner placing an order is both customer and staff: the staff alert goes into the chat being served and
+    must not become that chat's screen (it used to delete the confirm screen, so the next edit failed)."""
+
+    async def _alert_while_serving(self, send):
+        cc.tracker.set(5, 7)
+        mw = cc.CleanChatRequestMiddleware()
+        bot = bot_mock()
+
+        async def send_message(chat_id, text, reply_markup=None):
+            return await mw(AsyncMock(return_value=sent(chat_id, 8)), bot, SendMessage(chat_id=chat_id, text=text))
+
+        bot.send_message = send_message
+        token = cc._serving_chat.set(5)
+        try:
+            await send(bot)
+        finally:
+            cc._serving_chat.reset(token)
+        return bot
+
+    async def test_new_order_alert_keeps_the_screen(self, user_factory):
+        from bot.misc.services.order_view import notify_new_order
+        from tests.test_language_picker import _order
+        await user_factory(telegram_id=5, role_id=3)
+        bot = await self._alert_while_serving(lambda b: notify_new_order(b, _order(5)))
+        assert not bot.delete_message.await_count and cc.tracker.get(5) == 7
+
+    async def test_customer_notice_keeps_the_screen(self, user_factory):
+        from bot.misc.services.order_view import notify_customer
+        from tests.test_language_picker import _order
+        await user_factory(telegram_id=5, role_id=3)
+        bot = await self._alert_while_serving(lambda b: notify_customer(b, _order(5), "confirmed"))
+        assert not bot.delete_message.await_count and cc.tracker.get(5) == 7
