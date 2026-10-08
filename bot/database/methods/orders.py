@@ -9,6 +9,7 @@ Every function here is one transaction and returns ``(ok, code, data)``. ``code`
 stable key the handlers map to a localized message; ``data`` is the payload on success.
 """
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -98,6 +99,7 @@ def order_to_dict(order: Orders, items: list[OrderItems] | None = None) -> dict:
         "shipping_name_ru": order.shipping_name_ru,
         "shipping_name_ro": order.shipping_name_ro,
         "delivery_fee": order.delivery_fee,
+        "tracking_note": order.tracking_note,
         "payment_proof": order.payment_proof,
         "pay_by": order.pay_by,
         "created_at": order.created_at,
@@ -402,6 +404,33 @@ async def get_order(order_id: int, user_id: int | None = None) -> dict | None:
         if not order:
             return None
         return order_to_dict(order, await _load_items(s, order.id))
+
+
+TRACKING_NOTE_MAX = 300
+_NOTE_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+async def set_tracking_note(order_id: int, note: str | None) -> tuple[bool, str, dict | None]:
+    """Save (or clear) the staff note the customer sees with a shipped order.
+
+    Returns ``(True, "success", order)`` with ``order["note_changed"]`` telling whether it differs from before, or
+    ``(False, "order_not_found" | "order_closed" | "note_too_long", None)``. A cancelled order takes no note.
+    """
+    text = _NOTE_CONTROL.sub("", note or "").strip() or None
+    if text and len(text) > TRACKING_NOTE_MAX:
+        return False, "note_too_long", None
+    async with Database().session() as s:
+        order = (await s.execute(select(Orders).where(Orders.id == int(order_id)).with_for_update())
+                 ).scalars().first()
+        if not order:
+            return False, "order_not_found", None
+        if order.status == OrderStatus.CANCELLED:
+            return False, "order_closed", None
+        changed = order.tracking_note != text
+        order.tracking_note = text
+        result = order_to_dict(order, await _load_items(s, order.id))
+    result["note_changed"] = changed
+    return True, "success", result
 
 
 async def get_order_notify_ids() -> list[int]:

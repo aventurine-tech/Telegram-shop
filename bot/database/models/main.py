@@ -344,6 +344,8 @@ class Orders(Database.BASE):
     shipping_name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     shipping_name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     delivery_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default='0')
+    # Staff's note for the customer (courier name, parcel number, pickup time …), sent with the shipped notice.
+    tracking_note: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     # Unpaid MIA orders are cancelled (and their stock released) after this moment.
     pay_by: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(

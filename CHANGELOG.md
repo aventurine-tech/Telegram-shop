@@ -10,6 +10,16 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Orders: filters, packing slip, note for the customer (2026-10-08)
+- **Added** web *Orders* list filters: status, payment method, payment status and a date range (from/to, whole days in UTC); search keeps working with them (roadmap 4.7).
+- **Changed** the orders list and details show localized status, payment status, payment method, delivery and shipping names instead of raw values (roadmap 4.7).
+- **Fixed** the *Payments* page counted every order in its pagination instead of only the transfers waiting to be checked.
+- **Added** 🖨 **Print packing slip** on an order's page: a printable sheet in the panel language with the customer, address, lines, totals, comment and
+  signature boxes (roadmap 4.2). Any signed-in panel account may open it, like the CSV exports.
+- **Added** a **note for the customer** on an order's page (courier, parcel number, pickup time): it goes into the "shipped" message, shows on the order card
+  in the bot, and changing it on an already shipped order messages the customer (roadmap 5.3). Bot-side entry is not built.
+- **Database** migration `b4d6f8a0c2e4`: `orders.tracking_note`. Depends on the previous PR (`a9c4e2b7d1f3`).
+
 ### Referral commission without the delivery fee, shipping names per language (2026-10-08)
 - **Changed** the referral commission is now paid on the cash paid for the goods only; the delivery fee earns nothing (roadmap 6.1).
 - **Changed** an order keeps the shipping method's en/ru/ro names as they were at checkout and shows the one in the viewer's language (roadmap 4.10).

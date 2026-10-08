@@ -72,6 +72,8 @@ def format_order(order: dict, *, admin: bool = False) -> str:
         lines.append(localize("order.line.address", address=esc(order["address"])))
     if order.get("comment"):
         lines.append(localize("order.line.comment", comment=esc(order["comment"])))
+    if order.get("tracking_note"):
+        lines.append(localize("order.line.tracking", note=esc(order["tracking_note"])))
     lines.append(localize("order.line.created", dt=fmt_dt(order.get("created_at"))))
     if admin and order.get("user_id"):
         lines.append(localize("order.line.customer_id", id=order["user_id"]))
@@ -150,13 +152,15 @@ async def notify_mia_claim(bot: Bot, order: dict) -> int:
 
 async def notify_customer(bot: Bot, order: dict, kind: str) -> bool:
     """Tell the customer something changed, in their own language. ``kind`` is one of: confirmed, shipped,
-    completed, cancelled, payment_confirmed, payment_rejected, mia_expired."""
+    completed, cancelled, payment_confirmed, payment_rejected, mia_expired, tracking (a note added to a shipped order)."""
     if not order.get("user_id"):
         return False
     try:
         lang = (await get_user_languages([order["user_id"]])).get(order["user_id"])
         with use_language(lang):
             text = localize(f"notify.customer.{kind}", id=order["id"])
+            if kind in ("shipped", "tracking") and order.get("tracking_note"):
+                text += "\n" + localize("notify.customer.tracking_note", note=esc(order["tracking_note"]))
             markup = InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text=localize("btn.order.open"), callback_data=f"my_order:{order['id']}"),
             ]])
