@@ -121,6 +121,49 @@ class TestLifecycle:
         assert (await mdb.get_mailing(done))["status"] == MailingStatus.SENT
 
 
+class TestResume:
+
+    async def test_a_fresh_sending_mailing_goes_back_to_scheduled_and_an_old_one_fails(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        fresh = await add_mailing(status=MailingStatus.SENDING, started_at=now - datetime.timedelta(minutes=5))
+        old = await add_mailing(status=MailingStatus.SENDING, started_at=now - datetime.timedelta(hours=30))
+        sent = await add_mailing(status=MailingStatus.SENT)
+        assert await mdb.resume_interrupted_mailings() == (1, 1)
+        assert (await mdb.get_mailing(fresh))["status"] == MailingStatus.SCHEDULED
+        assert (await mdb.get_mailing(old))["status"] == MailingStatus.FAILED
+        assert (await mdb.get_mailing(sent))["status"] == MailingStatus.SENT
+
+    async def test_the_resumed_mailing_is_claimed_again_and_keeps_its_first_start(self):
+        started = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=5)
+        mid = await add_mailing(status=MailingStatus.SENDING, started_at=started)
+        await mdb.resume_interrupted_mailings()
+        claimed = await mdb.claim_due_mailing()
+        assert claimed["id"] == mid and claimed["status"] == MailingStatus.SENDING
+        assert claimed["started_at"].replace(tzinfo=None) == started.replace(tzinfo=None)
+
+    async def test_people_in_the_log_are_not_mailed_again(self):
+        for tid in (7301, 7302, 7303, 7304):
+            await add_user(tid, "ro")
+        mid = await add_mailing(segment=MailingSegment.LANG_RO, sent=2, blocked=1)
+        await mdb.log_recipients(mid, [(7301, "sent"), (7302, "sent"), (7303, "blocked")])
+        bot = fake_bot()
+        final = await MailingSender(bot, batch_delay=0).run(mid)
+        m = await mdb.get_mailing(mid)
+        assert final == MailingStatus.SENT
+        assert {c for _k, c, _t, _kw in bot.sent} == {7304}
+        assert (m["total"], m["sent"], m["blocked"]) == (4, 3, 1)
+        assert (await mdb.recipient_counts(mid)) == {"sent": 3, "blocked": 1, "failed": 0}
+
+    async def test_a_new_mailing_has_an_empty_log_and_reaches_everyone(self):
+        for tid in (7311, 7312):
+            await add_user(tid, "ro")
+        mid = await add_mailing(segment=MailingSegment.LANG_RO)
+        bot = fake_bot()
+        await MailingSender(bot, batch_delay=0).run(mid)
+        assert {c for _k, c, _t, _kw in bot.sent} == {7311, 7312}
+        assert (await mdb.get_mailing(mid))["total"] == 2
+
+
 def fake_bot(forbidden=(), bad=(), names=None):
     bot = MagicMock()
     sent = []

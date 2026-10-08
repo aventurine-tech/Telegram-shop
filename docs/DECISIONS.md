@@ -67,7 +67,7 @@ in `CLAUDE.md`.
 11 permission bits; a role may only grant what the grantor has; the web form shows checkbox tags and stores their sum
 (owner R-40).
 
-### D-12 Mailings are never resumed after a restart
+### D-12 Mailings are never resumed after a restart — superseded by D-22
 **Context** a restart in the middle of a send could otherwise re-send to people who already got the message. **Decision** on
 startup mailings in *sending* become *Interrupted* and are not resumed; the owner can duplicate and send to the remainder.
 **Consequences** no duplicate sends; the per-recipient log (4.6) lets staff *Resend to failed* as a new draft; resuming (6.2) is still on the roadmap.
@@ -113,6 +113,9 @@ A crawler/importer for umbramd.com was built (#10); it was never run on the live
 
 ### D-21 Catalog is entered by staff
 **Context** the owner cancelled the open items *prices per weight* and *Puff/accessories import*. **Decision** products, options, prices and stock are created in the bot or the web panel by staff; the crawler, importer, scraped data and price template were deleted. **Consequences** no import code path to maintain; bulk import may return as a web-panel feature (roadmap 4.1) if the owner asks.
+
+### D-22 Mailings resume after a restart (owner, 2026-10-08; supersedes D-12)
+**Context** the owner asked for mailings that carry on after a restart. **Decision** on startup a mailing still *sending* that started less than 24 hours ago goes back to *scheduled* (due now) and is claimed again; the sender skips everyone the per-recipient log (4.6) already lists (sent, blocked or failed) and the counters carry on. An older one is marked *Interrupted* as before. `MAILING_RESUME=0` restores the old behaviour. **Consequences** the log is written once per batch of 25, so a crash between sending a batch and logging it can send that batch's messages twice; failed people are not retried automatically (use *Resend to failed*).
 
 ### D-23 Two-step sign-in is optional (owner, 2026-10-08)
 **Context** the owner asked for 2FA on panel accounts, "optional, not forced for users". **Decision** time-based codes (RFC 6238, any authenticator app) plus 8 one-time backup codes, switched on by each person under *My account*; never required by the shop. The second step is a field on the normal login form (no half-signed-in state). The secret is stored encrypted with a key derived from `SECRET_KEY`; used codes cannot be replayed; an Admin can reset an account. **Consequences** no new dependency and no QR code (people type the setup key); rotating `SECRET_KEY` locks 2FA accounts out until reset; the login limiter stays per-process.

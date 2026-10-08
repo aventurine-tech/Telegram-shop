@@ -43,7 +43,7 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   the main menu; promo codes bound to a parent also cover its subcategories.
 - **Weight options** — a product can have options such as *50 g / 200 g*, each with its own price, stock and sale and
   sharing the product's picture and description. The product card shows a selector; lists and search show only the main
-  product; reviews are shared; the cart and orders show `NAME · 200 g` in the customer's language. Admins add options
+  product (search takes several words — name, flavour, strength — and finds products matching all of them); reviews are shared; the cart and orders show `NAME · 200 g` in the customer's language. Admins add options
   with *➕ Add option* in the bot, or inside the product in the web panel (*Options* rows: press **＋** to add a row with
   option name, price and stock; remove a row to delete the option).
 - **Bottom menu & clean chat** — a permanent keyboard (🛍 Catalog · 🛒 Cart · 👤 Profile) sits under the chat. It is
@@ -95,7 +95,8 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   credit it too, and a referrer earns `REFERRAL_PERCENT`% of every referred customer's
   **completed** order. Customers can spend their balance at checkout.
 - **Restock notifications** — a sold-out product offers "notify me"; when stock arrives
-  (from the bot, the web panel, or a cancelled order) everyone waiting is messaged once.
+  (from the bot, the web panel, or a cancelled order) everyone waiting is messaged once, with a 🛒 *Open product* button. Works per weight option; sold-out options are
+  marked `✕` in the selector.
 - **Reviews** — 1–5★ with optional text, once per user per product, only after receiving it.
 - **Roles (RBAC)** — 11 granular permission bits, built-in `USER`/`ADMIN`/`OWNER` plus custom
   roles. You can never grant a permission you don't hold yourself.
@@ -363,6 +364,7 @@ are **required**; everything else has a sensible default.
 | `DELIVERY_INFO`             | Note shown to customers who choose delivery (areas, cost, timing)          | –              |
 | `ORDERS_CHAT_ID`            | Extra chat/group that also receives new-order alerts                       | –              |
 | `ERROR_ALERTS`              | Message the owner when the bot logs an error (`0` = off)                    | `1`         |
+| `MAILING_RESUME`            | Carry on with a mailing that a restart interrupted (`0` = mark it Interrupted) | `1`      |
 | `ERROR_ALERT_CHAT_ID`       | Extra chat/group that also receives error alerts                           | –           |
 | `SHOP_TIMEZONE`             | Timezone (IANA name) for mailing times typed in the web panel              | `Europe/Chisinau` |
 | `REFERRAL_PERCENT`          | Referral commission % on completed orders (0–99, `0` disables)             | `0`            |
@@ -528,7 +530,7 @@ Options: no link previews, silent notification, forbid forwarding/saving. The li
 *Settings → My account*), **Cancel mailing**, **Duplicate** and **Resend to failed** (a draft for the people it did not reach), plus a
 **Recipients** section with the delivery log (CSV download). Every message carries a *Stop these messages* button; people can also switch
 mailings off and on under *Profile*, and an Admin can see or change it on the client's page. People who blocked the bot or opted out are
-skipped; a mailing interrupted by a restart is marked *Interrupted* and is never resumed.
+skipped; a mailing that was still sending when the bot restarted carries on with the people it had not reached (up to 24 hours after it started, `MAILING_RESUME=0` to turn off); an older one is marked *Interrupted*.
 
 ### Web accounts
 

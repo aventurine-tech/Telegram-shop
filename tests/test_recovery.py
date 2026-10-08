@@ -105,6 +105,23 @@ class TestRecoveryManager:
         await self.manager.stop()
         assert self.manager.running is False
 
+    async def test_start_resumes_an_interrupted_mailing_unless_switched_off(self):
+        from bot.database.methods import mailings as mdb
+        from bot.database.models.main import Mailings, MailingStatus
+        for step in ("expire_unpaid_orders", "remind_unpaid_orders", "alert_stale_orders", "periodic_health_check",
+                     "dispatch_due_mailings"):
+            setattr(self.manager, step, AsyncMock())
+        for switch, expected in (("1", MailingStatus.SCHEDULED), ("0", MailingStatus.FAILED)):
+            async with Database().session() as s:
+                m = Mailings(title="T", text="x", segment="all", status=MailingStatus.SENDING)
+                s.add(m)
+                await s.flush()
+                mid = m.id
+            with patch("bot.misc.EnvKeys.MAILING_RESUME", switch):
+                await self.manager.start()
+                await self.manager.stop()
+            assert (await mdb.get_mailing(mid))["status"] == expected
+
     async def test_run_periodically_survives_a_crash(self):
         """A failing pass must back off and be retried, not kill the task."""
         self.manager.running = True

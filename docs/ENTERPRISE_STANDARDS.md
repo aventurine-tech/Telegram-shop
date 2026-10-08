@@ -38,7 +38,7 @@ Complements `AGENTS.md` (rules), `GIT_WORKFLOW.md`, `TESTING.md`, `SECURITY.md`,
 - Lists paginate (`lazy_paginator`, SQLAdmin paging); heads-only product queries; avoid N+1 (`selectinload`/joined queries); cache read-mostly
   data with explicit invalidation (`cache_utils`).
 - Telegram limits are budgets: ≤ ~30 msg/s overall (mailings: 25 per second batch), captions 1024, messages 4096, callback data 64 bytes.
-- Background work is restart-safe (idempotent or explicitly "interrupted, not resumed").
+- Background work is restart-safe (idempotent, resumed from a log — mailings — or explicitly "interrupted, not resumed").
 - Fail soft for customers (a profile refresh error never blocks a purchase), fail loud for staff (logged with context).
 
 ## 6. Observability

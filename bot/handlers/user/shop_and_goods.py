@@ -104,7 +104,9 @@ async def _render_item_page(target, state: FSMContext, item_name: str, back_data
     family_options = family["options"] if family else []
     is_option = item_info_data.get("variant_of") is not None
     gateway = bool(family_options) and not is_option
-    selector = [(o["id"], o["variant_label"], o["id"] == item_info_data["id"]) for o in family_options]
+    # A sold-out option is marked in the selector, so customers see which ones they can only wait for.
+    selector = [(o["id"], o["variant_label"] if (o["stock"] or 0) > 0 else f"{o['variant_label']} ✕",
+                 o["id"] == item_info_data["id"]) for o in family_options]
     review_name = head["name"]
 
     reviews_enabled = EnvKeys.REVIEWS_ENABLED == "1"
@@ -781,6 +783,22 @@ async def favorites_open_handler(call: CallbackQuery, state: FSMContext):
         return
     await call.answer()
     await _open_item(call, state, name, "favorites")
+
+
+@router.callback_query(F.data.startswith("restock_open:"))
+async def restock_open_handler(call: CallbackQuery, state: FSMContext):
+    """The product from a "back in stock" notice (it may be an option)."""
+    try:
+        item_id = int(call.data.split(":", 1)[1])
+    except ValueError:
+        await call.answer(localize("errors.invalid_data"), show_alert=True)
+        return
+    name = await item_name_by_id(item_id)
+    if not name:
+        await call.answer(localize("shop.item.not_found"), show_alert=True)
+        return
+    await call.answer()
+    await _open_item(call, state, name, "shop")
 
 
 @router.callback_query(F.data == "back_to_item")

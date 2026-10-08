@@ -8,6 +8,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 |---|---|---|---|---|
 | **Catalog** — categories, subcategories, products, stock | #1, #6 | ✅ | `test_database_crud`, `test_subcategories_*` | two levels max; category holds subcategories *or* products |
 | **Weight options** | #7, #12, #13 | 🟡 | `test_product_options_*` | changing an option's **label** in the web rows = delete + create (its stock is lost); renaming a head in the bot does not rename options; head delete removes options in a separate step |
+| **Catalog search** — several words, any language: name, description, option label, category | #42 | ✅ | `test_search_words`, `test_localized_catalog_core` | substring match, no stemming; `ş`/`ţ` handled, other diacritics must match |
 | **Translated catalog** | #3, #4, #11 | ✅ | `test_localized_catalog_*`, `test_admin_language_*`, `test_web_translations` | product name is one field in the web form; descriptions per language |
 | **Product pictures** | #1 | ✅ | `test_images`, `test_web_images`, `test_item_card_photo` | stored as uploaded (≤ 10 MB); options show the head's picture |
 | **Bot command menu** (☰ next to the input field) | #30 | ✅ | `test_bot_commands` | per-language lists published at startup; per-chat list follows the language chosen in the bot; Telegram may take a moment to refresh the menu |
@@ -24,8 +25,9 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Shipping methods** | #23 | ✅ 🔧 | `test_shipping` | no method active ⇒ delivery free/unpriced; order keeps the en/ru/ro names it was placed with; referral commission excludes the fee |
 | **My details** (customer edits name, phone, city, address; checkout "use saved") | #29 | ✅ | `test_profile_details` | Operation History button removed (data stays); typed name is separate from Telegram's |
 | **Client profiles** | #22 | ✅ | `test_client_profiles` | names fill as people use the bot; phone/address from latest order; no import by design |
-| **Mailings** (web) | #20, #21 | ✅ 🔧 | `test_mailings_core`, `test_web_mailings`, `test_mailing_prefs` | Admin only; schedule in `SHOP_TIMEZONE`; per-recipient log + resend to failed; opt-out button under every message and a profile toggle; interrupted ≠ resumed; **not yet tried against live Telegram** — send a test first |
+| **Mailings** (web) | #20, #21 | ✅ 🔧 | `test_mailings_core`, `test_web_mailings`, `test_mailing_prefs` | Admin only; schedule in `SHOP_TIMEZONE`; per-recipient log + resend to failed; opt-out button under every message and a profile toggle; a restart resumes it (≤ 24 h, D-22); **not yet tried against live Telegram** — send a test first |
 | **Text broadcast** (bot) | upstream | ✅ | `test_broadcast*` | the older in-chat broadcast |
+| **Dashboard** — panel home: period totals, attention box, top products, per-day table | #41 | ✅ | `test_dashboard` | read-only; revenue = completed orders; top 5 products; periods 7/30/90 days |
 | **Web panel shell** — grouped sidebar, translated chrome, My account, **light/dark theme** | #19, #21, #27 | ✅ | `test_web_menu`, `test_web_i18n`, `test_web_accounts` | built on SQLAdmin 0.16.1 with template overrides |
 | **Web accounts & roles** | #1, #15 | ✅ | `test_web_accounts`, `test_role_management`, `test_web_roles_orders` | Admin/Staff levels; role permissions as tags; optional two-step sign-in (`test_panel_two_step`, D-23) |
 | **Languages** (bot + web) | #1, #21 | ✅ | `test_i18n`, `test_language_picker`, `test_web_i18n` | en/ru/ro parity enforced by tests |

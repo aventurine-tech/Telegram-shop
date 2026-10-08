@@ -89,7 +89,7 @@ async def claim_due_mailing() -> dict | None:
             return None
         claimed = await s.execute(
             update(Mailings).where(Mailings.id == candidate, Mailings.status == MailingStatus.SCHEDULED)
-            .values(status=MailingStatus.SENDING, started_at=now))
+            .values(status=MailingStatus.SENDING, started_at=func.coalesce(Mailings.started_at, now)))
         if claimed.rowcount != 1:
             return None
     return await get_mailing(candidate)
@@ -140,6 +140,39 @@ async def fail_interrupted_mailings() -> int:
             update(Mailings).where(Mailings.status == MailingStatus.SENDING)
             .values(status=MailingStatus.FAILED, finished_at=_now()))
         return result.rowcount or 0
+
+
+RESUME_WINDOW = datetime.timedelta(hours=24)
+
+
+async def resume_interrupted_mailings() -> tuple[int, int]:
+    """At startup: a mailing still 'sending' lost its sender with the old process. One that started within the last
+    24 hours goes back to 'scheduled' (due now) and carries on with the people its delivery log does not list; an older
+    one is marked failed. Returns ``(resumed, failed)``."""
+    now = _now()
+    async with Database().session() as s:
+        rows = (await s.execute(select(Mailings.id, Mailings.started_at).where(
+            Mailings.status == MailingStatus.SENDING))).all()
+        resumed = failed = 0
+        for mailing_id, started in rows:
+            fresh = started is None or now - (started if started.tzinfo else started.replace(
+                tzinfo=datetime.timezone.utc)) <= RESUME_WINDOW
+            if fresh:
+                await s.execute(update(Mailings).where(Mailings.id == mailing_id).values(
+                    status=MailingStatus.SCHEDULED, scheduled_at=now))
+                resumed += 1
+            else:
+                await s.execute(update(Mailings).where(Mailings.id == mailing_id).values(
+                    status=MailingStatus.FAILED, finished_at=now))
+                failed += 1
+        return resumed, failed
+
+
+async def reached_user_ids(mailing_id: int) -> set[int]:
+    """Everyone the delivery log lists for this mailing (sent, blocked or failed): they are not tried again."""
+    async with Database().session() as s:
+        rows = await s.execute(select(MailingRecipients.user_id).where(MailingRecipients.mailing_id == mailing_id))
+        return {int(r[0]) for r in rows.all()}
 
 
 # --- who got what ----------------------------------------------------------------------------------------------------
