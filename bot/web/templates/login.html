@@ -25,6 +25,12 @@
           {% if error %}<div class="invalid-feedback">{{ _('web.login.error') }}</div>{% endif %}
         </div>
       </div>
+      <div class="mb-2">
+        <label class="form-label">{{ _('web.login.code') }}</label>
+        <input name="code" type="text" inputmode="numeric" class="form-control" autocomplete="one-time-code"
+               placeholder="{{ _('web.login.code_ph') }}" maxlength="16">
+        <div class="form-hint">{{ _('web.login.code_hint') }}</div>
+      </div>
       <div class="form-footer">
         <button type="submit" class="btn btn-primary w-100">{{ _('web.login.submit') }}</button>
       </div>

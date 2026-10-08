@@ -50,6 +50,6 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 - [ ] Set real `MIA_*` details only on the server `.env`; verify transfers manually before confirming.
 
 ## 6. Known gaps / roadmap
-Per-process web login limiter (not shared across workers); no 2FA for panel accounts; no automated personal-data retention (erasure is manual);
+Per-process web login limiter (not shared across workers); two-step sign-in for panel accounts is optional per person (never forced; D-23); no automated personal-data retention (erasure is manual);
 no browser-level tests of the panel. Tracked in `ROADMAP.md` (Phase 6). CI runs `scripts/scan_secrets.py` on every PR (bot tokens, private keys, passwords in URLs);
 log and error text goes to the owner as a short alert without tracebacks (`ERROR_ALERTS`).
