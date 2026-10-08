@@ -10,6 +10,8 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Reviews: one product, all sizes (2026-10-08)
+- **Fixed** the panel's review form listed weight options ("SOLO 11 · 50 g") as separate products, so a review saved on one never showed on the others. It now lists only the main product and moves any option to its main product on save; the bot already shows a product's reviews on every size.
 ### QR code for two-step setup (2026-10-08)
 - **Added** the two-step setup box under **My account** now shows a **QR code** to scan with the authenticator app; the typed setup key and the
   "open on this device" link stay as the fallback (en/ru/ro wording updated). The code is drawn on the server as inline SVG, so nothing is sent to an outside service.
