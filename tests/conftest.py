@@ -215,6 +215,8 @@ def patch_env_keys():
         'PICKUP_ADDRESS': 'Test street 1',
         'DELIVERY_INFO': '',
         'ORDERS_CHAT_ID': '',
+        'ERROR_ALERTS': '1',
+        'ERROR_ALERT_CHAT_ID': '',
         'CHANNEL_URL': '',
         'HELPER_ID': '',
         'RULES': 'Test rules',
@@ -250,6 +252,7 @@ _LOCALIZING_MODULES = (
     'bot.handlers.admin.role_management',
     'bot.handlers.admin.orders_management',
     'bot.misc.services.order_view',
+    'bot.misc.error_alerts',
 )
 
 

@@ -10,6 +10,13 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Error alerts and secret scan (2026-10-08)
+- **Added** error alerts: when the bot logs an error, the owner (and `ERROR_ALERT_CHAT_ID`, if set) gets one short message with the logger and the
+  first line of the error. The same problem is announced once per 10 minutes (repeats are counted), at most 5 alerts go out per 10 minutes (the rest become one
+  "N more" notice), and no traceback is ever sent. `ERROR_ALERTS=0` turns it off (roadmap 6.3, alerts part).
+- **Added** `scripts/scan_secrets.py` and a **Secret scan** job in CI: fails on a Telegram bot token, private key, AWS / GitHub / Slack / Stripe-style key or a
+  password inside a connection URL in any tracked file; it prints the file and line, never the secret.
+
 ### Mailings: opt-out, shop timezone, delivery log (2026-10-08)
 - **Added** opting out: every mailing carries a *Stop these messages* button (in the reader's language, with a way back), *Profile* has a Mailings on/off toggle,
   the client's page shows and edits it, and opted-out people are left out of every audience and its count (roadmap 4.4).

@@ -18,6 +18,8 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Orders** — lifecycle, stock reservation, expiry, referral commission | #1 | ✅ | `test_orders`, `test_orders_admin`, `test_recovery` | order ownership intentionally not built |
 | **Order management in chat** | #1 | ✅ | `test_orders_admin`, `test_admin_handlers` | |
 | **Payment reminders & stale-order alerts** | — | ✅ | `test_recovery` | recovery sweeps every 60 s; once per order (`reminder_sent_at`, `staff_alerted_at`); 0 in `.env` switches each off |
+| **Error alerts** | — | ✅ | `test_error_alerts` | `bot/misc/error_alerts.py`: logging handler → owner (+ `ERROR_ALERT_CHAT_ID`); dedupe 10 min, 5 per 10 min, no tracebacks; **not seen in live Telegram** |
+| **CI secret scan** | — | ✅ | `test_scan_secrets` | `scripts/scan_secrets.py`, job *Secret scan* in `tests.yml` |
 | **Order management in web** (action buttons, Payments to verify) | #1, #15, #19 | ✅ | `test_web_roles_orders`, `test_web_menu`, `test_order_tools` | actions only (no free edit) by design; list filters (status / payment / dates), localized labels, printable packing slip, customer note (`bot/web/order_tools.py`) |
 | **Shipping methods** | #23 | ✅ 🔧 | `test_shipping` | no method active ⇒ delivery free/unpriced; order keeps the en/ru/ro names it was placed with; referral commission excludes the fee |
 | **My details** (customer edits name, phone, city, address; checkout "use saved") | #29 | ✅ | `test_profile_details` | Operation History button removed (data stays); typed name is separate from Telegram's |
