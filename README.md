@@ -95,7 +95,8 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   credit it too, and a referrer earns `REFERRAL_PERCENT`% of every referred customer's
   **completed** order. Customers can spend their balance at checkout.
 - **Restock notifications** — a sold-out product offers "notify me"; when stock arrives
-  (from the bot, the web panel, or a cancelled order) everyone waiting is messaged once.
+  (from the bot, the web panel, or a cancelled order) everyone waiting is messaged once, with a 🛒 *Open product* button. Works per weight option; sold-out options are
+  marked `✕` in the selector.
 - **Reviews** — 1–5★ with optional text, once per user per product, only after receiving it.
 - **Roles (RBAC)** — 11 granular permission bits, built-in `USER`/`ADMIN`/`OWNER` plus custom
   roles. You can never grant a permission you don't hold yourself.

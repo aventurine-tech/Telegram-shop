@@ -58,7 +58,7 @@ class TestSelector:
 
         assert (await fsm_context.get_data())["csrf_item"] == "SOLO 11 · 200 g"
         markup = call.message.edit_text.call_args[1]["reply_markup"]
-        assert _rows(markup)[0] == [("50 g", f"opt:{ids['SOLO 11 · 50 g']}"),
+        assert _rows(markup)[0] == [("50 g ✕", f"opt:{ids['SOLO 11 · 50 g']}"),
                                     ("✅ 200 g", f"opt:{ids['SOLO 11 · 200 g']}")]
         assert "gp_0" in [cb for _t, cb in _flat(markup)]
 
