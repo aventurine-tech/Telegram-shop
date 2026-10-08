@@ -259,6 +259,7 @@ class MyAccountView(BaseView):
             if secret:
                 context["key"] = totp.group(secret)
                 context["uri"] = totp.provisioning_uri(secret, user["username"], "Telegram Shop")
+                context["qr"] = totp.qr_svg(context["uri"])
         return context
 
     async def _two_step(self, request: Request, user: dict, which: str, form) -> tuple[str | None, str | None, dict]:

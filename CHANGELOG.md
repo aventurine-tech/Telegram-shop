@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### QR code for two-step setup (2026-10-08)
+- **Added** the two-step setup box under **My account** now shows a **QR code** to scan with the authenticator app; the typed setup key and the
+  "open on this device" link stay as the fallback (en/ru/ro wording updated). The code is drawn on the server as inline SVG, so nothing is sent to an outside service.
+- **Changed** new dependency `segno==1.6.1` (pure Python, no further packages) — rebuild the image on deploy (`docker compose up -d --build`). If the package is
+  missing the page still works without the QR code.
+
 ### Optional two-step sign-in for panel accounts (2026-10-08)
 - **Added** 🔐 each person can turn on two-step sign-in under **My account**: set up with an authenticator app (Google/Microsoft Authenticator, Aegis, 2FAS …)
   by typing the setup key, confirm with the first code, and save 8 one-time **backup codes** (shown once). After that the login page also asks for the
