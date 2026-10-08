@@ -59,6 +59,12 @@ class EnvKeys(ABC):
     MIA_IBAN: Final = _get_optional("MIA_IBAN", "")
     # Minutes a customer has to pay an MIA order before it is cancelled and its stock released.
     MIA_PAY_TIMEOUT_MIN: Final = int(_get_optional("MIA_PAY_TIMEOUT_MIN", "120"))
+    # Minutes before the deadline at which an unpaid MIA order's customer is reminded once (0 = never).
+    MIA_REMIND_BEFORE_MIN: Final = int(_get_optional("MIA_REMIND_BEFORE_MIN", "30"))
+    # Minutes after which staff are alerted once about a claimed-but-unverified MIA transfer / an untouched new order
+    # (0 = never).
+    STALE_PAYMENT_ALERT_MIN: Final = int(_get_optional("STALE_PAYMENT_ALERT_MIN", "30"))
+    STALE_ORDER_ALERT_MIN: Final = int(_get_optional("STALE_ORDER_ALERT_MIN", "60"))
     COD_ENABLED: Final = _get_optional("COD_ENABLED", "1")
     PICKUP_ENABLED: Final = _get_optional("PICKUP_ENABLED", "1")
     DELIVERY_ENABLED: Final = _get_optional("DELIVERY_ENABLED", "1")

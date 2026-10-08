@@ -50,6 +50,11 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _aware(value: datetime) -> datetime:
+    """SQLite hands back naive datetimes; they are UTC."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
 def _money(value) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"))
 
@@ -558,6 +563,75 @@ async def expire_unpaid_orders(now: datetime | None = None) -> list[dict]:
         if ok:
             cancelled.append(data)
     return cancelled
+
+
+async def _claim_sweep(ids_stmt, stamp: str, recheck, now: datetime) -> list[dict]:
+    """Stamp each candidate order once and return the ones this call stamped (a concurrent sweep gets none of them)."""
+    async with Database().session() as s:
+        ids = [r[0] for r in (await s.execute(ids_stmt)).all()]
+    claimed = []
+    for oid in ids:
+        async with Database().session() as s:
+            order = (await s.execute(select(Orders).where(Orders.id == oid).with_for_update())
+                     ).scalars().one_or_none()
+            if order is None or getattr(order, stamp) is not None or not recheck(order):
+                continue
+            setattr(order, stamp, now)
+            claimed.append(order_to_dict(order, await _load_items(s, order.id)))
+    return claimed
+
+
+async def claim_payment_reminders(now: datetime | None = None) -> list[dict]:
+    """Unpaid MIA orders that are close to their deadline and have not been reminded yet (each is returned once).
+
+    Orders whose whole payment window is shorter than ``MIA_REMIND_BEFORE_MIN`` are never reminded.
+    """
+    window = int(EnvKeys.MIA_REMIND_BEFORE_MIN)
+    if window <= 0:
+        return []
+    now = now or _now()
+    soon = now + timedelta(minutes=window)
+    waiting = (Orders.status == OrderStatus.NEW, Orders.payment_status == PaymentStatus.AWAITING_PAYMENT,
+               Orders.pay_by.is_not(None), Orders.pay_by > now, Orders.pay_by <= soon,
+               Orders.created_at <= now - timedelta(minutes=window), Orders.reminder_sent_at.is_(None))
+
+    def still(o: Orders) -> bool:
+        return (o.status == OrderStatus.NEW and o.payment_status == PaymentStatus.AWAITING_PAYMENT
+                and o.pay_by is not None and _aware(o.pay_by) > now)
+
+    orders = await _claim_sweep(select(Orders.id).where(*waiting).order_by(Orders.id), "reminder_sent_at", still, now)
+    for o in orders:
+        o["minutes_left"] = max(int((_aware(o["pay_by"]) - now).total_seconds() // 60), 1)
+    return orders
+
+
+async def claim_stale_orders(now: datetime | None = None) -> list[tuple[str, dict]]:
+    """Orders staff have left alone for too long, each returned once as ``(kind, order)``.
+
+    ``payment_check``: the customer said they paid by MIA and nobody verified it (``STALE_PAYMENT_ALERT_MIN``);
+    ``unhandled``: a cash order nobody confirmed yet (``STALE_ORDER_ALERT_MIN``). A limit of 0 turns that kind off.
+    """
+    now = now or _now()
+    found: list[tuple[str, dict]] = []
+    minutes = int(EnvKeys.STALE_PAYMENT_ALERT_MIN)
+    if minutes > 0:
+        old = now - timedelta(minutes=minutes)
+        stmt = select(Orders.id).where(
+            Orders.status == OrderStatus.NEW, Orders.payment_status == PaymentStatus.AWAITING_CONFIRMATION,
+            Orders.updated_at < old, Orders.staff_alerted_at.is_(None)).order_by(Orders.id)
+        found += [("payment_check", o) for o in await _claim_sweep(
+            stmt, "staff_alerted_at",
+            lambda o: o.status == OrderStatus.NEW and o.payment_status == PaymentStatus.AWAITING_CONFIRMATION, now)]
+    minutes = int(EnvKeys.STALE_ORDER_ALERT_MIN)
+    if minutes > 0:
+        old = now - timedelta(minutes=minutes)
+        stmt = select(Orders.id).where(
+            Orders.status == OrderStatus.NEW, Orders.payment_status == PaymentStatus.UNPAID,
+            Orders.created_at < old, Orders.staff_alerted_at.is_(None)).order_by(Orders.id)
+        found += [("unhandled", o) for o in await _claim_sweep(
+            stmt, "staff_alerted_at",
+            lambda o: o.status == OrderStatus.NEW and o.payment_status == PaymentStatus.UNPAID, now)]
+    return found
 
 
 # --------------------------------------------------------------------------- #

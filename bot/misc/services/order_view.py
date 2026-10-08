@@ -150,20 +150,30 @@ async def notify_mia_claim(bot: Bot, order: dict) -> int:
     return await _send_to_staff(bot, build, photo=order.get("payment_proof"))
 
 
+async def notify_stale_order(bot: Bot, order: dict, kind: str) -> int:
+    """Nudge staff about an order that has waited too long. ``kind``: ``payment_check`` or ``unhandled``."""
+    def build():
+        return (localize(f"notify.admin.stale_{kind}", id=order["id"]) + "\n\n" + format_order(order, admin=True),
+                admin_order_keyboard(order))
+
+    return await _send_to_staff(bot, build)
+
+
 async def notify_customer(bot: Bot, order: dict, kind: str) -> bool:
     """Tell the customer something changed, in their own language. ``kind`` is one of: confirmed, shipped,
-    completed, cancelled, payment_confirmed, payment_rejected, mia_expired, tracking (a note added to a shipped order)."""
+    completed, cancelled, payment_confirmed, payment_rejected, mia_expired, mia_reminder (the payment deadline is near), tracking (a note added to a shipped order)."""
     if not order.get("user_id"):
         return False
     try:
         lang = (await get_user_languages([order["user_id"]])).get(order["user_id"])
         with use_language(lang):
-            text = localize(f"notify.customer.{kind}", id=order["id"])
+            text = localize(f"notify.customer.{kind}", id=order["id"], minutes=order.get("minutes_left", 0))
             if kind in ("shipped", "tracking") and order.get("tracking_note"):
                 text += "\n" + localize("notify.customer.tracking_note", note=esc(order["tracking_note"]))
-            markup = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text=localize("btn.order.open"), callback_data=f"my_order:{order['id']}"),
-            ]])
+            rows = [[InlineKeyboardButton(text=localize("btn.order.open"), callback_data=f"my_order:{order['id']}")]]
+            if kind == "mia_reminder":
+                rows.insert(0, [InlineKeyboardButton(text=localize("btn.mia.paid"), callback_data=f"mia_paid:{order['id']}")])
+            markup = InlineKeyboardMarkup(inline_keyboard=rows)
         await bot.send_message(order["user_id"], text, reply_markup=markup)
         return True
     except Exception as e:

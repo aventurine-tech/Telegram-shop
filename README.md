@@ -77,7 +77,9 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   - **MIA** — the bot shows where to send the transfer (recipient / phone / IBAN), the exact
     amount and an order reference. The customer taps **I've paid** (optionally attaching a
     screenshot); staff verify the money arrived and confirm — or reject — in one tap. Unpaid
-    MIA orders are cancelled automatically after `MIA_PAY_TIMEOUT_MIN` and their stock is released.
+    MIA orders are cancelled automatically after `MIA_PAY_TIMEOUT_MIN` and their stock is released; the customer is reminded once
+    `MIA_REMIND_BEFORE_MIN` minutes before that, and staff are alerted once about a claimed-but-unchecked transfer
+    (`STALE_PAYMENT_ALERT_MIN`) or an untouched cash order (`STALE_ORDER_ALERT_MIN`).
   - **Cash on delivery / pickup** — nothing to do up front; the cash is recorded as collected
     when staff mark the order completed.
 - **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
@@ -349,6 +351,9 @@ are **required**; everything else has a sensible default.
 | `MIA_PHONE`                 | Phone number linked to your MIA account                                    | –              |
 | `MIA_IBAN`                  | IBAN shown as an alternative way to pay                                    | –              |
 | `MIA_PAY_TIMEOUT_MIN`       | Minutes to pay an MIA order before it is cancelled and stock released      | `120`          |
+| `MIA_REMIND_BEFORE_MIN`     | Remind the customer once this many minutes before the MIA deadline (0 = off) | `30`        |
+| `STALE_PAYMENT_ALERT_MIN`   | Alert staff once about an unchecked "I've paid" claim after N minutes (0 = off) | `30`     |
+| `STALE_ORDER_ALERT_MIN`     | Alert staff once about an untouched new cash order after N minutes (0 = off) | `60`       |
 | `COD_ENABLED`               | Offer cash on delivery / pickup (`1`/`0`)                                  | `1`            |
 | `DELIVERY_ENABLED`          | Offer delivery (`1`/`0`)                                                   | `1`            |
 | `PICKUP_ENABLED`            | Offer pickup (`1`/`0`)                                                     | `1`            |

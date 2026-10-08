@@ -20,7 +20,7 @@ Standing rules (details in AGENTS.md):
 - Every user-facing string in EN + RU + RO (bot and web), professional wording, Romanian ș/ț with comma.
 - Tests for every change; run the whole suite locally before pushing:
   export TOKEN=1:x OWNER_ID=1 POSTGRES_DB=x POSTGRES_USER=x POSTGRES_PASSWORD=x; python -m pytest -q -p no:cacheprovider   (~100 s, 2055 passed / 6 skipped at last full count; re-count and update the docs)
-- Migrations: additive, reversible, verified up→down→up on local PostgreSQL 16 (pg_ctlcluster 16 main start); alembic head is b4d6f8a0c2e4.
+- Migrations: additive, reversible, verified up→down→up on local PostgreSQL 16 (pg_ctlcluster 16 main start); alembic head is c5e7a9b1d3f5.
 - Every PR also updates CHANGELOG.md, ROADMAP/MODULE_STATUS/PROJECT_STATE when the state changes, and README/.env.example when relevant.
 - Report honestly what was and was not verified (nothing has been checked by you in live Telegram — only tests, local PostgreSQL, headless Chromium).
 - I may merge PRs myself before CI finishes: re-check origin/development after any merge and re-apply anything that missed it on a fresh branch.
