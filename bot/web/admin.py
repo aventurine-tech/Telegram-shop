@@ -19,8 +19,8 @@ from sqlalchemy import text
 
 from markupsafe import Markup, escape
 from sqladmin._menu import CategoryMenu
-from wtforms import BooleanField, Field, FileField, Form, SelectField, StringField, TextAreaField
-from wtforms.validators import Optional as WtfOptional, StopValidation
+from wtforms import BooleanField, Field, FileField, Form, IntegerField, SelectField, StringField, TextAreaField
+from wtforms.validators import InputRequired, Optional as WtfOptional, StopValidation
 from sqlalchemy import select as sa_select, update as sa_update, func as sa_func
 
 from bot.misc import EnvKeys
@@ -1654,10 +1654,49 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
     column_searchable_list = [Reviews.user_id, Reviews.item_id]
     column_sortable_list = [Reviews.id, Reviews.rating, Reviews.created_at]
     column_default_sort = (Reviews.id, True)
+    # user_id / item_id have no relationship() on the model, so sqladmin does not scaffold them; scaffold_form adds them.
+    form_columns = [Reviews.rating, Reviews.text]
     name = Localized("web.model.review.one")
     name_plural = Localized("web.model.review.many")
     icon = "fa-solid fa-star"
     category = "marketing"
+
+    async def scaffold_form(self, *args, **kwargs):
+        """Add Product (dropdown) and Customer (Telegram ID) so a review can be attached to something."""
+        Form = await super().scaffold_form(*args, **kwargs)
+
+        async with self.session_maker() as s:
+            items = (await s.execute(
+                sa_select(Goods.id, Goods.name).order_by(Goods.name)
+            )).all()
+        item_choices = [(gid, name) for gid, name in items]
+
+        class ReviewFormWithBindings(Form):
+            item_id = SelectField(
+                localize("web.review.item"), choices=item_choices, coerce=int,
+                validators=[InputRequired()],
+            )
+            user_id = IntegerField(
+                localize("web.review.user"), validators=[InputRequired()],
+                description=localize("web.review.user_hint"),
+            )
+
+        return ReviewFormWithBindings
+
+    async def on_model_change(self, data: dict, model: Any, is_created: bool, request: Request) -> None:
+        rating = data.get("rating")
+        if rating is None or not 1 <= int(rating) <= 5:
+            raise ValueError(localize("web.review.err.rating"))
+        async with self.session_maker() as s:
+            if (await s.execute(
+                sa_select(User.telegram_id).where(User.telegram_id == data.get("user_id"))
+            )).first() is None:
+                raise ValueError(localize("web.review.err.no_user", user_id=data.get("user_id")))
+            if is_created and (await s.execute(
+                sa_select(Reviews.id).where(Reviews.user_id == data.get("user_id"),
+                                            Reviews.item_id == data.get("item_id"))
+            )).first() is not None:
+                raise ValueError(localize("web.review.err.duplicate"))
 
     async def _invalidate(self, model: Any) -> None:
         # avg_rating is cached for 600s and keyed by product name, so editing a rating here would otherwise not show up in the bot until it expires.

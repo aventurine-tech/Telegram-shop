@@ -10,6 +10,10 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Reviews: choose product and customer in the panel (2026-10-08)
+- **Fixed** the panel's **Create review** form only had Rating and Text, so a review could not be attached to anything. It now has a **Product** dropdown and a **Customer (Telegram ID)** field (PR #46).
+- **Added** checks on save: rating 1-5, the customer must exist, and one review per customer and product (en/ru/ro messages).
+
 ### Optional two-step sign-in for panel accounts (2026-10-08)
 - **Added** 🔐 each person can turn on two-step sign-in under **My account**: set up with an authenticator app (Google/Microsoft Authenticator, Aegis, 2FAS …)
   by typing the setup key, confirm with the first code, and save 8 one-time **backup codes** (shown once). After that the login page also asks for the
