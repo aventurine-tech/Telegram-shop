@@ -29,7 +29,7 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 - Collected from Telegram and from what the customer typed at checkout; not imported from other systems (D-14).
 - Visible only to authenticated panel users/staff with the relevant permission; exported only via authenticated CSV.
 - **Never commit** exports (`klaud_clients.csv`), logs or database dumps; never paste customer data into issues/PRs/chats.
-- Deletion/retention tooling is on the roadmap (6.4); until then delete a customer from the panel (Customers → delete) on request.
+- On request, an Admin account erases a client's personal data from the client's page (**Erase personal data**, see `docs/BACKUP_AND_RESTORE.md`); old backups still hold it until they expire. Automatic retention is on the roadmap (6.4).
 
 ## 4. Rules for every change
 1. New handler/view/route → enforce authentication **and** the right permission/role; add a test for the denied case.
@@ -45,10 +45,10 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 - [ ] `SECRET_KEY` = long random value (`python -c "import secrets; print(secrets.token_hex(32))"`), `ADMIN_PASSWORD` strong, change the bootstrap admin password after first login.
 - [ ] Panel behind HTTPS (reverse proxy); `ADMIN_COOKIE_SECURE=auto/1`; restrict `ADMIN_HOST` if not public; set `WEBHOOK_SECRET` if using webhooks.
 - [ ] Redis enabled with a password if you run more than one worker; database not exposed to the internet.
-- [ ] Regular PostgreSQL backups (and a restore test); log rotation; disk alerts.
+- [ ] Regular PostgreSQL backups (`scripts/backup_db.sh` + cron, copied off the machine, restore practised — `docs/BACKUP_AND_RESTORE.md`); log rotation; disk alerts.
 - [ ] Staff accounts: Staff level unless Admin is needed; remove accounts of people who left.
 - [ ] Set real `MIA_*` details only on the server `.env`; verify transfers manually before confirming.
 
 ## 6. Known gaps / roadmap
-Per-process web login limiter (not shared across workers); no 2FA for panel accounts; no automated personal-data retention/erasure;
+Per-process web login limiter (not shared across workers); no 2FA for panel accounts; no automated personal-data retention (erasure is manual);
 no per-recipient mailing log; secrets scanning in CI not configured. Tracked in `ROADMAP.md` (Phase 6).

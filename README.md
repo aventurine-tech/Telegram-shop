@@ -85,6 +85,8 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
 - **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
   a message at every step and can open **My orders** at any time; staff get an alert for every
   new order and every "I've paid" claim.
+- **Backups** — `scripts/backup_db.sh` / `scripts/restore_db.sh` make and restore verified, rotated database dumps ([guide](docs/BACKUP_AND_RESTORE.md));
+  an Admin can erase a client's personal data from the client's page.
 - **Command menu** — the ☰ button next to the input field lists `/start`, `/catalog`, `/cart`, `/orders`, `/favorites`, `/profile`, `/language`
   in the customer's language; each opens the same screen as the matching button.
 - **Favorites** — every product card has a ⭐ button; the profile's **Favorites** list (paged) opens the cards. A weight

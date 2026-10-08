@@ -144,3 +144,6 @@ cython_debug/
 
 data
 
+
+# Database dumps (contain customer data)
+backups/
