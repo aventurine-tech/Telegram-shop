@@ -25,12 +25,14 @@ from bot.web.language import LANG_COOKIE
 UID = 990001
 
 
-async def set_methods(*rows):
-    """Replace all shipping methods with ``rows`` of (name, price, free_from, active)."""
+async def set_methods(*rows, names=None):
+    """Replace all shipping methods with ``rows`` of (name, price, free_from, active); ``names`` maps a method name
+    to its translations ``{"ru": ..., "ro": ...}``."""
     async with Database().session() as s:
         await s.execute(delete(ShippingMethods))
         for i, (name, price, free_from, active) in enumerate(rows):
-            s.add(ShippingMethods(name=name, price=Decimal(str(price)),
+            tr = {f"name_{k}": v for k, v in (names or {}).get(name, {}).items()}
+            s.add(ShippingMethods(name=name, price=Decimal(str(price)), **tr,
                                   free_from=None if free_from is None else Decimal(str(free_from)),
                                   is_active=active, position=i))
     async with Database().session() as s:
@@ -94,6 +96,20 @@ class TestTransaction:
         async with Database().session() as s:
             stored = (await s.execute(select(Orders).where(Orders.id == order["id"]))).scalars().one()
         assert stored.total == Decimal("230.00") and stored.delivery_fee == Decimal("30.00")
+
+    async def test_translated_names_are_kept_on_the_order(self, item_factory, user_factory):
+        ids = await set_methods(("Courier", 30, None, True),
+                                names={"Courier": {"ru": "Курьер", "ro": "Curier"}})
+        ok, code, order = await self._place(item_factory, user_factory, shipping_method_id=ids["Courier"],
+                                            expected_total=Decimal("230.00"))
+        assert ok, code
+        assert (order["shipping_name"], order["shipping_name_ru"], order["shipping_name_ro"]) == (
+            "Courier", "Курьер", "Curier")
+        await set_methods(("Courier", 30, None, True), names={"Courier": {"ru": "Другое"}})   # renaming later
+        with patch("bot.misc.localized.current_language", return_value="ru"):
+            assert "Курьер" in format_order(order)
+        with patch("bot.misc.localized.current_language", return_value="ro"):
+            assert "Curier" in format_order(order)
 
     async def test_expected_total_must_include_the_fee(self, item_factory, user_factory):
         ids = await set_methods(("Courier", 30, None, True))

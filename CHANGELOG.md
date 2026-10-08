@@ -14,6 +14,50 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 - **Added** 🔁 **Order again** on a completed or cancelled order in *My orders*: its lines go back into the cart at today's prices; quantities are cut
   to the stock on hand and sold-out or deleted products are skipped, with a note saying how many (roadmap 5.2).
 
+### Error alerts and secret scan (2026-10-08)
+- **Added** error alerts: when the bot logs an error, the owner (and `ERROR_ALERT_CHAT_ID`, if set) gets one short message with the logger and the
+  first line of the error. The same problem is announced once per 10 minutes (repeats are counted), at most 5 alerts go out per 10 minutes (the rest become one
+  "N more" notice), and no traceback is ever sent. `ERROR_ALERTS=0` turns it off (roadmap 6.3, alerts part).
+- **Added** `scripts/scan_secrets.py` and a **Secret scan** job in CI: fails on a Telegram bot token, private key, AWS / GitHub / Slack / Stripe-style key or a
+  password inside a connection URL in any tracked file; it prints the file and line, never the secret.
+
+### Mailings: opt-out, shop timezone, delivery log (2026-10-08)
+- **Added** opting out: every mailing carries a *Stop these messages* button (in the reader's language, with a way back), *Profile* has a Mailings on/off toggle,
+  the client's page shows and edits it, and opted-out people are left out of every audience and its count (roadmap 4.4).
+- **Added** `SHOP_TIMEZONE` (default `Europe/Chisinau`): the time typed in the mailing form is the shop's wall clock and is shown back that way; stored in UTC
+  (roadmap 4.5). Adds the pinned `tzdata` package so the zone exists on slim images.
+- **Added** a delivery log per mailing (who: sent / blocked / failed) with a *Recipients* section on the details page, a CSV download and **Resend to failed**,
+  which makes a draft addressed to the people the first mailing did not reach (roadmap 4.6).
+- **Database** migration `d6f8b0c2e4a6`: `users.mailing_optout`, `mailing_recipients`, `mailings.retry_of`. Depends on the previous PRs (`c5e7a9b1d3f5`).
+
+### Backups and erasing a client (2026-10-08)
+- **Added** `scripts/backup_db.sh` (compressed, verified, rotated dumps) and `scripts/restore_db.sh` (asks for the database name, stops and restarts the
+  bot) plus `docs/BACKUP_AND_RESTORE.md` with a cron line; `backups/` is git-ignored (roadmap 6.4).
+- **Added** **Erase personal data** on a client's page (Admin accounts only, POST with a confirmation): name, @username, phone, address, city and notes are
+  removed from the profile and all their orders, and their cart, favorites, restock subscriptions and review texts are deleted. Orders, amounts, balance
+  and ratings stay; the owner and clients with orders in progress are refused; the action is audited.
+
+### Payment reminders and stale-order alerts (2026-10-08)
+- **Added** a one-time reminder to the customer `MIA_REMIND_BEFORE_MIN` minutes (default 30) before an unpaid MIA order expires, with an *I've paid* button.
+- **Added** a one-time alert to staff when a customer's "I've paid" claim is still unchecked after `STALE_PAYMENT_ALERT_MIN` minutes (default 30), and when a
+  new cash order is still untouched after `STALE_ORDER_ALERT_MIN` minutes (default 60). Each setting at 0 turns that alert off.
+- **Database** migration `c5e7a9b1d3f5`: `orders.reminder_sent_at`, `orders.staff_alerted_at`. Depends on the orders-filters PR (`b4d6f8a0c2e4`).
+
+### Orders: filters, packing slip, note for the customer (2026-10-08)
+- **Added** web *Orders* list filters: status, payment method, payment status and a date range (from/to, whole days in UTC); search keeps working with them (roadmap 4.7).
+- **Changed** the orders list and details show localized status, payment status, payment method, delivery and shipping names instead of raw values (roadmap 4.7).
+- **Fixed** the *Payments* page counted every order in its pagination instead of only the transfers waiting to be checked.
+- **Added** 🖨 **Print packing slip** on an order's page: a printable sheet in the panel language with the customer, address, lines, totals, comment and
+  signature boxes (roadmap 4.2). Any signed-in panel account may open it, like the CSV exports.
+- **Added** a **note for the customer** on an order's page (courier, parcel number, pickup time): it goes into the "shipped" message, shows on the order card
+  in the bot, and changing it on an already shipped order messages the customer (roadmap 5.3). Bot-side entry is not built.
+- **Database** migration `b4d6f8a0c2e4`: `orders.tracking_note`. Depends on the previous PR (`a9c4e2b7d1f3`).
+
+### Referral commission without the delivery fee, shipping names per language (2026-10-08)
+- **Changed** the referral commission is now paid on the cash paid for the goods only; the delivery fee earns nothing (roadmap 6.1).
+- **Changed** an order keeps the shipping method's en/ru/ro names as they were at checkout and shows the one in the viewer's language (roadmap 4.10).
+- **Database** migration `a9c4e2b7d1f3`: `orders.shipping_name_en/ru/ro` (back-filled from the method of the same name).
+
 ### Docs drift check (2026-10-07)
 - **Changed** ROADMAP, PROJECT_STATE, MODULE_STATUS, PROJECT_PRINCIPLES and NEW_SESSION_PROMPT to match `development` after #31: PR references, alembic head
   `f2b8d0e6a3c9`, delivered items (roadmap 5.1, theme, favorites, profile details, command menu), no importer.

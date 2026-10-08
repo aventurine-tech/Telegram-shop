@@ -43,9 +43,10 @@ def main_menu(role: int, channel: str | None = None, helper: str | None = None,
     return kb.as_markup()
 
 
-def profile_keyboard(referral_percent: int, user_orders: int = 0, cart_count: int = 0) -> InlineKeyboardMarkup:
+def profile_keyboard(referral_percent: int, user_orders: int = 0, cart_count: int = 0,
+                     mailings_on: bool | None = None) -> InlineKeyboardMarkup:
     """
-    Profile keyboard: orders, cart, favorites, my details, promo code, language.
+    Profile keyboard: orders, cart, favorites, my details, promo code, mailings on/off, language.
     """
     kb = InlineKeyboardBuilder()
     if referral_percent != 0:
@@ -57,6 +58,8 @@ def profile_keyboard(referral_percent: int, user_orders: int = 0, cart_count: in
     kb.button(text=localize("btn.favorites"), callback_data="favorites")
     kb.button(text=localize("btn.my_details"), callback_data="my_details")
     kb.button(text=localize("btn.redeem_promo"), callback_data="redeem_promo")
+    if mailings_on is not None:
+        kb.button(text=localize("btn.mailings_on" if mailings_on else "btn.mailings_off"), callback_data="mailing_toggle")
     kb.button(text=localize("btn.language"), callback_data="profile_language")
     kb.button(text=localize("btn.back"), callback_data="back_to_menu")
     kb.adjust(1)

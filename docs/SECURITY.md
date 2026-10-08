@@ -22,14 +22,14 @@ Out of scope: a compromised host or database, Telegram itself.
 | **Rate limiting** | Global and per-action limits with temporary bans (Redis atomic script, per-process fallback); admins bypass windows but not bans. |
 | **Replay/stale guard** | Taps on transactional messages older than 1 h are rejected; webhook secret token compared in constant time. |
 | **Secrets** | Only via environment (`.env`, never committed); `/health` does not leak internals to anonymous callers. |
-| **Messaging safety** | Mailings are Admin-only, scheduled/cancellable, never auto-resumed (no duplicate sends), batch-throttled, test-to-self first; blocked users skipped. |
+| **Messaging safety** | Mailings are Admin-only, scheduled/cancellable, never auto-resumed (no duplicate sends), batch-throttled, test-to-self first; blocked and opted-out users skipped; every message has an unsubscribe button; a per-recipient log (ids and outcomes only) is kept. |
 
 ## 3. Personal data
 Stored about customers: Telegram id, first/last name, @username, language, phone, delivery address, order history, staff notes.
 - Collected from Telegram and from what the customer typed at checkout; not imported from other systems (D-14).
 - Visible only to authenticated panel users/staff with the relevant permission; exported only via authenticated CSV.
 - **Never commit** exports (`klaud_clients.csv`), logs or database dumps; never paste customer data into issues/PRs/chats.
-- Deletion/retention tooling is on the roadmap (6.4); until then delete a customer from the panel (Customers → delete) on request.
+- On request, an Admin account erases a client's personal data from the client's page (**Erase personal data**, see `docs/BACKUP_AND_RESTORE.md`); old backups still hold it until they expire. Automatic retention is on the roadmap (6.4).
 
 ## 4. Rules for every change
 1. New handler/view/route → enforce authentication **and** the right permission/role; add a test for the denied case.
@@ -45,10 +45,11 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 - [ ] `SECRET_KEY` = long random value (`python -c "import secrets; print(secrets.token_hex(32))"`), `ADMIN_PASSWORD` strong, change the bootstrap admin password after first login.
 - [ ] Panel behind HTTPS (reverse proxy); `ADMIN_COOKIE_SECURE=auto/1`; restrict `ADMIN_HOST` if not public; set `WEBHOOK_SECRET` if using webhooks.
 - [ ] Redis enabled with a password if you run more than one worker; database not exposed to the internet.
-- [ ] Regular PostgreSQL backups (and a restore test); log rotation; disk alerts.
+- [ ] Regular PostgreSQL backups (`scripts/backup_db.sh` + cron, copied off the machine, restore practised — `docs/BACKUP_AND_RESTORE.md`); log rotation; disk alerts.
 - [ ] Staff accounts: Staff level unless Admin is needed; remove accounts of people who left.
 - [ ] Set real `MIA_*` details only on the server `.env`; verify transfers manually before confirming.
 
 ## 6. Known gaps / roadmap
-Per-process web login limiter (not shared across workers); no 2FA for panel accounts; no automated personal-data retention/erasure;
-no per-recipient mailing log; secrets scanning in CI not configured. Tracked in `ROADMAP.md` (Phase 6).
+Per-process web login limiter (not shared across workers); no 2FA for panel accounts; no automated personal-data retention (erasure is manual);
+no browser-level tests of the panel. Tracked in `ROADMAP.md` (Phase 6). CI runs `scripts/scan_secrets.py` on every PR (bot tokens, private keys, passwords in URLs);
+log and error text goes to the owner as a short alert without tracebacks (`ERROR_ALERTS`).

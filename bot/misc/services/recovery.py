@@ -11,6 +11,7 @@ class RecoveryManager:
 
     UNPAID_ORDER_INTERVAL = 60
     HEALTH_CHECK_INTERVAL = 60
+    REMINDER_INTERVAL = 60
     MAILING_INTERVAL = 15
     ERROR_BACKOFF = 30
 
@@ -27,6 +28,14 @@ class RecoveryManager:
 
         self.recovery_tasks.append(asyncio.create_task(
             self._run_periodically(self.expire_unpaid_orders, self.UNPAID_ORDER_INTERVAL)
+        ))
+
+        self.recovery_tasks.append(asyncio.create_task(
+            self._run_periodically(self.remind_unpaid_orders, self.REMINDER_INTERVAL)
+        ))
+
+        self.recovery_tasks.append(asyncio.create_task(
+            self._run_periodically(self.alert_stale_orders, self.REMINDER_INTERVAL)
         ))
 
         self.recovery_tasks.append(asyncio.create_task(
@@ -80,6 +89,24 @@ class RecoveryManager:
             await notify_customer(self.bot, order, "mia_expired")
             for name in order.get("restocked", []):
                 await notify_restock(self.bot, name)
+
+    async def remind_unpaid_orders(self):
+        """One sweep: remind customers whose MIA order expires soon (once per order)."""
+        from bot.database.methods.orders import claim_payment_reminders
+        from bot.misc.services.order_view import notify_customer
+
+        for order in await claim_payment_reminders():
+            logger.info("Order %s: payment reminder", order["id"])
+            await notify_customer(self.bot, order, "mia_reminder")
+
+    async def alert_stale_orders(self):
+        """One sweep: tell staff about orders that have waited too long for them (once per order)."""
+        from bot.database.methods.orders import claim_stale_orders
+        from bot.misc.services.order_view import notify_stale_order
+
+        for kind, order in await claim_stale_orders():
+            logger.info("Order %s: staff alert (%s)", order["id"], kind)
+            await notify_stale_order(self.bot, order, kind)
 
     async def dispatch_due_mailings(self):
         """Start every scheduled mailing whose time has come (each runs as its own task)."""

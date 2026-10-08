@@ -77,12 +77,16 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   - **MIA** — the bot shows where to send the transfer (recipient / phone / IBAN), the exact
     amount and an order reference. The customer taps **I've paid** (optionally attaching a
     screenshot); staff verify the money arrived and confirm — or reject — in one tap. Unpaid
-    MIA orders are cancelled automatically after `MIA_PAY_TIMEOUT_MIN` and their stock is released.
+    MIA orders are cancelled automatically after `MIA_PAY_TIMEOUT_MIN` and their stock is released; the customer is reminded once
+    `MIA_REMIND_BEFORE_MIN` minutes before that, and staff are alerted once about a claimed-but-unchecked transfer
+    (`STALE_PAYMENT_ALERT_MIN`) or an untouched cash order (`STALE_ORDER_ALERT_MIN`).
   - **Cash on delivery / pickup** — nothing to do up front; the cash is recorded as collected
     when staff mark the order completed.
 - **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
   a message at every step and can open **My orders** at any time (and put a finished order back in the cart with **Order again**); staff get an alert for every
   new order and every "I've paid" claim.
+- **Backups** — `scripts/backup_db.sh` / `scripts/restore_db.sh` make and restore verified, rotated database dumps ([guide](docs/BACKUP_AND_RESTORE.md));
+  an Admin can erase a client's personal data from the client's page.
 - **Command menu** — the ☰ button next to the input field lists `/start`, `/catalog`, `/cart`, `/orders`, `/favorites`, `/profile`, `/language`
   in the customer's language; each opens the same screen as the matching button.
 - **Favorites** — every product card has a ⭐ button; the profile's **Favorites** list (paged) opens the cards. A weight
@@ -349,12 +353,18 @@ are **required**; everything else has a sensible default.
 | `MIA_PHONE`                 | Phone number linked to your MIA account                                    | –              |
 | `MIA_IBAN`                  | IBAN shown as an alternative way to pay                                    | –              |
 | `MIA_PAY_TIMEOUT_MIN`       | Minutes to pay an MIA order before it is cancelled and stock released      | `120`          |
+| `MIA_REMIND_BEFORE_MIN`     | Remind the customer once this many minutes before the MIA deadline (0 = off) | `30`        |
+| `STALE_PAYMENT_ALERT_MIN`   | Alert staff once about an unchecked "I've paid" claim after N minutes (0 = off) | `30`     |
+| `STALE_ORDER_ALERT_MIN`     | Alert staff once about an untouched new cash order after N minutes (0 = off) | `60`       |
 | `COD_ENABLED`               | Offer cash on delivery / pickup (`1`/`0`)                                  | `1`            |
 | `DELIVERY_ENABLED`          | Offer delivery (`1`/`0`)                                                   | `1`            |
 | `PICKUP_ENABLED`            | Offer pickup (`1`/`0`)                                                     | `1`            |
 | `PICKUP_ADDRESS`            | Shown to customers who choose pickup                                       | –              |
 | `DELIVERY_INFO`             | Note shown to customers who choose delivery (areas, cost, timing)          | –              |
 | `ORDERS_CHAT_ID`            | Extra chat/group that also receives new-order alerts                       | –              |
+| `ERROR_ALERTS`              | Message the owner when the bot logs an error (`0` = off)                    | `1`         |
+| `ERROR_ALERT_CHAT_ID`       | Extra chat/group that also receives error alerts                           | –           |
+| `SHOP_TIMEZONE`             | Timezone (IANA name) for mailing times typed in the web panel              | `Europe/Chisinau` |
 | `REFERRAL_PERCENT`          | Referral commission % on completed orders (0–99, `0` disables)             | `0`            |
 | `MIN_AMOUNT` / `MAX_AMOUNT` | Allowed range for an admin's manual balance top-up / deduction             | `1` / `100000` |
 
@@ -511,12 +521,14 @@ fields (and notes) under *Clients*. The old *Operation History* screen was remov
 Mass messages written in the browser (Admin role): a title, a **group** (all customers, Romanian / Russian / English
 speakers, customers with / without orders — each shows how many people it reaches), the text in an editor with
 **bold / italic / underline / strike / link** buttons and **placeholders** (`{first_name|friend}`, `{last_name}`,
-`{full_name}`, `{username}`, `{telegram_id}`), one picture, and **when**: a draft, *send now* or a date and time (UTC).
+`{full_name}`, `{username}`, `{telegram_id}`), one picture, and **when**: a draft, *send now* or a date and time (in `SHOP_TIMEZONE`, shown in the field's label).
 A live Telegram-style preview and a character counter (1024 with a picture, 4096 without) sit under the editor.
 Options: no link previews, silent notification, forbid forwarding/saving. The list shows status, group, date and
 **Delivered 534 out of 1188**; the details page has a progress bar and **Send test to me** (set your Telegram ID under
-*Settings → My account*), **Cancel mailing** and **Duplicate**. People who blocked the bot are skipped and counted; a
-mailing interrupted by a restart is marked *Interrupted* and is never resumed.
+*Settings → My account*), **Cancel mailing**, **Duplicate** and **Resend to failed** (a draft for the people it did not reach), plus a
+**Recipients** section with the delivery log (CSV download). Every message carries a *Stop these messages* button; people can also switch
+mailings off and on under *Profile*, and an Admin can see or change it on the client's page. People who blocked the bot or opted out are
+skipped; a mailing interrupted by a restart is marked *Interrupted* and is never resumed.
 
 ### Web accounts
 

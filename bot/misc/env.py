@@ -59,6 +59,12 @@ class EnvKeys(ABC):
     MIA_IBAN: Final = _get_optional("MIA_IBAN", "")
     # Minutes a customer has to pay an MIA order before it is cancelled and its stock released.
     MIA_PAY_TIMEOUT_MIN: Final = int(_get_optional("MIA_PAY_TIMEOUT_MIN", "120"))
+    # Minutes before the deadline at which an unpaid MIA order's customer is reminded once (0 = never).
+    MIA_REMIND_BEFORE_MIN: Final = int(_get_optional("MIA_REMIND_BEFORE_MIN", "30"))
+    # Minutes after which staff are alerted once about a claimed-but-unverified MIA transfer / an untouched new order
+    # (0 = never).
+    STALE_PAYMENT_ALERT_MIN: Final = int(_get_optional("STALE_PAYMENT_ALERT_MIN", "30"))
+    STALE_ORDER_ALERT_MIN: Final = int(_get_optional("STALE_ORDER_ALERT_MIN", "60"))
     COD_ENABLED: Final = _get_optional("COD_ENABLED", "1")
     PICKUP_ENABLED: Final = _get_optional("PICKUP_ENABLED", "1")
     DELIVERY_ENABLED: Final = _get_optional("DELIVERY_ENABLED", "1")
@@ -66,6 +72,13 @@ class EnvKeys(ABC):
     DELIVERY_INFO: Final = _get_optional("DELIVERY_INFO", "")
     # Optional extra chat (e.g. a staff group) that also receives new-order alerts.
     ORDERS_CHAT_ID: Final = _get_optional("ORDERS_CHAT_ID", "")
+
+    # Tell the owner (and ERROR_ALERT_CHAT_ID, if set) when the bot logs an error. "0" turns it off.
+    ERROR_ALERTS: Final = _get_optional("ERROR_ALERTS", "1")
+    ERROR_ALERT_CHAT_ID: Final = _get_optional("ERROR_ALERT_CHAT_ID", "")
+
+    # The shop's clock: mailing times typed in the web panel are in this timezone (IANA name).
+    SHOP_TIMEZONE: Final = _get_optional("SHOP_TIMEZONE", "Europe/Chisinau")
 
     # Links / UI
     CHANNEL_URL: Final = _get_optional("CHANNEL_URL", "")

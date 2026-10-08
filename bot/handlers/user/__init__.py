@@ -4,6 +4,7 @@ from .shop_and_goods import router as shop_and_goods_router
 from .referral_system import router as referral_system_router
 from .cart import router as cart_router
 from .profile_details import router as profile_details_router
+from .mailing_prefs import router as mailing_prefs_router
 
 from aiogram import Router
 
@@ -14,3 +15,4 @@ router.include_router(shop_and_goods_router)
 router.include_router(referral_system_router)
 router.include_router(cart_router)
 router.include_router(profile_details_router)
+router.include_router(mailing_prefs_router)

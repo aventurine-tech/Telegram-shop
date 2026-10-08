@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Integer, String, BigInteger, ForeignKey, Text, Boolean,
-    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, LargeBinary, func, select, true as sa_true
+    DateTime, Numeric, Index, UniqueConstraint, CheckConstraint, LargeBinary, func, select, true as sa_true, false as sa_false
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from bot.database.main import Database
@@ -120,6 +120,8 @@ class User(Database.BASE):
     contact_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # The person asked not to receive mailings (button under every mailing, or the profile toggle).
+    mailing_optout: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa_false())
     last_seen_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     user_operations: Mapped[list["Operations"]] = relationship(
         "Operations", back_populates="user_telegram_id", lazy='raise')
@@ -340,7 +342,16 @@ class Orders(Database.BASE):
     payment_proof: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     # Delivery: the chosen shipping method's name (as it was) and its price, already part of `total`.
     shipping_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    shipping_name_en: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    shipping_name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    shipping_name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     delivery_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default='0')
+    # Staff's note for the customer (courier name, parcel number, pickup time …), sent with the shipped notice.
+    tracking_note: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    # Housekeeping so the background sweeps speak up once per order: the customer's "pay soon" reminder and staff's
+    # "this order is waiting" alert.
+    reminder_sent_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    staff_alerted_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     # Unpaid MIA orders are cancelled (and their stock released) after this moment.
     pay_by: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
@@ -652,6 +663,9 @@ class Mailings(Database.BASE):
     blocked: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
     failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
     created_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # "Resend to failed": the audience is whoever this earlier mailing failed to reach.
+    retry_of: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey('mailings.id', ondelete='SET NULL'), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime.datetime] = mapped_column(
@@ -666,4 +680,21 @@ class Mailings(Database.BASE):
 
     def __str__(self):
         return self.title or ""
+
+
+class MailingRecipients(Database.BASE):
+    """What happened to one person in one mailing (a log: ids and outcomes only, never message text)."""
+    __tablename__ = 'mailing_recipients'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mailing_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey('mailings.id', ondelete='CASCADE'), nullable=False)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(8), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        CheckConstraint("outcome IN ('sent','blocked','failed')", name='ck_mailing_recipients_outcome'),
+        Index('ix_mailing_recipients_mailing_outcome', 'mailing_id', 'outcome', 'id'),
+    )
 

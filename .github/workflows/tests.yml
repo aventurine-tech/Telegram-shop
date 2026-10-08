@@ -37,6 +37,15 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m pytest -q --cov=bot --cov-report=term
 
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # Pure standard library: fails on a bot token, private key or password-in-URL in any tracked file.
+      - run: python3 scripts/scan_secrets.py
+
   migrations:
     name: Migrations on PostgreSQL
     runs-on: ubuntu-latest

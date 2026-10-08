@@ -9,6 +9,7 @@ Every function here is one transaction and returns ``(ok, code, data)``. ``code`
 stable key the handlers map to a localized message; ``data`` is the payload on success.
 """
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -47,6 +48,11 @@ class _Abort(Exception):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _aware(value: datetime) -> datetime:
+    """SQLite hands back naive datetimes; they are UTC."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 def _money(value) -> Decimal:
@@ -94,7 +100,11 @@ def order_to_dict(order: Orders, items: list[OrderItems] | None = None) -> dict:
         "balance_used": order.balance_used,
         "due": order.total - order.balance_used,
         "shipping_name": order.shipping_name,
+        "shipping_name_en": order.shipping_name_en,
+        "shipping_name_ru": order.shipping_name_ru,
+        "shipping_name_ro": order.shipping_name_ro,
         "delivery_fee": order.delivery_fee,
+        "tracking_note": order.tracking_note,
         "payment_proof": order.payment_proof,
         "pay_by": order.pay_by,
         "created_at": order.created_at,
@@ -314,6 +324,9 @@ async def create_order_transaction(
                     address=(address or "").strip() or None,
                     comment=(comment or "").strip() or None,
                     shipping_name=shipping.name if shipping else None,
+                    shipping_name_en=shipping.name_en if shipping else None,
+                    shipping_name_ru=shipping.name_ru if shipping else None,
+                    shipping_name_ro=shipping.name_ro if shipping else None,
                     delivery_fee=fee,
                     total=total,
                     balance_used=balance_used,
@@ -424,6 +437,33 @@ async def reorder_to_cart(user_id: int, order_id: int) -> tuple[bool, str, dict 
         else:
             skipped += 1
     return True, "success", {"added": added, "skipped": skipped}
+
+
+TRACKING_NOTE_MAX = 300
+_NOTE_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+async def set_tracking_note(order_id: int, note: str | None) -> tuple[bool, str, dict | None]:
+    """Save (or clear) the staff note the customer sees with a shipped order.
+
+    Returns ``(True, "success", order)`` with ``order["note_changed"]`` telling whether it differs from before, or
+    ``(False, "order_not_found" | "order_closed" | "note_too_long", None)``. A cancelled order takes no note.
+    """
+    text = _NOTE_CONTROL.sub("", note or "").strip() or None
+    if text and len(text) > TRACKING_NOTE_MAX:
+        return False, "note_too_long", None
+    async with Database().session() as s:
+        order = (await s.execute(select(Orders).where(Orders.id == int(order_id)).with_for_update())
+                 ).scalars().first()
+        if not order:
+            return False, "order_not_found", None
+        if order.status == OrderStatus.CANCELLED:
+            return False, "order_closed", None
+        changed = order.tracking_note != text
+        order.tracking_note = text
+        result = order_to_dict(order, await _load_items(s, order.id))
+    result["note_changed"] = changed
+    return True, "success", result
 
 
 async def get_order_notify_ids() -> list[int]:
@@ -553,6 +593,75 @@ async def expire_unpaid_orders(now: datetime | None = None) -> list[dict]:
     return cancelled
 
 
+async def _claim_sweep(ids_stmt, stamp: str, recheck, now: datetime) -> list[dict]:
+    """Stamp each candidate order once and return the ones this call stamped (a concurrent sweep gets none of them)."""
+    async with Database().session() as s:
+        ids = [r[0] for r in (await s.execute(ids_stmt)).all()]
+    claimed = []
+    for oid in ids:
+        async with Database().session() as s:
+            order = (await s.execute(select(Orders).where(Orders.id == oid).with_for_update())
+                     ).scalars().one_or_none()
+            if order is None or getattr(order, stamp) is not None or not recheck(order):
+                continue
+            setattr(order, stamp, now)
+            claimed.append(order_to_dict(order, await _load_items(s, order.id)))
+    return claimed
+
+
+async def claim_payment_reminders(now: datetime | None = None) -> list[dict]:
+    """Unpaid MIA orders that are close to their deadline and have not been reminded yet (each is returned once).
+
+    Orders whose whole payment window is shorter than ``MIA_REMIND_BEFORE_MIN`` are never reminded.
+    """
+    window = int(EnvKeys.MIA_REMIND_BEFORE_MIN)
+    if window <= 0:
+        return []
+    now = now or _now()
+    soon = now + timedelta(minutes=window)
+    waiting = (Orders.status == OrderStatus.NEW, Orders.payment_status == PaymentStatus.AWAITING_PAYMENT,
+               Orders.pay_by.is_not(None), Orders.pay_by > now, Orders.pay_by <= soon,
+               Orders.created_at <= now - timedelta(minutes=window), Orders.reminder_sent_at.is_(None))
+
+    def still(o: Orders) -> bool:
+        return (o.status == OrderStatus.NEW and o.payment_status == PaymentStatus.AWAITING_PAYMENT
+                and o.pay_by is not None and _aware(o.pay_by) > now)
+
+    orders = await _claim_sweep(select(Orders.id).where(*waiting).order_by(Orders.id), "reminder_sent_at", still, now)
+    for o in orders:
+        o["minutes_left"] = max(int((_aware(o["pay_by"]) - now).total_seconds() // 60), 1)
+    return orders
+
+
+async def claim_stale_orders(now: datetime | None = None) -> list[tuple[str, dict]]:
+    """Orders staff have left alone for too long, each returned once as ``(kind, order)``.
+
+    ``payment_check``: the customer said they paid by MIA and nobody verified it (``STALE_PAYMENT_ALERT_MIN``);
+    ``unhandled``: a cash order nobody confirmed yet (``STALE_ORDER_ALERT_MIN``). A limit of 0 turns that kind off.
+    """
+    now = now or _now()
+    found: list[tuple[str, dict]] = []
+    minutes = int(EnvKeys.STALE_PAYMENT_ALERT_MIN)
+    if minutes > 0:
+        old = now - timedelta(minutes=minutes)
+        stmt = select(Orders.id).where(
+            Orders.status == OrderStatus.NEW, Orders.payment_status == PaymentStatus.AWAITING_CONFIRMATION,
+            Orders.updated_at < old, Orders.staff_alerted_at.is_(None)).order_by(Orders.id)
+        found += [("payment_check", o) for o in await _claim_sweep(
+            stmt, "staff_alerted_at",
+            lambda o: o.status == OrderStatus.NEW and o.payment_status == PaymentStatus.AWAITING_CONFIRMATION, now)]
+    minutes = int(EnvKeys.STALE_ORDER_ALERT_MIN)
+    if minutes > 0:
+        old = now - timedelta(minutes=minutes)
+        stmt = select(Orders.id).where(
+            Orders.status == OrderStatus.NEW, Orders.payment_status == PaymentStatus.UNPAID,
+            Orders.created_at < old, Orders.staff_alerted_at.is_(None)).order_by(Orders.id)
+        found += [("unhandled", o) for o in await _claim_sweep(
+            stmt, "staff_alerted_at",
+            lambda o: o.status == OrderStatus.NEW and o.payment_status == PaymentStatus.UNPAID, now)]
+    return found
+
+
 # --------------------------------------------------------------------------- #
 # MIA payment
 # --------------------------------------------------------------------------- #
@@ -660,11 +769,12 @@ async def reject_mia_payment(order_id: int, admin_id: int | None = None) -> tupl
 # --------------------------------------------------------------------------- #
 
 async def _credit_referral_in_session(s, order: Orders) -> int | None:
-    """Pay the referrer their cut of the cash the customer actually paid. Returns referrer id."""
+    """Pay the referrer their cut of the cash the customer actually paid for the goods (the delivery fee earns
+    nothing). Returns referrer id."""
     percent = min(max(int(EnvKeys.REFERRAL_PERCENT), 0), 99)
     if percent <= 0 or order.user_id is None:
         return None
-    paid = order.total - order.balance_used
+    paid = order.total - order.delivery_fee - order.balance_used
     if paid <= 0:
         return None
     customer = (await s.execute(

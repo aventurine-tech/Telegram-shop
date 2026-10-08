@@ -111,7 +111,9 @@ from bot.database.methods.item_options import (
 from bot.database.methods.product_images import items_with_images, remove_item_image, set_item_image
 from bot.database.methods.orders import set_order_status, confirm_mia_payment
 from bot.misc.services.restock_notifier import notify_restock
-from bot.misc.services.order_view import notify_customer
+from bot.misc.services.order_view import method_label, notify_customer
+from bot.web.client_tools import client_routes
+from bot.web.order_tools import filter_clauses, filter_context, order_routes
 from bot.middleware.security import invalidate_auth_caches, flush_all_role_caches
 
 
@@ -285,6 +287,10 @@ def _format_username(model, name):
     return Markup('<a href="https://t.me/{0}" target="_blank" rel="noopener noreferrer">@{0}</a>').format(username)
 
 
+def _format_yes_no(model, name):
+    return localize("web.sa.yes" if getattr(model, name, False) else "web.sa.no")
+
+
 def _format_when(model, name):
     value = getattr(model, name, None)
     return value.strftime("%Y-%m-%d %H:%M") if value else ""
@@ -302,9 +308,10 @@ class UserAdmin(AuditModelView, model=User):
     column_default_sort = (User.registration_date, True)
     column_details_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.contact_name,
                            User.phone, User.city, User.address, User.language, User.balance, User.role_id, User.referral_id,
-                           User.is_blocked, User.registration_date, User.last_seen_at, User.notes, User.user_orders]
+                           User.is_blocked, User.mailing_optout, User.registration_date, User.last_seen_at, User.notes,
+                           User.user_orders]
     column_formatters = {"username": _format_username, "registration_date": _format_when,
-                         "last_seen_at": _format_when}
+                         "last_seen_at": _format_when, "mailing_optout": _format_yes_no}
     column_formatters_detail = column_formatters
     details_template = "client_details.html"
     form_excluded_columns = [
@@ -1277,6 +1284,26 @@ async def apply_order_action(action_name: str, order_id: int) -> tuple[bool, str
     return ok, code
 
 
+def _format_order_status(model, name):
+    return localize(f"order.status.{model.status}") if model.status in OrderStatus.ALL else model.status
+
+
+def _format_order_payment_status(model, name):
+    return localize(f"order.paystatus.{model.payment_status}") if model.payment_status else ""
+
+
+def _format_order_method(model, name):
+    return method_label({"payment_method": model.payment_method, "fulfillment": model.fulfillment})
+
+
+def _format_order_fulfillment(model, name):
+    return localize(f"order.fulfillment.{model.fulfillment}") if model.fulfillment else ""
+
+
+def _format_order_shipping(model, name):
+    return pick(model, "shipping_name")
+
+
 class OrderAdmin(LocalizedModelView, model=Orders):
     """Orders are read-only here; status changes are actions that reuse the bot's own order logic."""
     column_list = [Orders.id, Orders.user_id, Orders.status, Orders.payment_method, Orders.payment_status,
@@ -1286,8 +1313,13 @@ class OrderAdmin(LocalizedModelView, model=Orders):
                            Orders.payment_status, Orders.fulfillment, Orders.customer_name,
                            Orders.phone, Orders.address, Orders.comment, Orders.shipping_name,
                            Orders.delivery_fee, Orders.total, Orders.balance_used, Orders.pay_by, Orders.created_at, Orders.updated_at,
-                           Orders.items]
-    # status / payment_status / payment_method are searchable too, which doubles as the filter.
+                           Orders.tracking_note, Orders.items]
+    column_formatters = {"status": _format_order_status, "payment_status": _format_order_payment_status,
+                         "payment_method": _format_order_method, "fulfillment": _format_order_fulfillment,
+                         "shipping_name": _format_order_shipping}
+    column_formatters_detail = column_formatters
+    filter_bar = True       # list.html draws the status / payment / date filters above the table
+    # status / payment_status / payment_method are searchable too (by their stored value, e.g. "shipped").
     column_searchable_list = [Orders.customer_name, Orders.phone, Orders.user_id, Orders.status,
                               Orders.payment_status, Orders.payment_method, Orders.fulfillment]
     column_sortable_list = [Orders.id, Orders.created_at, Orders.total, Orders.status]
@@ -1299,6 +1331,15 @@ class OrderAdmin(LocalizedModelView, model=Orders):
     name = Localized("web.model.order.one")
     name_plural = Localized("web.model.order.many")
     icon = "fa-solid fa-box-open"
+
+    def filters(self, request: Request) -> dict:
+        return filter_context(request)
+
+    def list_query(self, request: Request):
+        return sa_select(Orders).where(*filter_clauses(request))
+
+    def count_query(self, request: Request):
+        return sa_select(sa_func.count(Orders.id)).where(*filter_clauses(request))
 
     @staticmethod
     def available_actions(order) -> list[str]:
@@ -1380,14 +1421,22 @@ class PaymentsAdmin(OrderAdmin, model=Orders):
     name_plural = Localized("web.model.payment.many")
     icon = "fa-solid fa-hand-holding-dollar"
     category = "payments"
+    filter_bar = False
     column_searchable_list = [Orders.customer_name, Orders.phone, Orders.user_id]
 
-    def list_query(self, request: Request):
-        return sa_select(Orders).where(
+    @staticmethod
+    def _waiting():
+        return (
             Orders.status == OrderStatus.NEW,
             Orders.payment_method == PaymentMethod.MIA,
             Orders.payment_status.in_((PaymentStatus.AWAITING_PAYMENT, PaymentStatus.AWAITING_CONFIRMATION)),
         )
+
+    def list_query(self, request: Request):
+        return sa_select(Orders).where(*self._waiting())
+
+    def count_query(self, request: Request):
+        return sa_select(sa_func.count(Orders.id)).where(*self._waiting())
 
 
 PaymentsAdmin.identity = "payments"
@@ -1698,7 +1747,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
-    ] + export_routes + mailing_routes
+    ] + export_routes + mailing_routes + order_routes + client_routes
 
     from bot.web.accounts import MyAccountView, WebUserAdmin
 

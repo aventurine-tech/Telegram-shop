@@ -49,6 +49,7 @@
       <div class="card-footer">
         <div class="d-flex flex-wrap align-items-center gap-2">
           <a href="{{ url_for('admin:list', identity=model_view.identity) }}" class="btn">{{ _('web.details.back') }}</a>
+          <a href="/orders/{{ get_object_identifier(model) }}/slip" target="_blank" rel="noopener" class="btn btn-outline-secondary">🖨 {{ _('web.order.print') }}</a>
           {% for custom_action, label in model_view._custom_actions_in_detail.items() %}
           {% if custom_action in order_actions %}
           {% set tone = 'btn-success' if custom_action == 'confirm-payment' else ('btn-outline-danger' if custom_action == 'cancel' else 'btn-primary') %}
@@ -69,6 +70,24 @@
     </div>
   </div>
 </div>
+
+{% if model.status != 'cancelled' %}
+<div class="col-12 mt-3">
+  <div class="card">
+    <div class="card-header"><h3 class="card-title">{{ _('web.order.tracking') }}</h3></div>
+    <div class="card-body">
+      {% if request.query_params.get('tracking_saved') %}<div class="alert alert-success">{{ _('web.order.tracking_saved') }}</div>{% endif %}
+      {% if request.query_params.get('tracking_error') %}<div class="alert alert-danger">{{ _('web.order.tracking_error') }}</div>{% endif %}
+      <form method="post" action="/orders/{{ get_object_identifier(model) }}/tracking" class="d-flex flex-wrap gap-2">
+        <input type="text" name="tracking_note" maxlength="300" class="form-control" style="max-width: 36rem"
+          value="{{ model.tracking_note or '' }}" placeholder="{{ _('web.order.tracking_placeholder') }}">
+        <button type="submit" class="btn btn-primary">{{ _('web.order.tracking_save') }}</button>
+      </form>
+      <div class="text-muted mt-2">{{ _('web.order.tracking_hint') }}</div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% for custom_action in model_view._custom_actions_in_detail %}
 {% if custom_action in order_actions and custom_action in model_view._custom_actions_confirmation %}

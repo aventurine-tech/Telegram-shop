@@ -139,6 +139,12 @@ TRANSLATIONS = {"ro": {
         # === Language picker ===
         "language.picker.title": "🌐 Choose your language / Выберите язык / Alegeți limba",
         "btn.language": "🌐 Limbă",
+        "btn.mailing.unsubscribe": "🔕 Nu mai trimiteți mesaje",
+        "btn.mailing.resubscribe": "🔔 Reactivează mesajele",
+        "btn.mailings_on": "🔔 Mesaje promoționale: activate",
+        "btn.mailings_off": "🔕 Mesaje promoționale: dezactivate",
+        "mailing.optout.done": "Gata: nu veți mai primi mesaje promoționale. Le puteți reactiva din profil.",
+        "mailing.optin.done": "Gata: mesajele promoționale sunt din nou activate.",
         "language.changed": "✅ Limba: {language}",
         "btn.all_categories": "🏪 Toate categoriile",
         "shop.subcategories.title": "🏪 {name} — alegeți o subcategorie",

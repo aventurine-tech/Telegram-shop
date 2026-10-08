@@ -18,13 +18,18 @@ from wtforms.fields import DateTimeLocalField
 from wtforms.validators import Optional as WtfOptional
 
 from bot.database.main import Database
-from bot.database.methods.mailings import cancel_mailing, get_mailing, get_mailing_image, segment_counts
+from bot.database.methods.mailings import (
+    cancel_mailing, create_retry_mailing, get_mailing, get_mailing_image, recipient_counts, recipient_rows,
+    segment_counts,
+)
 from bot.database.models.main import Mailings, MailingSegment, MailingStatus
 from bot.i18n.main import localize
+from bot.misc import EnvKeys
 from bot.misc.images import ImageError, validate_image
 from bot.misc.mailing_text import (
     CAPTION_LIMIT, MESSAGE_LIMIT, PLACEHOLDERS, personalize, sanitize_mailing_html, visible_length,
 )
+from bot.misc.shop_time import from_shop, to_shop
 from bot.web.admin import AuditModelView, LocalizedForm, _client_ip, _picture_error
 from bot.web.language import LazyText, Localized
 from bot.web.session import current_web_user, session_is_admin
@@ -44,6 +49,20 @@ def _utc(value: datetime.datetime | None) -> datetime.datetime | None:
 
 def _now() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+class ShopDateTimeField(DateTimeLocalField):
+    """A date-time typed (and shown) in the shop's timezone, stored as a UTC moment."""
+
+    def process_formdata(self, valuelist):
+        super().process_formdata(valuelist)
+        if self.data is not None:
+            self.data = from_shop(self.data)
+
+    def _value(self):
+        if self.raw_data:
+            return " ".join(self.raw_data)
+        return to_shop(self.data).strftime(self.format[0]) if self.data else ""
 
 
 def sample_profile() -> dict:
@@ -279,8 +298,8 @@ def _format_delivered(model, name):
 
 
 def _format_date(model, name):
-    value = _utc(getattr(model, name, None))
-    return value.strftime("%Y-%m-%d %H:%M") if value else "—"
+    value = getattr(model, name, None)
+    return to_shop(value).strftime("%Y-%m-%d %H:%M") if value else "—"
 
 
 def _format_flag(model, name):
@@ -324,6 +343,15 @@ class MailingAdmin(AuditModelView, model=Mailings):
     def is_visible(self, request: Request) -> bool:
         return session_is_admin(request)
 
+    async def get_object_for_details(self, value: Any) -> Any:
+        """The details page also shows who got what: attach the log's counts and the people who were not reached."""
+        model = await super().get_object_for_details(value)
+        if model is not None:
+            model.recipient_counts = await recipient_counts(model.id)
+            model.unreached = [r for r in await recipient_rows(model.id, limit=None)
+                               if r["outcome"] != "sent"][:50]
+        return model
+
     # -- form ---------------------------------------------------------------------------------------------------
 
     async def scaffold_form(self, *args, **kwargs):
@@ -331,7 +359,7 @@ class MailingAdmin(AuditModelView, model=Mailings):
         segments = [(s, localize("web.mailing.segment_option", label=localize(f"web.mailing.segment.{s}"),
                                   count=counts.get(s, 0))) for s in MailingSegment.CHOICES]
         modes = [(m, localize(f"web.mailing.mode.{m}")) for m in MODES]
-        now = _now().strftime("%Y-%m-%d %H:%M")
+        now = to_shop(_now()).strftime("%Y-%m-%d %H:%M")
 
         class MailingForm(LocalizedForm):
             title = StringField(localize("web.col.title"), description=localize("web.mailing.title_hint"),
@@ -344,9 +372,9 @@ class MailingAdmin(AuditModelView, model=Mailings):
             remove_picture = BooleanField(localize("web.mailing.remove_image"))
             send_mode = SelectField(localize("web.col.send_mode"), choices=modes,
                                     description=localize("web.mailing.mode_hint"))
-            scheduled_at = DateTimeLocalField(
-                localize("web.col.scheduled_at"), format=["%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"],
-                validators=[WtfOptional()], description=localize("web.mailing.scheduled_hint", now=now))
+            scheduled_at = ShopDateTimeField(
+                f"{localize('web.col.scheduled_at')} ({EnvKeys.SHOP_TIMEZONE})", format=["%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"],
+                validators=[WtfOptional()], description=localize("web.mailing.scheduled_hint", now=now, tz=EnvKeys.SHOP_TIMEZONE))
             disable_preview = BooleanField(localize("web.col.disable_preview"),
                                            description=localize("web.mailing.disable_preview_hint"))
             silent = BooleanField(localize("web.col.silent"), description=localize("web.mailing.silent_hint"))
@@ -484,6 +512,16 @@ class MailingAdmin(AuditModelView, model=Mailings):
         await self._audit(request, "mailing_duplicate", new_id)
         return self._back(request, new_id, "duplicated")
 
+    @action(name="resend_failed", label=LazyText("web.mailing.action.resend"), add_in_detail=False, add_in_list=False)
+    async def resend_failed(self, request: Request):
+        mailing_id = self._pk(request)
+        user = await current_web_user(request)
+        new_id = await create_retry_mailing(mailing_id, (user or {}).get("username")) if mailing_id is not None else None
+        if new_id is None:
+            return self._back(request, mailing_id, "resend_none")
+        await self._audit(request, "mailing_resend_failed", new_id)
+        return self._back(request, new_id, "resend_created")
+
     async def _audit(self, request: Request, action_name: str, mailing_id: int) -> None:
         from bot.database.methods.audit import log_audit
         await log_audit(action_name, resource_type=type(self).name, resource_id=str(mailing_id),
@@ -512,9 +550,9 @@ class MailingAdmin(AuditModelView, model=Mailings):
         """``(kind, message)`` for the banner shown after an action (kind: success / danger)."""
         notice = request.query_params.get("notice", "")
         if notice not in ("test_sent", "no_telegram", "test_failed", "cancelled", "not_cancellable",
-                          "duplicated", "no_bot"):
+                          "duplicated", "no_bot", "resend_created", "resend_none"):
             return None
-        kind = "success" if notice in ("test_sent", "cancelled", "duplicated") else "danger"
+        kind = "success" if notice in ("test_sent", "cancelled", "duplicated", "resend_created") else "danger"
         detail = request.query_params.get("detail", "")[:60]
         return kind, localize(f"web.mailing.notice.{notice}", error=detail)
 
@@ -535,4 +573,21 @@ async def mailing_image(request: Request) -> Response:
                                                     "X-Content-Type-Options": "nosniff"})
 
 
-mailing_routes = [Route("/mailing-image/{mailing_id:int}", mailing_image)]
+async def mailing_recipients_csv(request: Request) -> Response:
+    """The full delivery log of one mailing: who, what happened, when. Ids and outcomes only."""
+    user = await current_web_user(request)
+    if not user or user["role"] != "admin":
+        return Response(status_code=403)
+    mailing_id = int(request.path_params["mailing_id"])
+    if await get_mailing(mailing_id) is None:
+        return Response(status_code=404)
+    lines = ["user_id,outcome,time"]
+    for row in await recipient_rows(mailing_id):
+        lines.append(f"{row['user_id']},{row['outcome']},{to_shop(row['created_at']).strftime('%Y-%m-%d %H:%M:%S')}")
+    return Response("\n".join(lines) + "\n", media_type="text/csv", headers={
+        "Content-Disposition": f"attachment; filename=mailing-{mailing_id}-recipients.csv",
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+mailing_routes = [Route("/mailing-image/{mailing_id:int}", mailing_image),
+                  Route("/mailings/{mailing_id:int}/recipients.csv", mailing_recipients_csv)]

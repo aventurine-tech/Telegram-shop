@@ -31,15 +31,13 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 2. Send yourself a **mailing test** (Settings → My account → Telegram ID; Marketing → Mailings → *Send test to me*) before the first real campaign.
 3. Deploy the latest code: `git pull && docker compose up -d --build`, then `/start` (migrations run on start).
 4. Promote `development` → `main` when satisfied (manual, owner only).
-5. Priorities for the next phase — see `ROADMAP.md` Phase 4–6 (print order, customer groups, unsubscribe, orders-list filters, …).
+5. Priorities for the next phase — see `ROADMAP.md` Phase 4–6 (customer groups, unsubscribe, …).
 
 ## Known limitations / risks
 - **Welcome line.** Telegram needs a message to hold the reply keyboard, so one short welcome line always stays at the top of the chat.
   Not re-verified on a real device since #16/#17.
 - **Unverified live:** nothing (clean chat, mailings, shipping, profiles) has been seen working in real Telegram by Claude.
-- Mailings: UTC schedule; interrupted by a restart ⇒ marked *Interrupted*, never resumed; no per-recipient log.
-- Shipping: the order keeps the method's canonical name only; referral commission is computed on the paid total including the delivery fee.
-- Orders list in the web shows raw status values (details page and buttons are localized).
+- Mailings: interrupted by a restart ⇒ marked *Interrupted*, never resumed.
 - Option label change in the web rows = delete + create (stock of that option is lost); renaming a head in the bot does not rename options.
 - Web login limiter is per-process; no 2FA.
 - Not built on purpose: order **ownership**; client **import**; catalog crawler/importer (removed in #31 — staff enter the catalog, D-21).

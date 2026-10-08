@@ -27,6 +27,7 @@ from bot.middleware.clean_chat import (
     CleanChatMiddleware, CleanChatRequestMiddleware, clean_chat_enabled,
 )
 from bot.middleware.security import SecurityMiddleware, AuthenticationMiddleware, set_auth_middleware
+from bot.misc.error_alerts import ErrorAlerter, start_error_alerts
 from bot.misc.caching import init_cache_manager, get_cache_manager
 from bot.misc.caching import CacheScheduler
 from bot.misc.caching import get_redis_storage
@@ -45,6 +46,7 @@ class AppContext:
     recovery_manager: Optional[RecoveryManager] = None
     cleanup_manager: Optional[CleanupManager] = None
     cache_scheduler: Optional[CacheScheduler] = None
+    error_alerter: Optional[ErrorAlerter] = None
     admin_server: Optional["object"] = None  # uvicorn.Server, imported lazily
     admin_server_task: Optional[asyncio.Task] = None
     webhook_server: Optional["object"] = None  # uvicorn.Server for the webhook listener
@@ -176,6 +178,8 @@ async def _startup(dp: Dispatcher, bot: Bot, ctx: AppContext, storage) -> None:
     # Caching (optional Redis) and background services
     ctx.cache_scheduler = await _setup_caching(storage)
 
+    ctx.error_alerter = start_error_alerts(bot)
+
     ctx.recovery_manager = RecoveryManager(bot)
     await ctx.recovery_manager.start()
 
@@ -259,6 +263,9 @@ async def _shutdown(ctx: AppContext, bot: Bot) -> None:
 
     # Drain buffered audit rows while the engine is still open.
     await stop_audit_buffer()
+
+    if ctx.error_alerter:
+        await ctx.error_alerter.stop()
 
     # Close database engine
     await _Database().dispose()
