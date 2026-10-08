@@ -10,6 +10,18 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Optional two-step sign-in for panel accounts (2026-10-08)
+- **Added** 🔐 each person can turn on two-step sign-in under **My account**: set up with an authenticator app (Google/Microsoft Authenticator, Aegis, 2FAS …)
+  by typing the setup key, confirm with the first code, and save 8 one-time **backup codes** (shown once). After that the login page also asks for the
+  6-digit code (the field is on the page for everyone, and only needed by accounts that turned it on). It is **never forced**: accounts without it sign in
+  with the password only.
+- **Added** a code works only once (its 30-second step is remembered), a backup code works once, wrong codes count towards the same 5-failure / 15-minute
+  lockout as wrong passwords; turning it off or making new backup codes asks for the password; an Admin can **Reset two-step sign-in** on an account
+  (lost phone) and sees who uses it in the account list. Every change is in the audit log.
+- **Security** the secret is stored encrypted with a key derived from `SECRET_KEY` (changing `SECRET_KEY` makes stored secrets unreadable: those accounts are
+  locked out until an Admin resets them); backup codes are stored only as keyed hashes. No new dependency (RFC 6238 in the standard library).
+- **Database** migration `e7a9c1b3d5f7`: `web_users.totp_secret`, `totp_enabled`, `totp_last_step`, `totp_backup` (depends on `d6f8b0c2e4a6`).
+
 ### Fix: placing an order as the owner (2026-10-08)
 - **Fixed** when the person placing an order is also staff (the owner testing the shop), the "new order" alert sent into their own chat counted as their new
   screen, clean chat deleted the confirm screen, and the next edit failed with *message to edit not found* (the order itself was saved). Staff alerts and

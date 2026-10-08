@@ -113,3 +113,6 @@ A crawler/importer for umbramd.com was built (#10); it was never run on the live
 
 ### D-21 Catalog is entered by staff
 **Context** the owner cancelled the open items *prices per weight* and *Puff/accessories import*. **Decision** products, options, prices and stock are created in the bot or the web panel by staff; the crawler, importer, scraped data and price template were deleted. **Consequences** no import code path to maintain; bulk import may return as a web-panel feature (roadmap 4.1) if the owner asks.
+
+### D-23 Two-step sign-in is optional (owner, 2026-10-08)
+**Context** the owner asked for 2FA on panel accounts, "optional, not forced for users". **Decision** time-based codes (RFC 6238, any authenticator app) plus 8 one-time backup codes, switched on by each person under *My account*; never required by the shop. The second step is a field on the normal login form (no half-signed-in state). The secret is stored encrypted with a key derived from `SECRET_KEY`; used codes cannot be replayed; an Admin can reset an account. **Consequences** no new dependency and no QR code (people type the setup key); rotating `SECRET_KEY` locks 2FA accounts out until reset; the login limiter stays per-process.

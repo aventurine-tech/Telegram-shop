@@ -2,7 +2,7 @@
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from bot.database import Database
@@ -19,7 +19,9 @@ def web_user_to_dict(u: WebUsers) -> dict:
     return {
         "id": u.id, "username": u.username, "role": u.role, "language": u.language,
         "is_active": u.is_active, "created_at": u.created_at, "last_login_at": u.last_login_at,
-        "telegram_id": u.telegram_id,
+        "telegram_id": u.telegram_id, "totp_enabled": bool(u.totp_enabled),
+        # Enrolment started but not confirmed: the page shows the key again until it is confirmed or replaced.
+        "totp_pending": bool(u.totp_secret) and not u.totp_enabled,
     }
 
 
@@ -118,6 +120,87 @@ async def set_web_user_password(user_id: int, new_password: str) -> tuple[bool, 
             return False, "not_found"
         u.password_hash = hash_password(new_password)
     return True, "success"
+
+
+# --- two-step sign-in ----------------------------------------------------------------------------------------------
+
+async def get_totp(user_id: int) -> dict | None:
+    """The sealed secret and what is left of the backup codes; None for an unknown account."""
+    async with Database().session() as s:
+        u = (await s.execute(select(WebUsers).where(WebUsers.id == user_id))).scalars().first()
+        if u is None:
+            return None
+        return {"secret": u.totp_secret, "enabled": bool(u.totp_enabled), "last_step": u.totp_last_step,
+                "backup": [h for h in (u.totp_backup or "").split(",") if h]}
+
+
+async def start_totp(user_id: int, sealed_secret: str) -> bool:
+    """Store a fresh (sealed) secret, still switched off. A second start replaces the first."""
+    async with Database().session() as s:
+        u = (await s.execute(select(WebUsers).where(WebUsers.id == user_id))).scalars().first()
+        if u is None or u.totp_enabled:
+            return False
+        u.totp_secret = sealed_secret
+        u.totp_last_step = None
+    return True
+
+
+async def enable_totp(user_id: int, step: int, backup_hashes: list[str]) -> bool:
+    """Switch it on after the first valid code (``step``), with the backup codes."""
+    async with Database().session() as s:
+        u = (await s.execute(select(WebUsers).where(WebUsers.id == user_id))).scalars().first()
+        if u is None or u.totp_enabled or not u.totp_secret:
+            return False
+        u.totp_enabled = True
+        u.totp_last_step = step
+        u.totp_backup = ",".join(backup_hashes)
+    return True
+
+
+async def disable_totp(user_id: int) -> bool:
+    """Back to a password-only account (own choice, or an Admin resetting a lost phone)."""
+    async with Database().session() as s:
+        u = (await s.execute(select(WebUsers).where(WebUsers.id == user_id))).scalars().first()
+        if u is None:
+            return False
+        u.totp_enabled = False
+        u.totp_secret = None
+        u.totp_last_step = None
+        u.totp_backup = None
+    return True
+
+
+async def accept_totp_step(user_id: int, step: int) -> bool:
+    """Remember the 30-second step a code was used in. False when that step (or a later one) was used already."""
+    async with Database().session() as s:
+        result = await s.execute(
+            update(WebUsers).where(WebUsers.id == user_id, WebUsers.totp_enabled.is_(True),
+                                   or_(WebUsers.totp_last_step.is_(None), WebUsers.totp_last_step < step))
+            .values(totp_last_step=step))
+        return (result.rowcount or 0) == 1
+
+
+async def use_backup_code(user_id: int, code_hash: str) -> bool:
+    """Spend one backup code. False when the account does not have it (or it was spent a moment ago)."""
+    async with Database().session() as s:
+        u = (await s.execute(select(WebUsers).where(WebUsers.id == user_id).with_for_update())).scalars().first()
+        if u is None or not u.totp_enabled:
+            return False
+        hashes = [h for h in (u.totp_backup or "").split(",") if h]
+        if code_hash not in hashes:
+            return False
+        hashes.remove(code_hash)
+        u.totp_backup = ",".join(hashes)
+    return True
+
+
+async def replace_backup_codes(user_id: int, backup_hashes: list[str]) -> bool:
+    async with Database().session() as s:
+        u = (await s.execute(select(WebUsers).where(WebUsers.id == user_id))).scalars().first()
+        if u is None or not u.totp_enabled:
+            return False
+        u.totp_backup = ",".join(backup_hashes)
+    return True
 
 
 async def bootstrap_web_admin(username: str, password: str) -> bool:

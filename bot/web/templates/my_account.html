@@ -70,6 +70,70 @@
         </div>
       </form>
     </div>
+
+    <div class="col-lg-6">
+      <div class="card" id="two-step">
+        <div class="card-header"><h3 class="card-title">{{ _('web.twofa.title') }}</h3></div>
+        <div class="card-body">
+          {% if two_step.new_codes %}
+          <div class="alert alert-warning" role="status">
+            <div class="mb-2"><b>{{ _('web.twofa.codes_title') }}</b></div>
+            <div class="mb-2">{{ _('web.twofa.codes_hint') }}</div>
+            <ul class="list-unstyled mb-0 font-monospace" id="backup-codes">
+              {% for c in two_step.new_codes %}<li>{{ c }}</li>{% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+
+          {% if two_step.enabled %}
+          <p><span class="badge bg-green-lt">{{ _('web.twofa.on') }}</span>
+            {{ _('web.twofa.codes_left', n=two_step.backup_left) }}</p>
+          <form method="POST" action="{{ request.url_for('admin:my-account') }}" class="mb-3" autocomplete="off">
+            <input type="hidden" name="form" value="totp_backup_new">
+            <div class="mb-2">
+              <label class="form-label">{{ _('web.my.current_password') }}</label>
+              <input name="current_password" type="password" class="form-control" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn btn-outline-secondary">{{ _('web.twofa.new_codes_submit') }}</button>
+          </form>
+          <form method="POST" action="{{ request.url_for('admin:my-account') }}" autocomplete="off">
+            <input type="hidden" name="form" value="totp_disable">
+            <div class="mb-2">
+              <label class="form-label">{{ _('web.my.current_password') }}</label>
+              <input name="current_password" type="password" class="form-control" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn btn-outline-danger">{{ _('web.twofa.disable_submit') }}</button>
+          </form>
+
+          {% elif two_step.pending %}
+          <p>{{ _('web.twofa.setup_intro') }}</p>
+          <ol>
+            <li>{{ _('web.twofa.setup_step1') }}</li>
+            <li>{{ _('web.twofa.setup_step2') }}<br>
+              <code id="two-step-key" class="fs-3">{{ two_step.key }}</code><br>
+              <a href="{{ two_step.uri }}" class="small">{{ _('web.twofa.setup_link') }}</a></li>
+            <li>{{ _('web.twofa.setup_step3') }}</li>
+          </ol>
+          <form method="POST" action="{{ request.url_for('admin:my-account') }}" autocomplete="off">
+            <input type="hidden" name="form" value="totp_confirm">
+            <div class="mb-2">
+              <label class="form-label">{{ _('web.login.code') }}</label>
+              <input name="code" type="text" inputmode="numeric" class="form-control" autocomplete="one-time-code"
+                     maxlength="8" required>
+            </div>
+            <button type="submit" class="btn btn-primary">{{ _('web.twofa.confirm_submit') }}</button>
+          </form>
+
+          {% else %}
+          <p>{{ _('web.twofa.off_intro') }}</p>
+          <form method="POST" action="{{ request.url_for('admin:my-account') }}">
+            <input type="hidden" name="form" value="totp_start">
+            <button type="submit" class="btn btn-primary">{{ _('web.twofa.start_submit') }}</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -4,25 +4,28 @@ import logging
 from typing import Any
 
 from sqlalchemy import func, select
-from sqladmin import BaseView, expose
+from sqladmin import BaseView, action, expose
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from wtforms import PasswordField, SelectField
 
 from bot.database.main import Database
 from bot.database.methods.audit import log_audit
 from bot.database.methods.web_users import (
-    LANGS, count_active_admins, get_web_user, get_web_user_auth,
-    set_web_user_language, set_web_user_password, set_web_user_telegram_id,
+    LANGS, count_active_admins, disable_totp, enable_totp, get_totp, get_web_user,
+    get_web_user_auth, replace_backup_codes, set_web_user_language, set_web_user_password, set_web_user_telegram_id,
+    start_totp,
 )
 from bot.database.models.main import WebRole, WebUsers
 from bot.i18n.main import LANGUAGES, localize, use_language
 from bot.web.admin import AuditModelView, _client_ip, _login_limiter
-from bot.web.language import Localized
+from bot.web.language import LazyText, Localized
 from bot.web.passwords import (
     MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, check_password_strength, hash_password, verify_password,
 )
 from bot.web.session import current_web_user, session_is_admin
+from bot.web import totp
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +46,9 @@ class WebUserAdmin(AuditModelView, model=WebUsers):
     category = "settings"
 
     column_list = [WebUsers.id, WebUsers.username, WebUsers.role, WebUsers.language, WebUsers.is_active,
-                   WebUsers.last_login_at, WebUsers.created_at]
+                   WebUsers.totp_enabled, WebUsers.last_login_at, WebUsers.created_at]
     column_details_list = [WebUsers.id, WebUsers.username, WebUsers.role, WebUsers.language,
-                           WebUsers.is_active, WebUsers.created_at, WebUsers.last_login_at]
+                           WebUsers.is_active, WebUsers.totp_enabled, WebUsers.created_at, WebUsers.last_login_at]
     column_searchable_list = [WebUsers.username]
     column_sortable_list = [WebUsers.id, WebUsers.username, WebUsers.role, WebUsers.last_login_at]
     column_default_sort = (WebUsers.id, False)
@@ -66,6 +69,18 @@ class WebUserAdmin(AuditModelView, model=WebUsers):
             },
             "is_active": {"description": localize("web.account.active_hint")},
         }
+
+    @action(name="reset_two_step", label=LazyText("web.twofa.reset"),
+            confirmation_message=LazyText("web.twofa.reset.ask"), add_in_detail=True, add_in_list=True)
+    async def reset_two_step(self, request: Request):
+        """A lost phone: switch the person's two-step sign-in off so they can sign in with the password and set it up again."""
+        self._require_admin(request)
+        pks = [int(p) for p in request.query_params.get("pks", "").split(",") if p.strip().isdigit()]
+        for pk in pks:
+            if await disable_totp(pk):
+                await log_audit("web_two_step_reset", level="WARNING", details=f"uid={pk}, by={request.session.get('uid')}",
+                                ip_address=_client_ip(request))
+        return RedirectResponse(str(request.url_for("admin:list", identity=self.identity)), status_code=302)
 
     # --- access: Admin only, checked again on every operation so a Staff session gets 403 even by URL ---
 
@@ -195,6 +210,7 @@ class MyAccountView(BaseView):
 
         message = error = None
         lang_override = None
+        shown: dict = {}
         if request.method == "POST":
             form = await request.form()
             which = form.get("form")
@@ -211,6 +227,9 @@ class MyAccountView(BaseView):
                     user = {**user, "language": lang}
                 else:
                     error = localize("web.account.err.language_invalid")
+            elif which in ("totp_start", "totp_confirm", "totp_disable", "totp_backup_new"):
+                message, error, shown = await self._two_step(request, user, which, form)
+                user = await get_web_user(user["id"]) or user
             elif which == "telegram":
                 raw = str(form.get("telegram_id") or "").strip()
                 if raw and not (raw.isdigit() and 0 < int(raw) < 2 ** 63):
@@ -221,13 +240,66 @@ class MyAccountView(BaseView):
                 else:
                     error = localize("web.my.err.generic")
 
-        context = {"user": user, "message": message, "error": error, "title": localize("web.my.title")}
+        context = {"user": user, "message": message, "error": error, "title": localize("web.my.title"),
+                   "two_step": await self._two_step_context(user, shown)}
         if lang_override:
             with use_language(lang_override):
                 context["title"] = localize("web.my.title")
                 return await self.templates.TemplateResponse(request, "my_account.html", context)
         return await self.templates.TemplateResponse(request, "my_account.html", context,
                                                      status_code=400 if error else 200)
+
+    async def _two_step_context(self, user: dict, shown: dict) -> dict:
+        """What the two-step box shows: off, setting up (key + link), or on (codes left, new codes once)."""
+        state = await get_totp(user["id"]) or {"enabled": False, "secret": None, "backup": []}
+        context = {"enabled": state["enabled"], "pending": bool(state["secret"]) and not state["enabled"],
+                   "backup_left": len(state["backup"]), "new_codes": shown.get("codes") or []}
+        if context["pending"]:
+            secret = totp.unseal(state["secret"])
+            if secret:
+                context["key"] = totp.group(secret)
+                context["uri"] = totp.provisioning_uri(secret, user["username"], "Telegram Shop")
+        return context
+
+    async def _two_step(self, request: Request, user: dict, which: str, form) -> tuple[str | None, str | None, dict]:
+        ip = _client_ip(request)
+        state = await get_totp(user["id"]) or {"enabled": False, "secret": None}
+        if which == "totp_start":
+            if state["enabled"]:
+                return None, localize("web.twofa.err.already_on"), {}
+            await start_totp(user["id"], totp.seal(totp.new_secret()))
+            return localize("web.twofa.started"), None, {}
+        if which == "totp_confirm":
+            secret = totp.unseal(state["secret"]) if not state["enabled"] else None
+            if _login_limiter.is_blocked(ip):
+                return None, localize("web.twofa.err.code"), {}
+            step = totp.match_step(secret, str(form.get("code") or "")) if secret else None
+            codes = totp.new_backup_codes()
+            if step is None or not await enable_totp(user["id"], step, [totp.backup_hash(c) for c in codes]):
+                _login_limiter.record_failure(ip)
+                return None, localize("web.twofa.err.code"), {}
+            await log_audit("web_two_step_enabled", details=f"user={user['username']}", ip_address=ip)
+            return localize("web.twofa.enabled"), None, {"codes": [totp.show_backup(c) for c in codes]}
+        # Turning it off and making new backup codes both ask for the password again.
+        if _login_limiter.is_blocked(ip):
+            return None, localize("web.my.err.wrong_current"), {}
+        account = await get_web_user_auth(user["username"])
+        if account is None or not await asyncio.to_thread(
+                verify_password, str(form.get("current_password") or ""), account["password_hash"]):
+            _login_limiter.record_failure(ip)
+            await log_audit("web_two_step_change_failed", level="WARNING", details=f"user={user['username']}",
+                            ip_address=ip)
+            return None, localize("web.my.err.wrong_current"), {}
+        if which == "totp_disable":
+            await disable_totp(user["id"])
+            await log_audit("web_two_step_disabled", details=f"user={user['username']}", ip_address=ip)
+            return localize("web.twofa.disabled"), None, {}
+        if not state["enabled"]:
+            return None, localize("web.twofa.err.not_on"), {}
+        codes = totp.new_backup_codes()
+        await replace_backup_codes(user["id"], [totp.backup_hash(c) for c in codes])
+        await log_audit("web_two_step_new_codes", details=f"user={user['username']}", ip_address=ip)
+        return localize("web.twofa.new_codes"), None, {"codes": [totp.show_backup(c) for c in codes]}
 
     async def _change_password(self, request: Request, user: dict, form) -> tuple[str | None, str | None]:
         ip = _client_ip(request)
