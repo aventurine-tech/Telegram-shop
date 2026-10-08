@@ -7,7 +7,7 @@ TRANSLATIONS = {"ro": {
 
         # === Shop Browsing (Categories / Goods / Item Page) ===
         "shop.categories.title": "🏪 Categoriile magazinului",
-        "shop.search.prompt": "🔍 Introduceți denumirea produsului sau un cuvânt-cheie:",
+        "shop.search.prompt": "🔍 Descrieți în cuvinte ce căutați: denumire, aromă, tărie, volum… De exemplu: „cireașă 50 mg”.\nSunt afișate produsele care conțin toate cuvintele.",
         "shop.search.too_short": "Interogarea trebuie să aibă între 2 și 64 de caractere. Încercați din nou:",
         "shop.search.results": "🔍 Rezultate pentru „{query}” — găsite: {count}",
         "shop.search.empty": "🔍 Nu s-a găsit nimic pentru „{query}”.",

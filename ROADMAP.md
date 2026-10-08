@@ -37,7 +37,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | 4.5 | ✅ Mailing **scheduling in the shop timezone** (`SHOP_TIMEZONE`, default Europe/Chisinau) | |
 | 4.6 | ✅ Mailing **per-recipient log** and a "resend to failed" action | |
 | 4.7 | ✅ Orders list: localized statuses/payment labels, filters by status/date/payment | |
-| 4.8 | Dashboard: orders/revenue/new clients per day, top products | Extends existing stats |
+| 4.8 | ✅ Dashboard on the panel home: orders/revenue/new clients per day, top products, what needs attention | 7 / 30 / 90 days |
 | 4.9 | Shipping zones / cities, per-method delivery notes and time estimates | Builds on shipping methods |
 | 4.10 | ✅ Localized **shipping name on orders** (per-language snapshot) | Old orders back-filled from the method |
 
@@ -48,7 +48,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | 5.2 | ✅ Re-order from *My orders* (completed / cancelled orders) |
 | 5.3 | ✅ Order status notifications with tracking text (note on the order page, sent with *shipped*) |
 | 5.4 | Wishlist / "notify me" for sold-out options (restock notifier already exists per product) |
-| 5.5 | Product search by flavour/strength attributes |
+| 5.5 | ✅ Product search by the words describing a product (name, flavour, strength, option, category) | All words must match |
 
 ## Phase 6 — Platform & quality (proposals)
 | # | Item |
