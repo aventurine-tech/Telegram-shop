@@ -48,7 +48,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | 5.2 | ✅ Re-order from *My orders* (completed / cancelled orders) |
 | 5.3 | ✅ Order status notifications with tracking text (note on the order page, sent with *shipped*) |
 | 5.4 | Wishlist / "notify me" for sold-out options (restock notifier already exists per product) |
-| 5.5 | Product search by flavour/strength attributes |
+| 5.5 | ✅ Product search by the words describing a product (name, flavour, strength, option, category) | All words must match |
 
 ## Phase 6 — Platform & quality (proposals)
 | # | Item |

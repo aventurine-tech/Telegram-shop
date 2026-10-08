@@ -220,7 +220,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # === Shop Browsing (Categories / Goods / Item Page) ===
         "shop.categories.title": "🏪 Категории магазина",
         "shop.goods.choose": "🏪 Выберите нужный товар",
-        "shop.search.prompt": "🔍 Введите название товара или ключевое слово:",
+        "shop.search.prompt": "🔍 Напишите, что ищете, словами: название, вкус, крепость, объём… Например: «вишня 50 мг».\nНайдутся товары, где есть все слова.",
         "shop.search.too_short": "Запрос должен быть от 2 до 64 символов. Попробуйте ещё раз:",
         "shop.search.results": "🔍 Результаты по запросу «{query}» — найдено: {count}",
         "shop.search.empty": "🔍 По запросу «{query}» ничего не найдено.",
@@ -586,7 +586,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # === Shop Browsing (Categories / Goods / Item Page) ===
         "shop.categories.title": "🏪 Shop categories",
-        "shop.search.prompt": "🔍 Enter a product name or keyword:",
+        "shop.search.prompt": "🔍 Describe what you are looking for in words: name, flavour, strength, size… For example: “cherry 50 mg”.\nProducts that match all the words are shown.",
         "shop.search.too_short": "The query must be 2 to 64 characters. Try again:",
         "shop.search.results": "🔍 Results for “{query}” — found: {count}",
         "shop.search.empty": "🔍 Nothing found for “{query}”.",

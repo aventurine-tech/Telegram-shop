@@ -43,7 +43,7 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   the main menu; promo codes bound to a parent also cover its subcategories.
 - **Weight options** — a product can have options such as *50 g / 200 g*, each with its own price, stock and sale and
   sharing the product's picture and description. The product card shows a selector; lists and search show only the main
-  product; reviews are shared; the cart and orders show `NAME · 200 g` in the customer's language. Admins add options
+  product (search takes several words — name, flavour, strength — and finds products matching all of them); reviews are shared; the cart and orders show `NAME · 200 g` in the customer's language. Admins add options
   with *➕ Add option* in the bot, or inside the product in the web panel (*Options* rows: press **＋** to add a row with
   option name, price and stock; remove a row to delete the option).
 - **Bottom menu & clean chat** — a permanent keyboard (🛍 Catalog · 🛒 Cart · 👤 Profile) sits under the chat. It is

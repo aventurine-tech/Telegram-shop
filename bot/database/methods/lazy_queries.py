@@ -1,5 +1,5 @@
 from typing import Any
-from sqlalchemy import func, select, or_
+from sqlalchemy import case, func, literal, select, or_
 from sqlalchemy import desc
 from bot.database import Database
 from bot.database.models import (
@@ -8,6 +8,7 @@ from bot.database.models import (
 )
 from bot.database.models.main import PromoCodes, Reviews, Orders, OrderStatus, PaymentStatus
 from bot.misc.caching import get_cache_manager
+from bot.misc.search_terms import split_terms, term_patterns
 
 # Paginator COUNTs re-run on every page render; a short TTL absorbs that while
 # catalog edits stay visible within a minute (targeted invalidation hooks handle the common cases sooner).
@@ -123,36 +124,41 @@ async def query_items_in_category(category_name: str, offset: int = 0, limit: in
 
 async def query_goods_search(query: str, offset: int = 0, limit: int = 10,
                              count_only: bool = False, lang: str | None = None) -> Any:
-    """Search goods by name or description (in any language) with pagination.
+    """Search the catalog by the words describing a product, in any language, with pagination.
 
-    Returns a list of names, matching query_items_in_category's shape so the
-    item card and the index-into-page-list convention work unchanged.
+    Every word of the query must be found somewhere on the product: its name or description (any language), the
+    label of one of its options ("50 mg"), or its category. ``cherry 50mg`` finds "Cherry" with a "50 mg" option.
+    Returns a list of names, matching query_items_in_category's shape so the item card and the index-into-page-list
+    convention work unchanged; best matches (words found in the name) first.
     """
-    q = (query or "").strip()
-    if not q:
+    terms = split_terms(query)
+    if not terms:
         return 0 if count_only else []
 
-    # Escape LIKE wildcards: without this, searching 100% matches everything and "a_b" matches "axb".
-    esc = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-    pattern = f"%{esc}%"
+    name_columns = (Goods.name, Goods.name_en, Goods.name_ru, Goods.name_ro)
+    text_columns = name_columns + (
+        Goods.description, Goods.description_en, Goods.description_ru, Goods.description_ro, Goods.variant_label)
+    category_columns = (Categories.name, Categories.name_en, Categories.name_ru, Categories.name_ro)
+
+    def any_like(columns, term):
+        return or_(*(c.ilike(p, escape='\\') for c in columns for p in term_patterns(term)))
 
     async with Database().session() as s:
-        hit = or_(*(
-            column.ilike(pattern, escape='\\')
-            for column in (
-                Goods.name, Goods.description,
-                Goods.name_en, Goods.name_ru, Goods.name_ro,
-                Goods.description_en, Goods.description_ru, Goods.description_ro,
-            )
-        ))
+        category_hit = lambda term: (  # noqa: E731 - a category or its parent matches
+            select(Categories.id).where(any_like(category_columns, term)).union(
+                select(Categories.id).where(Categories.parent_id.in_(
+                    select(Categories.id).where(any_like(category_columns, term))))))
         # Weight options never show up on their own: a hit on an option surfaces its head.
-        hit_heads = select(func.coalesce(Goods.variant_of, Goods.id)).where(hit)
-        base = select(Goods.name).where(Goods.variant_of.is_(None), Goods.id.in_(hit_heads))
+        heads_for = lambda term: select(func.coalesce(Goods.variant_of, Goods.id)).where(  # noqa: E731
+            or_(any_like(text_columns, term), Goods.category_id.in_(category_hit(term))))
+        base = select(Goods.name).where(
+            Goods.variant_of.is_(None), *(Goods.id.in_(heads_for(term)) for term in terms))
         if count_only:
             count_result = await s.execute(select(func.count()).select_from(base.subquery()))
             return count_result.scalar() or 0
+        in_name = sum((case((any_like(name_columns, term), 1), else_=0) for term in terms), literal(0))
         result = await s.execute(
-            base.order_by(*_display_order(Goods, lang)).offset(offset).limit(limit)
+            base.order_by(in_name.desc(), *_display_order(Goods, lang)).offset(offset).limit(limit)
         )
         return [row[0] for row in result.all()]
 
