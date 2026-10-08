@@ -6,7 +6,7 @@ from bot.database.methods.delete import pop_stock_subscribers
 from bot.database.methods.read import get_user_languages, get_item_info
 from bot.i18n import localize, use_language
 from bot.misc.localized import pick
-from bot.keyboards.inline import close
+from bot.keyboards.inline import restock_keyboard
 from bot.logger_mesh import logger
 from bot.misc.services.broadcast_system import BroadcastManager
 
@@ -33,10 +33,11 @@ async def notify_restock(bot: Bot, item_name: str) -> int:
         with use_language(lang):
             shown = pick(item, "name") if item else item_name
             text = localize("stock.back_in_stock", name=html_escape(shown, quote=False))
+            markup = restock_keyboard(item["id"] if item else None)
         stats = await manager.broadcast(
             user_ids=ids,
             text=text,
-            reply_markup=close(),
+            reply_markup=markup,
             parse_mode="HTML",
         )
         sent += stats.sent

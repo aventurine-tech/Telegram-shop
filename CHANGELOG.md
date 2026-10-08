@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Notify me: sold-out marks and an Open button (2026-10-08)
+- **Checked** 🔔 *Notify me when in stock* already works per weight option (an option is its own product: subscribing, restock from the bot, the web panel
+  or a cancelled order, one message per language). Nothing to rebuild; two gaps closed.
+- **Added** sold-out options are marked in the option selector (`50 g ✕`), so customers see which ones they can only wait for.
+- **Added** the "back in stock" message has a 🛒 **Open product** button (the exact option that came back) next to *Close* (roadmap 5.4). No database change.
+
 ### Fix: placing an order as the owner (2026-10-08)
 - **Fixed** when the person placing an order is also staff (the owner testing the shop), the "new order" alert sent into their own chat counted as their new
   screen, clean chat deleted the confirm screen, and the next edit failed with *message to edit not found* (the order itself was saved). Staff alerts and

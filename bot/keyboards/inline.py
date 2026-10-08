@@ -124,6 +124,13 @@ def simple_buttons(buttons: Iterable[Tuple[str, str]], per_row: int = 1) -> Inli
     return kb.as_markup()
 
 
+def restock_keyboard(item_id: int | None) -> InlineKeyboardMarkup:
+    """Under a "back in stock" notice: open the product, or close the notice."""
+    buttons = [(localize("btn.restock_open"), f"restock_open:{item_id}")] if item_id else []
+    buttons.append((localize("btn.close"), "close"))
+    return simple_buttons(buttons)
+
+
 def back(cb: str = "menu", text: str | None = None) -> InlineKeyboardMarkup:
     """
     One 'Back' button.
