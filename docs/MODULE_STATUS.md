@@ -15,7 +15,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Cart, promo codes (applied in the cart), sales, reviews, restock notify** | upstream, adapted | ✅ | `test_cart_reviews`, `test_cart_promo`, `test_promo_*`, `test_sales`, `test_user_handlers` | |
 | **Checkout** (delivery/pickup, name, phone, address, shipping, comment, payment, summary) | #1, #23 | ✅ | `test_payment_handlers`, `test_shipping` | |
 | **Payments** — MIA (staff-verified) + cash on delivery/pickup | #1 | ✅ / 🔧 | `test_orders`, `test_payment_handlers` | MIA needs real `MIA_*` details in the server `.env`; cash recorded on completion |
-| **Orders** — lifecycle, stock reservation, expiry, referral commission | #1 | ✅ | `test_orders`, `test_orders_admin`, `test_recovery` | order ownership intentionally not built |
+| **Orders** — lifecycle, stock reservation, expiry, referral commission, order again | #1 | ✅ | `test_orders`, `test_orders_admin`, `test_recovery`, `test_shop_handlers` | order ownership intentionally not built; *Order again* refills the cart from a completed/cancelled order |
 | **Order management in chat** | #1 | ✅ | `test_orders_admin`, `test_admin_handlers` | |
 | **Order management in web** (action buttons, Payments to verify) | #1, #15, #19 | ✅ | `test_web_roles_orders`, `test_web_menu` | actions only (no free edit) by design; statuses in the *list* are raw values (roadmap 4.7) |
 | **Shipping methods** | #23 | ✅ 🔧 | `test_shipping` | no method active ⇒ delivery free/unpriced; shipping name stored in canonical language only (roadmap 4.10); referral commission includes the fee (6.1) |

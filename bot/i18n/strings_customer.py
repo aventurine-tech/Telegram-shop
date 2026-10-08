@@ -62,6 +62,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "orders.cancel_confirm": "Отменить заказ №{id}?",
         "orders.cancelled": "Заказ №{id} отменён",
         "btn.order.cancel": "❌ Отменить заказ",
+        "btn.order.repeat": "🔁 Заказать снова",
+        "orders.repeat_done": "🔁 Товаров добавлено в корзину: {added}. Цены и наличие — на сегодня.",
+        "orders.repeat_skipped": "Не добавлено (нет в наличии или снято с продажи): {skipped}.",
+        "orders.repeat_none": "Ничего из этого заказа сейчас нет в наличии.",
 
         # === Checkout: steps ===
         "checkout.unavailable": "Оформление заказов сейчас недоступно. Попробуйте позже.",
@@ -207,6 +211,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "orders.cancel_confirm": "Cancel order #{id}?",
         "orders.cancelled": "Order #{id} cancelled",
         "btn.order.cancel": "❌ Cancel order",
+        "btn.order.repeat": "🔁 Order again",
+        "orders.repeat_done": "🔁 Items added to your cart: {added}. Prices and availability are as of today.",
+        "orders.repeat_skipped": "Not added (out of stock or no longer sold): {skipped}.",
+        "orders.repeat_none": "Nothing from this order is in stock right now.",
 
         # === Checkout: steps ===
         "checkout.unavailable": "Ordering is not available right now. Please try again later.",

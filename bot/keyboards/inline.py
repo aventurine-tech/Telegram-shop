@@ -400,13 +400,15 @@ def mia_keyboard(order_id: int) -> InlineKeyboardMarkup:
 
 
 def order_keyboard(order: dict, back_cb: str = "my_orders") -> InlineKeyboardMarkup:
-    """The customer's order card: payment actions while an MIA transfer is due, cancel while allowed."""
+    """The customer's order card: payment actions while an MIA transfer is due, cancel while allowed, order again once it is over."""
     kb = InlineKeyboardBuilder()
     if order["payment_method"] == "mia" and order["status"] == "new" and order["payment_status"] == "awaiting_payment":
         kb.button(text=localize("btn.mia.details"), callback_data=f"mia_info:{order['id']}")
         kb.button(text=localize("btn.mia.paid"), callback_data=f"mia_paid:{order['id']}")
     if order["status"] == "new" and order["payment_status"] in ("unpaid", "awaiting_payment"):
         kb.button(text=localize("btn.order.cancel"), callback_data=f"my_order_cancel:{order['id']}")
+    if order["status"] in ("completed", "cancelled"):
+        kb.button(text=localize("btn.order.repeat"), callback_data=f"my_order_repeat:{order['id']}")
     kb.button(text=localize("btn.back"), callback_data=back_cb)
     kb.adjust(1)
     return kb.as_markup()

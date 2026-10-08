@@ -21,7 +21,7 @@ from bot.database.methods.read import (
 from bot.database.methods.favorites import (
     PAGE_SIZE as FAVORITES_PAGE_SIZE, is_favorite, item_name_by_id, list_favorites, toggle_favorite,
 )
-from bot.database.methods.orders import get_order, cancel_order_transaction
+from bot.database.methods.orders import get_order, cancel_order_transaction, reorder_to_cart
 from bot.database.methods.create import create_review, subscribe_to_stock
 from bot.database.methods.delete import unsubscribe_from_stock
 from bot.database.methods.lazy_queries import (
@@ -1069,6 +1069,29 @@ async def my_order_handler(call: CallbackQuery, state: FSMContext):
         await call.answer(localize("errors.invalid_data"), show_alert=True)
         return
     await _show_order(call, *ref)
+
+
+@router.callback_query(F.data.startswith("my_order_repeat:"))
+async def my_order_repeat_handler(call: CallbackQuery, state: FSMContext):
+    """Order again: refill the cart from a finished order. Format: my_order_repeat:{id}"""
+    ref = _order_ref(call.data)
+    if ref is None:
+        await call.answer(localize("errors.invalid_data"), show_alert=True)
+        return
+    ok, _code, result = await reorder_to_cart(call.from_user.id, ref[0])
+    if not ok:
+        await call.answer(localize("orders.not_found"), show_alert=True)
+        return
+    if not result["added"]:
+        await call.answer(localize("orders.repeat_none"), show_alert=True)
+        return
+    text = localize("orders.repeat_done", added=result["added"])
+    if result["skipped"]:
+        text += "\n" + localize("orders.repeat_skipped", skipped=result["skipped"])
+    await call.message.edit_text(text, reply_markup=simple_buttons([
+        (localize("btn.cart_empty"), "cart"),
+        (localize("btn.order.open"), f"my_order:{ref[0]}"),
+    ]))
 
 
 @router.callback_query(F.data.startswith("my_order_cancel:"))

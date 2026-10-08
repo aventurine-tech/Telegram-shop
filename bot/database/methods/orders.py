@@ -398,6 +398,34 @@ async def get_order(order_id: int, user_id: int | None = None) -> dict | None:
         return order_to_dict(order, await _load_items(s, order.id))
 
 
+async def reorder_to_cart(user_id: int, order_id: int) -> tuple[bool, str, dict | None]:
+    """Put a past order's lines back into the customer's cart at today's prices.
+
+    Lines whose product is gone or out of stock are skipped, quantities are cut to the stock on hand.
+    Returns ``(True, "success", {"added": n, "skipped": m})`` or ``(False, "order_not_found", None)``.
+    """
+    from bot.database.methods.create import add_to_cart   # create.py is a sibling module with its own cart rules
+
+    async with Database().session() as s:
+        order = (await s.execute(select(Orders).where(Orders.id == int(order_id), Orders.user_id == user_id))
+                 ).scalars().first()
+        if not order:
+            return False, "order_not_found", None
+        lines = [(it.item_id, it.quantity) for it in await _load_items(s, order.id)]
+        wanted = []
+        for item_id, quantity in lines:
+            goods = (await s.get(Goods, item_id)) if item_id is not None else None
+            wanted.append((goods.name, min(quantity, goods.stock)) if goods and goods.stock > 0 else None)
+
+    added = skipped = 0
+    for entry in wanted:
+        if entry is not None and (await add_to_cart(user_id, entry[0], quantity=entry[1]))[0]:
+            added += 1
+        else:
+            skipped += 1
+    return True, "success", {"added": added, "skipped": skipped}
+
+
 async def get_order_notify_ids() -> list[int]:
     """Telegram ids of everyone allowed to manage orders (they get new-order alerts)."""
     async with Database().session() as s:

@@ -147,6 +147,14 @@ class TestOrderKeyboard:
             self._order(payment_method="mia", payment_status="awaiting_payment"), back_cb="my-orders-page_2"))
         assert {"mia_info:5", "mia_paid:5", "my_order_cancel:5", "my-orders-page_2"} <= set(cbs)
 
+    @pytest.mark.parametrize("status", ["completed", "cancelled"])
+    def test_finished_orders_can_be_ordered_again(self, status):
+        assert "my_order_repeat:5" in _all_callback_data(order_keyboard(self._order(status=status)))
+
+    @pytest.mark.parametrize("status", ["new", "confirmed", "shipped"])
+    def test_running_orders_cannot_be_ordered_again(self, status):
+        assert "my_order_repeat:5" not in _all_callback_data(order_keyboard(self._order(status=status)))
+
     @pytest.mark.parametrize("kw", [
         {"status": "confirmed"},
         {"status": "cancelled"},

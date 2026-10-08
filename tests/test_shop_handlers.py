@@ -20,7 +20,7 @@ from bot.handlers.user.shop_and_goods import (
     search_item_info_handler, shop_search_handler, receive_search_query_handler,
     subscribe_stock_handler, unsubscribe_stock_handler,
     back_to_item_handler,
-    my_orders_handler, my_order_handler, my_order_cancel_ask_handler, my_order_cancel_handler,
+    my_orders_handler, my_order_handler, my_order_cancel_ask_handler, my_order_cancel_handler, my_order_repeat_handler,
     _render_item_page,
 )
 from bot.states import ShopStates
@@ -616,6 +616,55 @@ class TestMyOrders:
         cbs = [b.callback_data for row in call.message.edit_text.call_args[1]["reply_markup"].inline_keyboard
                for b in row]
         assert f"mia_paid:{order['id']}" in cbs and f"mia_info:{order['id']}" in cbs
+
+    async def test_order_again_refills_the_cart_and_skips_what_is_gone(
+            self, make_callback_query, fsm_context, user_factory, item_factory):
+        from bot.database.methods.orders import set_order_status
+        from bot.database.methods.read import get_cart_items
+        from bot.database.methods.update import set_item_stock
+
+        await user_factory(telegram_id=600060)
+        await item_factory(name="Rug", price=40, stock=5)
+        await item_factory(name="Mat", price=10, stock=5)
+        await add_to_cart(600060, "Mat", quantity=1)
+        order = await _place_order(600060, "Rug", qty=3)         # also orders the Mat from the cart
+        await set_order_status(order["id"], "cancelled")
+        await set_item_stock("Rug", 2)                           # fewer left than the 3 ordered
+        await set_item_stock("Mat", 0)                           # sold out
+
+        call = make_callback_query(data=f"my_order_repeat:{order['id']}", user_id=600060)
+        await my_order_repeat_handler(call, fsm_context)
+
+        assert {i["item_name"]: i["quantity"] for i in await get_cart_items(600060)} == {"Rug": 2}
+        text = call.message.edit_text.call_args[0][0]
+        assert "orders.repeat_done" in text and "orders.repeat_skipped" in text
+
+    async def test_order_again_of_someone_elses_order_is_refused(
+            self, make_callback_query, fsm_context, user_factory, item_factory):
+        from bot.database.methods.read import get_cart_items
+
+        await user_factory(telegram_id=600061)
+        await user_factory(telegram_id=600062)
+        await item_factory(name="Pot", price=40, stock=5)
+        order = await _place_order(600061, "Pot")
+
+        call = make_callback_query(data=f"my_order_repeat:{order['id']}", user_id=600062)
+        await my_order_repeat_handler(call, fsm_context)
+
+        assert "orders.not_found" in call.answer.call_args[0][0]
+        assert await get_cart_items(600062) == []
+
+    async def test_order_again_with_nothing_in_stock_says_so(
+            self, make_callback_query, fsm_context, user_factory, item_factory):
+        await user_factory(telegram_id=600063)
+        await item_factory(name="Urn", price=40, stock=1)
+        order = await _place_order(600063, "Urn")                # takes the last unit
+
+        call = make_callback_query(data=f"my_order_repeat:{order['id']}", user_id=600063)
+        await my_order_repeat_handler(call, fsm_context)
+
+        assert "orders.repeat_none" in call.answer.call_args[0][0]
+        call.message.edit_text.assert_not_called()
 
     async def test_cancel_asks_first_then_restocks(self, make_callback_query, fsm_context,
                                                    user_factory, item_factory):

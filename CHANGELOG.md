@@ -10,6 +10,10 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Order again (2026-10-08)
+- **Added** 🔁 **Order again** on a completed or cancelled order in *My orders*: its lines go back into the cart at today's prices; quantities are cut
+  to the stock on hand and sold-out or deleted products are skipped, with a note saying how many (roadmap 5.2).
+
 ### Docs drift check (2026-10-07)
 - **Changed** ROADMAP, PROJECT_STATE, MODULE_STATUS, PROJECT_PRINCIPLES and NEW_SESSION_PROMPT to match `development` after #31: PR references, alembic head
   `f2b8d0e6a3c9`, delivered items (roadmap 5.1, theme, favorites, profile details, command menu), no importer.

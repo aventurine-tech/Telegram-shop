@@ -81,7 +81,7 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   - **Cash on delivery / pickup** — nothing to do up front; the cash is recorded as collected
     when staff mark the order completed.
 - **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
-  a message at every step and can open **My orders** at any time; staff get an alert for every
+  a message at every step and can open **My orders** at any time (and put a finished order back in the cart with **Order again**); staff get an alert for every
   new order and every "I've paid" claim.
 - **Command menu** — the ☰ button next to the input field lists `/start`, `/catalog`, `/cart`, `/orders`, `/favorites`, `/profile`, `/language`
   in the customer's language; each opens the same screen as the matching button.
