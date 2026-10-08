@@ -362,6 +362,8 @@ are **required**; everything else has a sensible default.
 | `PICKUP_ADDRESS`            | Shown to customers who choose pickup                                       | –              |
 | `DELIVERY_INFO`             | Note shown to customers who choose delivery (areas, cost, timing)          | –              |
 | `ORDERS_CHAT_ID`            | Extra chat/group that also receives new-order alerts                       | –              |
+| `ERROR_ALERTS`              | Message the owner when the bot logs an error (`0` = off)                    | `1`         |
+| `ERROR_ALERT_CHAT_ID`       | Extra chat/group that also receives error alerts                           | –           |
 | `SHOP_TIMEZONE`             | Timezone (IANA name) for mailing times typed in the web panel              | `Europe/Chisinau` |
 | `REFERRAL_PERCENT`          | Referral commission % on completed orders (0–99, `0` disables)             | `0`            |
 | `MIN_AMOUNT` / `MAX_AMOUNT` | Allowed range for an admin's manual balance top-up / deduction             | `1` / `100000` |

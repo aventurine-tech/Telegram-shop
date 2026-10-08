@@ -73,6 +73,10 @@ class EnvKeys(ABC):
     # Optional extra chat (e.g. a staff group) that also receives new-order alerts.
     ORDERS_CHAT_ID: Final = _get_optional("ORDERS_CHAT_ID", "")
 
+    # Tell the owner (and ERROR_ALERT_CHAT_ID, if set) when the bot logs an error. "0" turns it off.
+    ERROR_ALERTS: Final = _get_optional("ERROR_ALERTS", "1")
+    ERROR_ALERT_CHAT_ID: Final = _get_optional("ERROR_ALERT_CHAT_ID", "")
+
     # The shop's clock: mailing times typed in the web panel are in this timezone (IANA name).
     SHOP_TIMEZONE: Final = _get_optional("SHOP_TIMEZONE", "Europe/Chisinau")
 
