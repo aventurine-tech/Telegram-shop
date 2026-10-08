@@ -39,7 +39,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | 4.7 | Orders list: localized statuses/payment labels, filters by status/date/payment | Today raw values + text search |
 | 4.8 | Dashboard: orders/revenue/new clients per day, top products | Extends existing stats |
 | 4.9 | Shipping zones / cities, per-method delivery notes and time estimates | Builds on shipping methods |
-| 4.10 | Localized **shipping name on old orders** (store per-language snapshot) | Currently canonical name only |
+| 4.10 | ✅ Localized **shipping name on orders** (per-language snapshot) | Old orders back-filled from the method |
 
 ## Phase 5 — Customer experience (proposals)
 | # | Item |
@@ -53,7 +53,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 ## Phase 6 — Platform & quality (proposals)
 | # | Item |
 |---|---|
-| 6.1 | Referral commission **excluding the delivery fee** (today computed on the paid total) |
+| 6.1 | ✅ Referral commission **excluding the delivery fee** |
 | 6.2 | Resumable mailings after a restart (with idempotency keys) — currently *Interrupted* by design |
 | 6.3 | Structured JSON logging + error alerts to a staff chat; metrics dashboard for the existing `/metrics` |
 | 6.4 | Automated DB backup/restore guide + script; retention policy for personal data (delete a client on request) |

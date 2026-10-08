@@ -38,7 +38,6 @@ the owner is testing the deployed bot and reporting issues from screenshots.
   Not re-verified on a real device since #16/#17.
 - **Unverified live:** nothing (clean chat, mailings, shipping, profiles) has been seen working in real Telegram by Claude.
 - Mailings: UTC schedule; interrupted by a restart ⇒ marked *Interrupted*, never resumed; no per-recipient log.
-- Shipping: the order keeps the method's canonical name only; referral commission is computed on the paid total including the delivery fee.
 - Orders list in the web shows raw status values (details page and buttons are localized).
 - Option label change in the web rows = delete + create (stock of that option is lost); renaming a head in the bot does not rename options.
 - Web login limiter is per-process; no 2FA.

@@ -10,6 +10,11 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Referral commission without the delivery fee, shipping names per language (2026-10-08)
+- **Changed** the referral commission is now paid on the cash paid for the goods only; the delivery fee earns nothing (roadmap 6.1).
+- **Changed** an order keeps the shipping method's en/ru/ro names as they were at checkout and shows the one in the viewer's language (roadmap 4.10).
+- **Database** migration `a9c4e2b7d1f3`: `orders.shipping_name_en/ru/ro` (back-filled from the method of the same name).
+
 ### Docs drift check (2026-10-07)
 - **Changed** ROADMAP, PROJECT_STATE, MODULE_STATUS, PROJECT_PRINCIPLES and NEW_SESSION_PROMPT to match `development` after #31: PR references, alembic head
   `f2b8d0e6a3c9`, delivered items (roadmap 5.1, theme, favorites, profile details, command menu), no importer.

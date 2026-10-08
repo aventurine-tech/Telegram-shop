@@ -94,6 +94,9 @@ def order_to_dict(order: Orders, items: list[OrderItems] | None = None) -> dict:
         "balance_used": order.balance_used,
         "due": order.total - order.balance_used,
         "shipping_name": order.shipping_name,
+        "shipping_name_en": order.shipping_name_en,
+        "shipping_name_ru": order.shipping_name_ru,
+        "shipping_name_ro": order.shipping_name_ro,
         "delivery_fee": order.delivery_fee,
         "payment_proof": order.payment_proof,
         "pay_by": order.pay_by,
@@ -314,6 +317,9 @@ async def create_order_transaction(
                     address=(address or "").strip() or None,
                     comment=(comment or "").strip() or None,
                     shipping_name=shipping.name if shipping else None,
+                    shipping_name_en=shipping.name_en if shipping else None,
+                    shipping_name_ru=shipping.name_ru if shipping else None,
+                    shipping_name_ro=shipping.name_ro if shipping else None,
                     delivery_fee=fee,
                     total=total,
                     balance_used=balance_used,
@@ -632,11 +638,12 @@ async def reject_mia_payment(order_id: int, admin_id: int | None = None) -> tupl
 # --------------------------------------------------------------------------- #
 
 async def _credit_referral_in_session(s, order: Orders) -> int | None:
-    """Pay the referrer their cut of the cash the customer actually paid. Returns referrer id."""
+    """Pay the referrer their cut of the cash the customer actually paid for the goods (the delivery fee earns
+    nothing). Returns referrer id."""
     percent = min(max(int(EnvKeys.REFERRAL_PERCENT), 0), 99)
     if percent <= 0 or order.user_id is None:
         return None
-    paid = order.total - order.balance_used
+    paid = order.total - order.delivery_fee - order.balance_used
     if paid <= 0:
         return None
     customer = (await s.execute(

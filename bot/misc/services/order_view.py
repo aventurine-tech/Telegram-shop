@@ -34,7 +34,7 @@ def fmt_dt(value) -> str:
 
 def delivery_lines(order: dict, cur: str) -> list[str]:
     """The delivery price line of an order that used a shipping method (nothing for pickup / unpriced delivery)."""
-    name = order.get("shipping_name")
+    name = pick(order, "shipping_name")
     if not name:
         return []
     fee = Decimal(str(order.get("delivery_fee") or 0))

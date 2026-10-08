@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import select, func, update as sa_update
+from sqlalchemy import delete, select, func, update as sa_update
 
 from bot.database.main import Database
 from bot.database.methods.create import add_to_cart
@@ -21,7 +21,7 @@ from bot.database.methods.read import (
 from bot.database.methods.update import set_item_stock, adjust_item_stock
 from bot.database.models.main import (
     CartItems, Goods, Operations, Orders, OrderItems, OrderStatus, PaymentMethod, PaymentStatus,
-    PromoCodes, PromoCodeUsages, ReferralEarnings, User, Fulfillment, Permission,
+    PromoCodes, PromoCodeUsages, ReferralEarnings, ShippingMethods, User, Fulfillment, Permission,
 )
 
 UID = 710001
@@ -544,6 +544,22 @@ class TestReferralCommission:
             assert (earning.referrer_id, earning.referral_id) == (720001, 720002)
             assert earning.amount == Decimal("100.00")
             assert earning.original_amount == Decimal("1000.00")
+
+    async def test_delivery_fee_earns_no_commission(self, user_factory, item_factory):
+        await self._referred_customer(user_factory, item_factory)
+        async with Database().session() as s:
+            s.add(ShippingMethods(name="Courier", price=Decimal("50"), is_active=True))
+        async with Database().session() as s:
+            ship = (await s.execute(select(ShippingMethods).where(ShippingMethods.name == "Courier"))).scalars().one()
+        try:
+            await self._complete(720002, shipping_method_id=ship.id)
+            assert await _balance(720001) == Decimal("100.00")       # 10% of the 1000 goods, not of 1050
+            async with Database().session() as s:
+                earning = (await s.execute(select(ReferralEarnings))).scalars().all()[-1]
+                assert earning.original_amount == Decimal("1000.00")
+        finally:
+            async with Database().session() as s:
+                await s.execute(delete(ShippingMethods).where(ShippingMethods.name == "Courier"))
 
     async def test_commission_is_paid_once(self, user_factory, item_factory):
         await self._referred_customer(user_factory, item_factory)
