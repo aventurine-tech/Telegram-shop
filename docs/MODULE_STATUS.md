@@ -17,7 +17,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Payments** — MIA (staff-verified) + cash on delivery/pickup | #1 | ✅ / 🔧 | `test_orders`, `test_payment_handlers` | MIA needs real `MIA_*` details in the server `.env`; cash recorded on completion |
 | **Orders** — lifecycle, stock reservation, expiry, referral commission | #1 | ✅ | `test_orders`, `test_orders_admin`, `test_recovery` | order ownership intentionally not built |
 | **Order management in chat** | #1 | ✅ | `test_orders_admin`, `test_admin_handlers` | |
-| **Order management in web** (action buttons, Payments to verify) | #1, #15, #19 | ✅ | `test_web_roles_orders`, `test_web_menu` | actions only (no free edit) by design; statuses in the *list* are raw values (roadmap 4.7) |
+| **Order management in web** (action buttons, Payments to verify) | #1, #15, #19 | ✅ | `test_web_roles_orders`, `test_web_menu`, `test_order_tools` | actions only (no free edit) by design; list filters (status / payment / dates), localized labels, printable packing slip, customer note (`bot/web/order_tools.py`) |
 | **Shipping methods** | #23 | ✅ 🔧 | `test_shipping` | no method active ⇒ delivery free/unpriced; order keeps the en/ru/ro names it was placed with; referral commission excludes the fee |
 | **My details** (customer edits name, phone, city, address; checkout "use saved") | #29 | ✅ | `test_profile_details` | Operation History button removed (data stays); typed name is separate from Telegram's |
 | **Client profiles** | #22 | ✅ | `test_client_profiles` | names fill as people use the bot; phone/address from latest order; no import by design |
@@ -34,6 +34,5 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Caching (Redis optional)** | upstream | ✅ | `test_cache_invalidation` | |
 | **Docs & process** | #2, #18, docs set | ✅ | — | AGENTS/CLAUDE/CHANGELOG/ROADMAP/docs set |
 | Import page in web (price list) | — | ⬜ | | roadmap 4.1 |
-| Print order / packing slip | — | ⬜ | | roadmap 4.2 |
 | Customer groups, unsubscribe | — | ⬜ | | roadmap 4.3 / 4.4 |
 | Per-recipient mailing log, resumable mailings | — | ⬜ | | roadmap 4.6 / 6.2 |

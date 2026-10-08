@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ _('web.slip.title', id=order.id) }}</title>
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; color: #111; background: #fff; margin: 0; padding: 24px; }
+  .sheet { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .muted { color: #555; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ccc; }
+  th.num, td.num { text-align: right; white-space: nowrap; }
+  dl { display: grid; grid-template-columns: 10rem 1fr; gap: 4px 12px; margin: 12px 0; }
+  dt { color: #555; }
+  dd { margin: 0; }
+  .totals { margin-left: auto; width: 18rem; }
+  .totals td { border: 0; padding: 2px 8px; }
+  .totals tr.grand td { border-top: 2px solid #111; font-weight: 700; }
+  .sign { display: flex; gap: 32px; margin-top: 48px; }
+  .sign div { flex: 1; border-top: 1px solid #111; padding-top: 4px; color: #555; }
+  .note { border: 1px solid #111; padding: 8px 12px; margin: 12px 0; }
+  button { font: inherit; padding: 6px 16px; margin-bottom: 16px; cursor: pointer; }
+  @media print { button { display: none; } body { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <button type="button" onclick="window.print()">🖨 {{ _('web.order.print') }}</button>
+  <h1>{{ _('web.slip.title', id=order.id) }}</h1>
+  <div class="muted">{{ created }} · {{ status }}</div>
+
+  <dl>
+    <dt>{{ _('web.slip.customer') }}</dt><dd>{{ order.customer_name }}</dd>
+    <dt>{{ _('web.slip.phone') }}</dt><dd>{{ order.phone }}</dd>
+    <dt>{{ _('web.slip.fulfillment') }}</dt><dd>{{ fulfillment }}{% if shipping %} · {{ shipping }}{% endif %}</dd>
+    {% if order.address and not pickup %}<dt>{{ _('web.slip.address') }}</dt><dd>{{ order.address }}</dd>{% endif %}
+    <dt>{{ _('web.slip.payment') }}</dt><dd>{{ method }} · {{ pay_status }}</dd>
+  </dl>
+
+  <table>
+    <thead><tr><th>{{ _('web.slip.item') }}</th><th class="num">{{ _('web.slip.qty') }}</th><th class="num">{{ _('web.slip.price') }}</th><th class="num">{{ _('web.slip.sum') }}</th></tr></thead>
+    <tbody>
+    {% for i in items %}
+      <tr><td>{{ i.name }}</td><td class="num">{{ i.qty }}</td><td class="num">{{ i.price }} {{ currency }}</td><td class="num">{{ i.total }} {{ currency }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td>{{ _('web.slip.goods') }}</td><td class="num">{{ goods_total }} {{ currency }}</td></tr>
+    {% if shipping or fee > 0 %}<tr><td>{{ _('web.slip.delivery') }}</td><td class="num">{{ fee }} {{ currency }}</td></tr>{% endif %}
+    {% if balance > 0 %}<tr><td>{{ _('web.slip.balance') }}</td><td class="num">−{{ balance }} {{ currency }}</td></tr>{% endif %}
+    <tr class="grand"><td>{{ _('web.slip.due') }}</td><td class="num">{{ due }} {{ currency }}</td></tr>
+  </table>
+
+  {% if order.comment %}<div class="note"><strong>{{ _('web.slip.comment') }}:</strong> {{ order.comment }}</div>{% endif %}
+  {% if order.tracking_note %}<div class="note"><strong>{{ _('web.slip.tracking') }}:</strong> {{ order.tracking_note }}</div>{% endif %}
+
+  <div class="sign"><div>{{ _('web.slip.packed_by') }}</div><div>{{ _('web.slip.received_by') }}</div></div>
+</div>
+</body>
+</html>

@@ -83,6 +83,47 @@
         {% endif %}
       </div>
     </div>
+    {% if model_view.filter_bar %}
+    {% set f = model_view.filters(request) %}
+    <div class="card-body border-bottom py-3">
+      <form method="get" class="row g-2 align-items-end" id="order-filters">
+        {% if request.query_params.get('search') %}<input type="hidden" name="search" value="{{ request.query_params.get('search') }}">{% endif %}
+        <div class="col-6 col-md-2">
+          <label class="form-label">{{ _('web.filter.status') }}</label>
+          <select name="status" class="form-select">
+            <option value="">{{ _('web.filter.all') }}</option>
+            {% for value, label in f.statuses %}<option value="{{ value }}" {% if f.values.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">{{ _('web.filter.method') }}</label>
+          <select name="method" class="form-select">
+            <option value="">{{ _('web.filter.all') }}</option>
+            {% for value, label in f.methods %}<option value="{{ value }}" {% if f.values.method == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">{{ _('web.filter.pay') }}</label>
+          <select name="pay" class="form-select">
+            <option value="">{{ _('web.filter.all') }}</option>
+            {% for value, label in f.payments %}<option value="{{ value }}" {% if f.values.pay == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">{{ _('web.filter.date_from') }}</label>
+          <input type="date" name="date_from" class="form-control" value="{{ f.values.date_from }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">{{ _('web.filter.date_to') }}</label>
+          <input type="date" name="date_to" class="form-control" value="{{ f.values.date_to }}">
+        </div>
+        <div class="col-6 col-md-2 d-flex gap-2">
+          <button type="submit" class="btn btn-primary">{{ _('web.filter.apply') }}</button>
+          <a class="btn" href="{{ request.url.path }}">{{ _('web.filter.reset') }}</a>
+        </div>
+      </form>
+    </div>
+    {% endif %}
     <div class="table-responsive">
       <table class="table card-table table-vcenter text-nowrap">
         <thead>
