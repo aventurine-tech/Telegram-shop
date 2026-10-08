@@ -77,6 +77,10 @@ class EnvKeys(ABC):
     ERROR_ALERTS: Final = _get_optional("ERROR_ALERTS", "1")
     ERROR_ALERT_CHAT_ID: Final = _get_optional("ERROR_ALERT_CHAT_ID", "")
 
+    # A mailing that was still sending when the bot restarted carries on with the people not yet reached
+    # (the delivery log says who they are). "0" marks it Interrupted instead, as before.
+    MAILING_RESUME: Final = _get_optional("MAILING_RESUME", "1")
+
     # The shop's clock: mailing times typed in the web panel are in this timezone (IANA name).
     SHOP_TIMEZONE: Final = _get_optional("SHOP_TIMEZONE", "Europe/Chisinau")
 

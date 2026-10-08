@@ -135,12 +135,14 @@ async def db_cleanup(setup_test_database):
         ReferralEarnings, Operations, OrderItems, Orders,
         Goods, Categories, User, Role,
         Reviews, CartItems, PromoCodeUsages, PromoCodes,
-        StockSubscriptions, ProductImages, WebUsers, Favorites,
+        StockSubscriptions, ProductImages, WebUsers, Favorites, MailingRecipients, Mailings,
     )
 
     db = Database()
     async with db.session() as s:
         # Delete in FK order.
+        await s.execute(delete(MailingRecipients))
+        await s.execute(delete(Mailings))
         await s.execute(delete(Reviews))
         await s.execute(delete(StockSubscriptions))
         await s.execute(delete(Favorites))
@@ -217,6 +219,7 @@ def patch_env_keys():
         'ORDERS_CHAT_ID': '',
         'ERROR_ALERTS': '1',
         'ERROR_ALERT_CHAT_ID': '',
+        'MAILING_RESUME': '1',
         'CHANNEL_URL': '',
         'HELPER_ID': '',
         'RULES': 'Test rules',

@@ -363,6 +363,7 @@ are **required**; everything else has a sensible default.
 | `DELIVERY_INFO`             | Note shown to customers who choose delivery (areas, cost, timing)          | –              |
 | `ORDERS_CHAT_ID`            | Extra chat/group that also receives new-order alerts                       | –              |
 | `ERROR_ALERTS`              | Message the owner when the bot logs an error (`0` = off)                    | `1`         |
+| `MAILING_RESUME`            | Carry on with a mailing that a restart interrupted (`0` = mark it Interrupted) | `1`      |
 | `ERROR_ALERT_CHAT_ID`       | Extra chat/group that also receives error alerts                           | –           |
 | `SHOP_TIMEZONE`             | Timezone (IANA name) for mailing times typed in the web panel              | `Europe/Chisinau` |
 | `REFERRAL_PERCENT`          | Referral commission % on completed orders (0–99, `0` disables)             | `0`            |
@@ -528,7 +529,7 @@ Options: no link previews, silent notification, forbid forwarding/saving. The li
 *Settings → My account*), **Cancel mailing**, **Duplicate** and **Resend to failed** (a draft for the people it did not reach), plus a
 **Recipients** section with the delivery log (CSV download). Every message carries a *Stop these messages* button; people can also switch
 mailings off and on under *Profile*, and an Admin can see or change it on the client's page. People who blocked the bot or opted out are
-skipped; a mailing interrupted by a restart is marked *Interrupted* and is never resumed.
+skipped; a mailing that was still sending when the bot restarted carries on with the people it had not reached (up to 24 hours after it started, `MAILING_RESUME=0` to turn off); an older one is marked *Interrupted*.
 
 ### Web accounts
 
