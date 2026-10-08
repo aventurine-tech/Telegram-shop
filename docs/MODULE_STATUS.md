@@ -29,7 +29,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Text broadcast** (bot) | upstream | ✅ | `test_broadcast*` | the older in-chat broadcast |
 | **Dashboard** — panel home: period totals, attention box, top products, per-day table | #41 | ✅ | `test_dashboard` | read-only; revenue = completed orders; top 5 products; periods 7/30/90 days |
 | **Web panel shell** — grouped sidebar, translated chrome, My account, **light/dark theme** | #19, #21, #27 | ✅ | `test_web_menu`, `test_web_i18n`, `test_web_accounts` | built on SQLAdmin 0.16.1 with template overrides |
-| **Web accounts & roles** | #1, #15 | ✅ | `test_web_accounts`, `test_role_management`, `test_web_roles_orders` | Admin/Staff levels; role permissions as tags; no 2FA |
+| **Web accounts & roles** | #1, #15 | ✅ | `test_web_accounts`, `test_role_management`, `test_web_roles_orders` | Admin/Staff levels; role permissions as tags; optional two-step sign-in (`test_panel_two_step`, D-23) |
 | **Languages** (bot + web) | #1, #21 | ✅ | `test_i18n`, `test_language_picker`, `test_web_i18n` | en/ru/ro parity enforced by tests |
 | **Bottom menu + welcome line** | #5, #14, #16, #17 | 🟡 | `test_bottom_nav`, `test_language_picker` | one short line always stays at the top; a real-device check after the last changes is still pending |
 | **Clean chat** | #8 | 🟡 | `test_clean_chat` | 48 h delete limit; real-device behaviour not yet confirmed by the owner |

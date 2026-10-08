@@ -153,7 +153,7 @@ class TestRestockNotifier:
 
         markup = mock_bot.send_message.await_args.kwargs["reply_markup"]
         cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
-        assert cbs == ["close"]
+        assert cbs[-1] == "close" and len(cbs) == 2 and cbs[0].startswith("restock_open:")
 
     async def test_no_subscribers_sends_nothing(self, mock_bot, item_factory):
 

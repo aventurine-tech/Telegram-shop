@@ -10,6 +10,24 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Optional two-step sign-in for panel accounts (2026-10-08)
+- **Added** 🔐 each person can turn on two-step sign-in under **My account**: set up with an authenticator app (Google/Microsoft Authenticator, Aegis, 2FAS …)
+  by typing the setup key, confirm with the first code, and save 8 one-time **backup codes** (shown once). After that the login page also asks for the
+  6-digit code (the field is on the page for everyone, and only needed by accounts that turned it on). It is **never forced**: accounts without it sign in
+  with the password only.
+- **Added** a code works only once (its 30-second step is remembered), a backup code works once, wrong codes count towards the same 5-failure / 15-minute
+  lockout as wrong passwords; turning it off or making new backup codes asks for the password; an Admin can **Reset two-step sign-in** on an account
+  (lost phone) and sees who uses it in the account list. Every change is in the audit log.
+- **Security** the secret is stored encrypted with a key derived from `SECRET_KEY` (changing `SECRET_KEY` makes stored secrets unreadable: those accounts are
+  locked out until an Admin resets them); backup codes are stored only as keyed hashes. No new dependency (RFC 6238 in the standard library).
+- **Database** migration `e7a9c1b3d5f7`: `web_users.totp_secret`, `totp_enabled`, `totp_last_step`, `totp_backup` (depends on `d6f8b0c2e4a6`).
+
+### Notify me: sold-out marks and an Open button (2026-10-08)
+- **Checked** 🔔 *Notify me when in stock* already works per weight option (an option is its own product: subscribing, restock from the bot, the web panel
+  or a cancelled order, one message per language). Nothing to rebuild; two gaps closed.
+- **Added** sold-out options are marked in the option selector (`50 g ✕`), so customers see which ones they can only wait for.
+- **Added** the "back in stock" message has a 🛒 **Open product** button (the exact option that came back) next to *Close* (roadmap 5.4). No database change.
+
 ### Mailings resume after a restart (2026-10-08)
 - **Changed** a mailing that was still sending when the bot restarted now carries on instead of being marked *Interrupted*: it goes back to *scheduled* (due
   now) and the sender skips everyone already in its delivery log; counters and total continue. Only mailings that started within the last 24 hours resume,

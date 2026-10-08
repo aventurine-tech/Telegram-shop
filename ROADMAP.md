@@ -47,7 +47,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | 5.1 | ✅ Prefill checkout name/phone/address from the saved profile — delivered in #29 |
 | 5.2 | ✅ Re-order from *My orders* (completed / cancelled orders) |
 | 5.3 | ✅ Order status notifications with tracking text (note on the order page, sent with *shipped*) |
-| 5.4 | Wishlist / "notify me" for sold-out options (restock notifier already exists per product) |
+| 5.4 | ✅ "Notify me" for sold-out options: already worked per option; sold-out marks in the selector and an *Open product* button on the notice added (the wishlist is ⭐ favorites) |
 | 5.5 | ✅ Product search by the words describing a product (name, flavour, strength, option, category) | All words must match |
 
 ## Phase 6 — Platform & quality (proposals)
@@ -57,6 +57,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | 6.2 | ✅ Resumable mailings after a restart (uses the delivery log; ≤ 24 h; `MAILING_RESUME=0` = old behaviour) | A crash mid-batch can repeat up to 25 messages |
 | 6.3a | ✅ Payment reminders for customers and stale-order alerts for staff (MIA / cash) |
 | 6.3b | ✅ Error alerts to the owner / a staff chat (deduplicated, rate-limited) and a secret scan in CI |
+| 6.2b | ✅ Optional two-step sign-in (authenticator app + backup codes) for panel accounts — never forced |
 | 6.3 | Structured JSON logging; metrics dashboard for the existing `/metrics` |
 | 6.4 | ✅ Automated DB backup/restore script + guide (`docs/BACKUP_AND_RESTORE.md`); "erase a client" action. Still open: a retention policy that deletes old personal data automatically |
 | 6.5 | Browser-level tests for the web panel scripts (Playwright) in CI; coverage gate |

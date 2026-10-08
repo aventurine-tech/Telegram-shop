@@ -135,6 +135,7 @@ class AdminAuth(AuthenticationBackend):
         form = await request.form()
         username = str(form.get("username") or "").strip()
         password = str(form.get("password") or "")
+        code = str(form.get("code") or "")
 
         user = await get_web_user_auth(username) if username else None
         # An unknown username costs the same hash as a wrong password, so timing doesn't reveal which exist.
@@ -151,6 +152,14 @@ class AdminAuth(AuthenticationBackend):
                 await log_audit("web_login_blocked_default_creds", level="WARNING",
                                 details=f"user={username}, ip={ip}", ip_address=ip)
                 return False
+            if user["totp_enabled"]:
+                # Optional two-step sign-in: the account turned it on, so the password alone is not enough.
+                from bot.web.twofa import verify_second_step
+                if await verify_second_step(user["id"], code, ip) is None:
+                    _login_limiter.record_failure(ip)
+                    await log_audit("web_login_failed", level="WARNING",
+                                    details=f"user={username}, reason=second_step", ip_address=ip)
+                    return False
             chosen = cookie_language(request)
             await record_web_login(user["id"], chosen)
             session = {"uid": user["id"], "role": user["role"]}

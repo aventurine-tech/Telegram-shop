@@ -39,7 +39,7 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 - **Unverified live:** nothing (clean chat, mailings, shipping, profiles) has been seen working in real Telegram by Claude.
 - Mailings: a restart resumes a mailing that started < 24 h ago (skips people in the delivery log; D-22); older ones are marked *Interrupted*. `MAILING_RESUME=0` turns it off.
 - Option label change in the web rows = delete + create (stock of that option is lost); renaming a head in the bot does not rename options.
-- Web login limiter is per-process; no 2FA.
+- Web login limiter is per-process. Two-step sign-in is optional per account (authenticator app; Admin can reset); losing `SECRET_KEY` locks those accounts out until an Admin resets them.
 - Not built on purpose: order **ownership**; client **import**; catalog crawler/importer (removed in #31 — staff enter the catalog, D-21).
 
 ## Environment notes for a new session

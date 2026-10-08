@@ -95,7 +95,8 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   credit it too, and a referrer earns `REFERRAL_PERCENT`% of every referred customer's
   **completed** order. Customers can spend their balance at checkout.
 - **Restock notifications** — a sold-out product offers "notify me"; when stock arrives
-  (from the bot, the web panel, or a cancelled order) everyone waiting is messaged once.
+  (from the bot, the web panel, or a cancelled order) everyone waiting is messaged once, with a 🛒 *Open product* button. Works per weight option; sold-out options are
+  marked `✕` in the selector.
 - **Reviews** — 1–5★ with optional text, once per user per product, only after receiving it.
 - **Roles (RBAC)** — 11 granular permission bits, built-in `USER`/`ADMIN`/`OWNER` plus custom
   roles. You can never grant a permission you don't hold yourself.
@@ -544,7 +545,11 @@ Open **Web accounts** in the panel (Admins only) to add people. The first Admin 
 
 You can't delete, disable or demote yourself, and the last active Admin is always protected.
 Disabling or demoting an account takes effect on its next request. **My account** (everyone) lets a
-person change their own password and language. SQLAdmin's own generic buttons (Save, Cancel, Search…)
+person change their own password and language, and optionally turn on **two-step sign-in**: set it up with an authenticator
+app (type the setup key, confirm with the first code, save the 8 backup codes shown once); after that the login form also needs the 6-digit
+code. Nobody is forced to use it. A lost phone: an Admin selects the account and runs **Reset two-step sign-in**. (Changing `SECRET_KEY` makes
+the stored secrets unreadable, so reset those accounts afterwards.) If the only Admin is locked out, the owner can clear it in the database:
+`UPDATE web_users SET totp_enabled = false, totp_secret = NULL, totp_backup = NULL, totp_last_step = NULL WHERE username = '…';` SQLAdmin's own generic buttons (Save, Cancel, Search…)
 stay in English; everything we add is translated.
 
 ### Handling orders

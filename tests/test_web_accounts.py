@@ -418,7 +418,7 @@ class TestLanguage:
     async def test_error_message_is_translated(self, client):
         await client.get("/admin/login?lang=ro")
         resp = await login(client, (BOSS[0], "bad-bad-bad"), expect=400)
-        assert "Utilizator sau parolă incorectă" in resp.text
+        assert "Utilizator, parolă sau cod incorect" in resp.text
 
     async def test_cookie_choice_is_saved_on_first_login_then_the_account_wins(self, app):
         async with make_client(app) as c:

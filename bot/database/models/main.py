@@ -172,6 +172,13 @@ class WebUsers(Database.BASE):
     last_login_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     # The person's own Telegram ID: where "send me a test" mailings go.
     telegram_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    # Optional two-step sign-in (authenticator app). The secret is stored encrypted; `totp_enabled` is switched on only
+    # after the person has typed a first valid code. `totp_last_step` stops a code from being used twice; the backup
+    # codes are keyed hashes, comma separated, each removed when used.
+    totp_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa_false())
+    totp_last_step: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    totp_backup: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         CheckConstraint("role IN ('admin','staff')", name='ck_web_users_role'),
