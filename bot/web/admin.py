@@ -1666,8 +1666,9 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
         Form = await super().scaffold_form(*args, **kwargs)
 
         async with self.session_maker() as s:
+            # Only head products: weight options ("SOLO 11 · 50 g") share their head's reviews.
             items = (await s.execute(
-                sa_select(Goods.id, Goods.name).order_by(Goods.name)
+                sa_select(Goods.id, Goods.name).where(Goods.variant_of.is_(None)).order_by(Goods.name)
             )).all()
         item_choices = [(gid, name) for gid, name in items]
 
@@ -1692,6 +1693,12 @@ class ReviewsAdmin(AuditModelView, model=Reviews):
                 sa_select(User.telegram_id).where(User.telegram_id == data.get("user_id"))
             )).first() is None:
                 raise ValueError(localize("web.review.err.no_user", user_id=data.get("user_id")))
+            # Reviews hang on the head product; an option id (old form, direct edit) is moved to its head.
+            head_id = (await s.execute(
+                sa_select(Goods.variant_of).where(Goods.id == data.get("item_id"))
+            )).scalar()
+            if head_id is not None:
+                data["item_id"] = head_id
             if is_created and (await s.execute(
                 sa_select(Reviews.id).where(Reviews.user_id == data.get("user_id"),
                                             Reviews.item_id == data.get("item_id"))

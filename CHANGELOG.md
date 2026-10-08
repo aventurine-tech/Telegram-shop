@@ -10,6 +10,9 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Reviews: one product, all sizes (2026-10-08)
+- **Fixed** the panel's review form listed weight options ("SOLO 11 · 50 g") as separate products, so a review saved on one never showed on the others. It now lists only the main product and moves any option to its main product on save; the bot already shows a product's reviews on every size.
+
 ### Reviews: choose product and customer in the panel (2026-10-08)
 - **Fixed** the panel's **Create review** form only had Rating and Text, so a review could not be attached to anything. It now has a **Product** dropdown and a **Customer (Telegram ID)** field (PR #46).
 - **Added** checks on save: rating 1-5, the customer must exist, and one review per customer and product (en/ru/ro messages).
