@@ -55,6 +55,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 |---|---|
 | 6.1 | ✅ Referral commission **excluding the delivery fee** |
 | 6.2 | Resumable mailings after a restart (with idempotency keys) — currently *Interrupted* by design |
+| 6.3a | ✅ Payment reminders for customers and stale-order alerts for staff (MIA / cash) |
 | 6.3 | Structured JSON logging + error alerts to a staff chat; metrics dashboard for the existing `/metrics` |
 | 6.4 | Automated DB backup/restore guide + script; retention policy for personal data (delete a client on request) |
 | 6.5 | Browser-level tests for the web panel scripts (Playwright) in CI; coverage gate |

@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Payment reminders and stale-order alerts (2026-10-08)
+- **Added** a one-time reminder to the customer `MIA_REMIND_BEFORE_MIN` minutes (default 30) before an unpaid MIA order expires, with an *I've paid* button.
+- **Added** a one-time alert to staff when a customer's "I've paid" claim is still unchecked after `STALE_PAYMENT_ALERT_MIN` minutes (default 30), and when a
+  new cash order is still untouched after `STALE_ORDER_ALERT_MIN` minutes (default 60). Each setting at 0 turns that alert off.
+- **Database** migration `c5e7a9b1d3f5`: `orders.reminder_sent_at`, `orders.staff_alerted_at`. Depends on the orders-filters PR (`b4d6f8a0c2e4`).
+
 ### Orders: filters, packing slip, note for the customer (2026-10-08)
 - **Added** web *Orders* list filters: status, payment method, payment status and a date range (from/to, whole days in UTC); search keeps working with them (roadmap 4.7).
 - **Changed** the orders list and details show localized status, payment status, payment method, delivery and shipping names instead of raw values (roadmap 4.7).

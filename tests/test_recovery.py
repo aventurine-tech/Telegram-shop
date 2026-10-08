@@ -95,10 +95,12 @@ class TestRecoveryManager:
         self.manager.expire_unpaid_orders = AsyncMock()
         self.manager.periodic_health_check = AsyncMock()
         self.manager.dispatch_due_mailings = AsyncMock()
+        self.manager.remind_unpaid_orders = AsyncMock()
+        self.manager.alert_stale_orders = AsyncMock()
 
         await self.manager.start()
         assert self.manager.running is True
-        assert len(self.manager.recovery_tasks) == 3     # expiry, health check, due mailings
+        assert len(self.manager.recovery_tasks) == 5     # expiry, payment reminders, stale alerts, health, mailings
 
         await self.manager.stop()
         assert self.manager.running is False
@@ -186,3 +188,112 @@ class TestCleanupRetention:
         await self._run_one_sweep(monkeypatch, audit_days=90)
 
         assert await self._ancient_rows() == 0
+
+
+class TestOrderNudges:
+    """The customer's "pay soon" reminder and staff's "this order is waiting" alert: once per order."""
+
+    def setup_method(self):
+        self.bot = AsyncMock()
+        self.manager = RecoveryManager(self.bot)
+
+    async def _order(self, uid, name, method="mia"):
+        from bot.database.methods.create import add_to_cart
+        from bot.database.methods.orders import create_order_transaction
+        await add_to_cart(uid, name, quantity=1)
+        ok, code, order = await create_order_transaction(
+            uid, fulfillment="pickup", customer_name="Ana", phone="+37369123456",
+            address=None, comment=None, payment_method=method)
+        assert ok, code
+        return order
+
+    async def _age(self, order_id, *, created=None, pay_by=None, updated=None):
+        """Move the order's clocks (minutes ago for created/updated, minutes from now for pay_by)."""
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import update
+        from bot.database.models.main import Orders
+        now = datetime.now(timezone.utc)
+        values = {}
+        if created is not None:
+            values["created_at"] = now - timedelta(minutes=created)
+        if pay_by is not None:
+            values["pay_by"] = now + timedelta(minutes=pay_by)
+        if updated is not None:
+            values["updated_at"] = now - timedelta(minutes=updated)
+        async with Database().session() as s:
+            await s.execute(update(Orders).where(Orders.id == order_id).values(**values))
+
+    async def test_reminder_goes_out_once_when_the_deadline_is_near(self, user_factory, item_factory):
+        from bot.database.methods.orders import claim_payment_reminders
+        await user_factory(telegram_id=500101)
+        await item_factory(name="NudgeA", price=10, stock=5)
+        order = await self._order(500101, "NudgeA")
+        assert await claim_payment_reminders() == []                      # a fresh order has 120 min left
+
+        await self._age(order["id"], created=95, pay_by=25)
+        await self.manager.remind_unpaid_orders()
+        self.bot.send_message.assert_awaited_once()
+        assert self.bot.send_message.await_args.args[0] == 500101
+        assert "notify.customer.mia_reminder" in self.bot.send_message.await_args.args[1]
+
+        await self.manager.remind_unpaid_orders()
+        assert self.bot.send_message.await_count == 1                      # never twice
+
+    async def test_no_reminder_when_paid_claimed_expired_or_switched_off(self, user_factory, item_factory):
+        from bot.database.methods.orders import claim_payment_reminders, mark_mia_paid
+        await user_factory(telegram_id=500102)
+        await item_factory(name="NudgeB", price=10, stock=5)
+        claimed = await self._order(500102, "NudgeB")
+        await self._age(claimed["id"], created=95, pay_by=25)
+        await mark_mia_paid(claimed["id"], 500102)                          # says paid: nothing left to remind
+        late = await self._order(500102, "NudgeB")
+        await self._age(late["id"], created=130, pay_by=-10)                # already past its deadline
+        short = await self._order(500102, "NudgeB")
+        await self._age(short["id"], created=5, pay_by=20)                  # window shorter than the reminder lead
+        assert await claim_payment_reminders() == []
+
+        ready = await self._order(500102, "NudgeB")
+        await self._age(ready["id"], created=95, pay_by=25)
+        with patch("bot.misc.env.EnvKeys.MIA_REMIND_BEFORE_MIN", 0):
+            assert await claim_payment_reminders() == []
+        assert [o["id"] for o in await claim_payment_reminders()] == [ready["id"]]
+
+    async def test_staff_hear_once_about_an_unchecked_transfer(self, user_factory, item_factory):
+        from bot.database.methods.orders import mark_mia_paid
+        await user_factory(telegram_id=500103)
+        await item_factory(name="NudgeC", price=10, stock=5)
+        order = await self._order(500103, "NudgeC")
+        await mark_mia_paid(order["id"], 500103)
+
+        with patch("bot.misc.services.order_view._send_to_staff", new_callable=AsyncMock) as staff:
+            await self.manager.alert_stale_orders()
+            staff.assert_not_awaited()                                     # claimed a moment ago: still fresh
+            await self._age(order["id"], updated=45)
+            await self.manager.alert_stale_orders()
+            assert staff.await_count == 1
+            await self.manager.alert_stale_orders()
+            assert staff.await_count == 1
+
+    async def test_staff_hear_once_about_an_untouched_cash_order(self, user_factory, item_factory):
+        from bot.database.methods.orders import claim_stale_orders, set_order_status
+        await user_factory(telegram_id=500104)
+        await item_factory(name="NudgeD", price=10, stock=5)
+        waiting = await self._order(500104, "NudgeD", method="cod")
+        handled = await self._order(500104, "NudgeD", method="cod")
+        await set_order_status(handled["id"], "confirmed")
+        for o in (waiting, handled):
+            await self._age(o["id"], created=90)
+
+        found = await claim_stale_orders()
+        assert [(kind, o["id"]) for kind, o in found] == [("unhandled", waiting["id"])]
+        assert await claim_stale_orders() == []
+
+    async def test_alerts_can_be_switched_off(self, user_factory, item_factory):
+        from bot.database.methods.orders import claim_stale_orders
+        await user_factory(telegram_id=500105)
+        await item_factory(name="NudgeE", price=10, stock=5)
+        order = await self._order(500105, "NudgeE", method="cod")
+        await self._age(order["id"], created=90)
+        with patch("bot.misc.env.EnvKeys.STALE_ORDER_ALERT_MIN", 0), \
+                patch("bot.misc.env.EnvKeys.STALE_PAYMENT_ALERT_MIN", 0):
+            assert await claim_stale_orders() == []
