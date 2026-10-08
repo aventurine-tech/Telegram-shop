@@ -10,6 +10,13 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Backups and erasing a client (2026-10-08)
+- **Added** `scripts/backup_db.sh` (compressed, verified, rotated dumps) and `scripts/restore_db.sh` (asks for the database name, stops and restarts the
+  bot) plus `docs/BACKUP_AND_RESTORE.md` with a cron line; `backups/` is git-ignored (roadmap 6.4).
+- **Added** **Erase personal data** on a client's page (Admin accounts only, POST with a confirmation): name, @username, phone, address, city and notes are
+  removed from the profile and all their orders, and their cart, favorites, restock subscriptions and review texts are deleted. Orders, amounts, balance
+  and ratings stay; the owner and clients with orders in progress are refused; the action is audited.
+
 ### Payment reminders and stale-order alerts (2026-10-08)
 - **Added** a one-time reminder to the customer `MIA_REMIND_BEFORE_MIN` minutes (default 30) before an unpaid MIA order expires, with an *I've paid* button.
 - **Added** a one-time alert to staff when a customer's "I've paid" claim is still unchecked after `STALE_PAYMENT_ALERT_MIN` minutes (default 30), and when a

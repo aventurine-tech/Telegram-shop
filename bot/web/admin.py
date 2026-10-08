@@ -112,6 +112,7 @@ from bot.database.methods.product_images import items_with_images, remove_item_i
 from bot.database.methods.orders import set_order_status, confirm_mia_payment
 from bot.misc.services.restock_notifier import notify_restock
 from bot.misc.services.order_view import method_label, notify_customer
+from bot.web.client_tools import client_routes
 from bot.web.order_tools import filter_clauses, filter_context, order_routes
 from bot.middleware.security import invalidate_auth_caches, flush_all_role_caches
 
@@ -1741,7 +1742,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
         Route("/health", health_check),
         Route("/metrics", metrics_json),
         Route("/metrics/prometheus", prometheus_metrics),
-    ] + export_routes + mailing_routes + order_routes
+    ] + export_routes + mailing_routes + order_routes + client_routes
 
     from bot.web.accounts import MyAccountView, WebUserAdmin
 

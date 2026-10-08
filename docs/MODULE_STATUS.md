@@ -30,6 +30,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Bottom menu + welcome line** | #5, #14, #16, #17 | 🟡 | `test_bottom_nav`, `test_language_picker` | one short line always stays at the top; a real-device check after the last changes is still pending |
 | **Clean chat** | #8 | 🟡 | `test_clean_chat` | 48 h delete limit; real-device behaviour not yet confirmed by the owner |
 | **Referrals & balance** | upstream, adapted | ✅ | `test_referral_system`, `test_transactions` | |
+| **Backup / restore scripts, erase a client** | — | ✅ | `test_erasure` (scripts tried by hand against local PostgreSQL) | `scripts/backup_db.sh`, `restore_db.sh`; erase is Admin-only; no automatic retention yet |
 | **Audit log, CSV export** | upstream | ✅ | `test_audit`, `test_export` | export includes profile columns (#22) |
 | **Rate limiting, security middleware** | upstream | ✅ | `test_middleware`, `test_login_rate_limiter` | web login limiter is per-process |
 | **Caching (Redis optional)** | upstream | ✅ | `test_cache_invalidation` | |

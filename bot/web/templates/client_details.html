@@ -3,6 +3,8 @@
 {# A client: what we know about them, and their orders (newest first). #}
 {% set orders = (model.user_orders or []) | sort(attribute='id', reverse=True) %}
 <div class="col-12">
+  {% if request.query_params.get('erased') %}<div class="alert alert-success">{{ _('web.client.erased') }}</div>{% endif %}
+  {% if request.query_params.get('erase_error') %}<div class="alert alert-danger">{{ _('web.client.erase_error.' ~ request.query_params.get('erase_error')) if request.query_params.get('erase_error') in ('is_owner', 'has_active_orders', 'user_not_found') else _('web.client.erase_error.user_not_found') }}</div>{% endif %}
   <div class="card mb-3">
     <div class="card-header">
       <h3 class="card-title">{{ model.first_name or '' }} {{ model.last_name or '' }}
@@ -29,6 +31,9 @@
         <a href="{{ url_for('admin:list', identity=model_view.identity) }}" class="btn">{{ _('web.details.back') }}</a>
         {% if model_view.can_edit %}
         <a href="{{ model_view._build_url_for('admin:edit', request, model) }}" class="btn btn-primary">{{ _('web.sa.edit') }}</a>
+        {% endif %}
+        {% if request.session.get('role') == 'admin' %}
+        <a href="#" class="btn btn-outline-danger ms-auto" data-bs-toggle="modal" data-bs-target="#modal-erase-client">{{ _('web.client.erase') }}</a>
         {% endif %}
       </div>
     </div>
@@ -68,4 +73,22 @@
     </div>
   </div>
 </div>
+
+{% if request.session.get('role') == 'admin' %}
+<div class="modal modal-blur fade" id="modal-erase-client" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <form class="modal-content" method="post" action="/clients/{{ model.telegram_id }}/erase">
+      <div class="modal-status bg-danger"></div>
+      <div class="modal-body text-center py-4">
+        <h3>{{ _('web.client.erase.ask') }}</h3>
+        <div class="text-muted">{{ _('web.client.erase.hint') }}</div>
+      </div>
+      <div class="modal-footer">
+        <a href="#" class="btn" data-bs-dismiss="modal">{{ _('web.sa.cancel') }}</a>
+        <button type="submit" class="btn btn-danger">{{ _('web.client.erase') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
