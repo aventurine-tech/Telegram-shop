@@ -362,6 +362,7 @@ are **required**; everything else has a sensible default.
 | `PICKUP_ADDRESS`            | Shown to customers who choose pickup                                       | –              |
 | `DELIVERY_INFO`             | Note shown to customers who choose delivery (areas, cost, timing)          | –              |
 | `ORDERS_CHAT_ID`            | Extra chat/group that also receives new-order alerts                       | –              |
+| `SHOP_TIMEZONE`             | Timezone (IANA name) for mailing times typed in the web panel              | `Europe/Chisinau` |
 | `REFERRAL_PERCENT`          | Referral commission % on completed orders (0–99, `0` disables)             | `0`            |
 | `MIN_AMOUNT` / `MAX_AMOUNT` | Allowed range for an admin's manual balance top-up / deduction             | `1` / `100000` |
 
@@ -518,12 +519,14 @@ fields (and notes) under *Clients*. The old *Operation History* screen was remov
 Mass messages written in the browser (Admin role): a title, a **group** (all customers, Romanian / Russian / English
 speakers, customers with / without orders — each shows how many people it reaches), the text in an editor with
 **bold / italic / underline / strike / link** buttons and **placeholders** (`{first_name|friend}`, `{last_name}`,
-`{full_name}`, `{username}`, `{telegram_id}`), one picture, and **when**: a draft, *send now* or a date and time (UTC).
+`{full_name}`, `{username}`, `{telegram_id}`), one picture, and **when**: a draft, *send now* or a date and time (in `SHOP_TIMEZONE`, shown in the field's label).
 A live Telegram-style preview and a character counter (1024 with a picture, 4096 without) sit under the editor.
 Options: no link previews, silent notification, forbid forwarding/saving. The list shows status, group, date and
 **Delivered 534 out of 1188**; the details page has a progress bar and **Send test to me** (set your Telegram ID under
-*Settings → My account*), **Cancel mailing** and **Duplicate**. People who blocked the bot are skipped and counted; a
-mailing interrupted by a restart is marked *Interrupted* and is never resumed.
+*Settings → My account*), **Cancel mailing**, **Duplicate** and **Resend to failed** (a draft for the people it did not reach), plus a
+**Recipients** section with the delivery log (CSV download). Every message carries a *Stop these messages* button; people can also switch
+mailings off and on under *Profile*, and an Admin can see or change it on the client's page. People who blocked the bot or opted out are
+skipped; a mailing interrupted by a restart is marked *Interrupted* and is never resumed.
 
 ### Web accounts
 

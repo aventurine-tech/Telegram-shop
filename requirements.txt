@@ -27,6 +27,7 @@ Pillow==12.3.0
 
 # Utils
 python-dateutil==2.8.2
+tzdata==2025.2          # IANA timezone data for SHOP_TIMEZONE (slim images and Windows have none)
 
 # Testing
 pytest==8.4.2

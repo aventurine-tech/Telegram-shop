@@ -34,7 +34,9 @@ def png(size=(8, 8)) -> bytes:
 
 
 def when(**delta) -> str:
-    return (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(**delta)).strftime("%Y-%m-%dT%H:%M")
+    """A time as typed in the form: the shop's wall clock (SHOP_TIMEZONE), ``delta`` from now."""
+    from bot.misc.shop_time import to_shop
+    return to_shop(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(**delta)).strftime("%Y-%m-%dT%H:%M")
 
 
 @pytest.fixture

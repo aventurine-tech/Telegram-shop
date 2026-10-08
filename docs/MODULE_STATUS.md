@@ -22,7 +22,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Shipping methods** | #23 | ✅ 🔧 | `test_shipping` | no method active ⇒ delivery free/unpriced; order keeps the en/ru/ro names it was placed with; referral commission excludes the fee |
 | **My details** (customer edits name, phone, city, address; checkout "use saved") | #29 | ✅ | `test_profile_details` | Operation History button removed (data stays); typed name is separate from Telegram's |
 | **Client profiles** | #22 | ✅ | `test_client_profiles` | names fill as people use the bot; phone/address from latest order; no import by design |
-| **Mailings** (web) | #20, #21 | ✅ 🔧 | `test_mailings_core`, `test_web_mailings` | Admin only; UTC schedule; interrupted ≠ resumed; no per-recipient log; **not yet tried against live Telegram** — send a test first |
+| **Mailings** (web) | #20, #21 | ✅ 🔧 | `test_mailings_core`, `test_web_mailings`, `test_mailing_prefs` | Admin only; schedule in `SHOP_TIMEZONE`; per-recipient log + resend to failed; opt-out button under every message and a profile toggle; interrupted ≠ resumed; **not yet tried against live Telegram** — send a test first |
 | **Text broadcast** (bot) | upstream | ✅ | `test_broadcast*` | the older in-chat broadcast |
 | **Web panel shell** — grouped sidebar, translated chrome, My account, **light/dark theme** | #19, #21, #27 | ✅ | `test_web_menu`, `test_web_i18n`, `test_web_accounts` | built on SQLAdmin 0.16.1 with template overrides |
 | **Web accounts & roles** | #1, #15 | ✅ | `test_web_accounts`, `test_role_management`, `test_web_roles_orders` | Admin/Staff levels; role permissions as tags; no 2FA |

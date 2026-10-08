@@ -283,7 +283,8 @@ async def show_profile(call: CallbackQuery | Message, *, as_new: bool = False) -
     )
     referral = EnvKeys.REFERRAL_PERCENT
 
-    markup = profile_keyboard(referral, orders, cart_count=cart_count)
+    markup = profile_keyboard(referral, orders, cart_count=cart_count,
+                              mailings_on=not bool(user_info.get('mailing_optout')))
     text = (
         f"{localize('profile.caption', name=_esc(tg_user.first_name or ''), id=user_id)}\n"
         f"{localize('profile.id', id=user_id)}\n"

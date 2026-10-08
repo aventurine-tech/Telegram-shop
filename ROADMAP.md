@@ -33,9 +33,9 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | 4.1 | **Import page in the web panel** (CSV/XLSX price list: dry-run preview, apply, history) | Botobot's *Catalog → Import*. The old UMBRA crawler/importer was removed (#31, D-21); only comes back if the owner asks. |
 | 4.2 | ✅ **Print order / packing slip** (printable order page) | Button on the order page |
 | 4.3 | **Customer groups** (manual tags like "VIP", used as mailing audiences) | Botobot's *Group*; today audiences are computed (language / has orders) |
-| 4.4 | **Unsubscribe / "mailing: yes/no"** per customer + opt-out button in mailings | Compliance and fewer blocks |
-| 4.5 | Mailing **scheduling in the shop timezone** (`SHOP_TIMEZONE`, default Europe/Chisinau) instead of UTC | Quality of life |
-| 4.6 | Mailing **per-recipient log** and a "resend to failed" action | Today only totals are kept |
+| 4.4 | ✅ **Unsubscribe / "mailing: yes/no"** per customer + opt-out button under every mailing and a profile toggle | |
+| 4.5 | ✅ Mailing **scheduling in the shop timezone** (`SHOP_TIMEZONE`, default Europe/Chisinau) | |
+| 4.6 | ✅ Mailing **per-recipient log** and a "resend to failed" action | |
 | 4.7 | ✅ Orders list: localized statuses/payment labels, filters by status/date/payment | |
 | 4.8 | Dashboard: orders/revenue/new clients per day, top products | Extends existing stats |
 | 4.9 | Shipping zones / cities, per-method delivery notes and time estimates | Builds on shipping methods |

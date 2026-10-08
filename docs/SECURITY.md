@@ -22,7 +22,7 @@ Out of scope: a compromised host or database, Telegram itself.
 | **Rate limiting** | Global and per-action limits with temporary bans (Redis atomic script, per-process fallback); admins bypass windows but not bans. |
 | **Replay/stale guard** | Taps on transactional messages older than 1 h are rejected; webhook secret token compared in constant time. |
 | **Secrets** | Only via environment (`.env`, never committed); `/health` does not leak internals to anonymous callers. |
-| **Messaging safety** | Mailings are Admin-only, scheduled/cancellable, never auto-resumed (no duplicate sends), batch-throttled, test-to-self first; blocked users skipped. |
+| **Messaging safety** | Mailings are Admin-only, scheduled/cancellable, never auto-resumed (no duplicate sends), batch-throttled, test-to-self first; blocked and opted-out users skipped; every message has an unsubscribe button; a per-recipient log (ids and outcomes only) is kept. |
 
 ## 3. Personal data
 Stored about customers: Telegram id, first/last name, @username, language, phone, delivery address, order history, staff notes.
@@ -51,4 +51,4 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 
 ## 6. Known gaps / roadmap
 Per-process web login limiter (not shared across workers); no 2FA for panel accounts; no automated personal-data retention (erasure is manual);
-no per-recipient mailing log; secrets scanning in CI not configured. Tracked in `ROADMAP.md` (Phase 6).
+secrets scanning in CI not configured. Tracked in `ROADMAP.md` (Phase 6).
