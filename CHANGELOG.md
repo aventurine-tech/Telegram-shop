@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Search by words that describe a product (2026-10-08)
+- **Changed** the 🔍 search now takes several words and shows the products that match **all** of them, in any order and any language: in the name,
+  the description (flavour, strength, size …), an option's label (`50mg` finds `50 mg`) or the category. Products with the words in their name come first,
+  an option's hit shows its product once, and Romanian `ş`/`ţ` typed with a cedilla find the comma spelling. The prompt says what to type (roadmap 5.5).
+  No database change.
+
 ### Dashboard on the panel home page (2026-10-08)
 - **Added** the panel's home page now opens on the shop's numbers for the last 7 / 30 / 90 days (`?days=`): orders, revenue (completed orders, delivery
   included), average order, share cancelled and new clients; a "needs attention" box (new orders waiting, MIA payments to check, products running low or

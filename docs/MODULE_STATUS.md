@@ -8,6 +8,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 |---|---|---|---|---|
 | **Catalog** — categories, subcategories, products, stock | #1, #6 | ✅ | `test_database_crud`, `test_subcategories_*` | two levels max; category holds subcategories *or* products |
 | **Weight options** | #7, #12, #13 | 🟡 | `test_product_options_*` | changing an option's **label** in the web rows = delete + create (its stock is lost); renaming a head in the bot does not rename options; head delete removes options in a separate step |
+| **Catalog search** — several words, any language: name, description, option label, category | #42 | ✅ | `test_search_words`, `test_localized_catalog_core` | substring match, no stemming; `ş`/`ţ` handled, other diacritics must match |
 | **Translated catalog** | #3, #4, #11 | ✅ | `test_localized_catalog_*`, `test_admin_language_*`, `test_web_translations` | product name is one field in the web form; descriptions per language |
 | **Product pictures** | #1 | ✅ | `test_images`, `test_web_images`, `test_item_card_photo` | stored as uploaded (≤ 10 MB); options show the head's picture |
 | **Bot command menu** (☰ next to the input field) | #30 | ✅ | `test_bot_commands` | per-language lists published at startup; per-chat list follows the language chosen in the bot; Telegram may take a moment to refresh the menu |
