@@ -546,7 +546,8 @@ Disabling or demoting an account takes effect on its next request. **My account*
 person change their own password and language, and optionally turn on **two-step sign-in**: set it up with an authenticator
 app (type the setup key, confirm with the first code, save the 8 backup codes shown once); after that the login form also needs the 6-digit
 code. Nobody is forced to use it. A lost phone: an Admin selects the account and runs **Reset two-step sign-in**. (Changing `SECRET_KEY` makes
-the stored secrets unreadable, so reset those accounts afterwards.) SQLAdmin's own generic buttons (Save, Cancel, Search…)
+the stored secrets unreadable, so reset those accounts afterwards.) If the only Admin is locked out, the owner can clear it in the database:
+`UPDATE web_users SET totp_enabled = false, totp_secret = NULL, totp_backup = NULL, totp_last_step = NULL WHERE username = '…';` SQLAdmin's own generic buttons (Save, Cancel, Search…)
 stay in English; everything we add is translated.
 
 ### Handling orders
