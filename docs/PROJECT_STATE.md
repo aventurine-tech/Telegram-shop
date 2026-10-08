@@ -37,7 +37,7 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 - **Welcome line.** Telegram needs a message to hold the reply keyboard, so one short welcome line always stays at the top of the chat.
   Not re-verified on a real device since #16/#17.
 - **Unverified live:** nothing (clean chat, mailings, shipping, profiles) has been seen working in real Telegram by Claude.
-- Mailings: UTC schedule; interrupted by a restart ⇒ marked *Interrupted*, never resumed; no per-recipient log.
+- Mailings: interrupted by a restart ⇒ marked *Interrupted*, never resumed.
 - Option label change in the web rows = delete + create (stock of that option is lost); renaming a head in the bot does not rename options.
 - Web login limiter is per-process; no 2FA.
 - Not built on purpose: order **ownership**; client **import**; catalog crawler/importer (removed in #31 — staff enter the catalog, D-21).

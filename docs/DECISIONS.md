@@ -70,7 +70,7 @@ in `CLAUDE.md`.
 ### D-12 Mailings are never resumed after a restart
 **Context** a restart in the middle of a send could otherwise re-send to people who already got the message. **Decision** on
 startup mailings in *sending* become *Interrupted* and are not resumed; the owner can duplicate and send to the remainder.
-**Consequences** no duplicate sends; per-recipient logs / resume are on the roadmap (6.2, 4.6).
+**Consequences** no duplicate sends; the per-recipient log (4.6) lets staff *Resend to failed* as a new draft; resuming (6.2) is still on the roadmap.
 
 ### D-13 Mailing design
 Text is sanitised to Telegram's tag set (b, i, u, s, code, pre, spoiler, safe links); placeholders `{first_name|default}` are

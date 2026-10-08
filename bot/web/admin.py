@@ -287,6 +287,10 @@ def _format_username(model, name):
     return Markup('<a href="https://t.me/{0}" target="_blank" rel="noopener noreferrer">@{0}</a>').format(username)
 
 
+def _format_yes_no(model, name):
+    return localize("web.sa.yes" if getattr(model, name, False) else "web.sa.no")
+
+
 def _format_when(model, name):
     value = getattr(model, name, None)
     return value.strftime("%Y-%m-%d %H:%M") if value else ""
@@ -304,9 +308,10 @@ class UserAdmin(AuditModelView, model=User):
     column_default_sort = (User.registration_date, True)
     column_details_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.contact_name,
                            User.phone, User.city, User.address, User.language, User.balance, User.role_id, User.referral_id,
-                           User.is_blocked, User.registration_date, User.last_seen_at, User.notes, User.user_orders]
+                           User.is_blocked, User.mailing_optout, User.registration_date, User.last_seen_at, User.notes,
+                           User.user_orders]
     column_formatters = {"username": _format_username, "registration_date": _format_when,
-                         "last_seen_at": _format_when}
+                         "last_seen_at": _format_when, "mailing_optout": _format_yes_no}
     column_formatters_detail = column_formatters
     details_template = "client_details.html"
     form_excluded_columns = [

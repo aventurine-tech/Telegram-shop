@@ -52,6 +52,10 @@
         <a href="{{ model_view._url_for_action(request, 'send-test') }}?pks={{ mid }}" class="btn btn-outline-primary"
           onclick="return confirm({{ _('web.mailing.action.test.ask') | tojson }});">{{ _('web.mailing.action.test') }}</a>
         <a href="{{ model_view._url_for_action(request, 'duplicate') }}?pks={{ mid }}" class="btn btn-outline-secondary">{{ _('web.mailing.action.duplicate') }}</a>
+        {% if model.status in ('sent', 'cancelled', 'failed') and model.recipient_counts.failed %}
+        <a href="{{ model_view._url_for_action(request, 'resend-failed') }}?pks={{ mid }}" class="btn btn-outline-primary"
+          onclick="return confirm({{ _('web.mailing.action.resend.ask', n=model.recipient_counts.failed) | tojson }});">{{ _('web.mailing.action.resend') }}</a>
+        {% endif %}
         {% if busy %}
         <a href="{{ model_view._url_for_action(request, 'cancel-mailing') }}?pks={{ mid }}" class="btn btn-outline-danger"
           onclick="return confirm({{ _('web.mailing.action.cancel.ask') | tojson }});">{{ _('web.mailing.action.cancel') }}</a>
@@ -60,6 +64,34 @@
     </div>
   </div>
 </div>
+{% set rc = model.recipient_counts %}
+{% if rc.sent or rc.blocked or rc.failed %}
+<div class="col-12 mt-3">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">{{ _('web.mailing.recipients') }}</h3>
+      <div class="ms-auto"><a href="/mailings/{{ mid }}/recipients.csv" class="btn btn-sm btn-outline-secondary">{{ _('web.mailing.recipients.csv') }}</a></div>
+    </div>
+    <div class="card-body">
+      <div class="mb-2">{{ _('web.mailing.recipients.summary', sent=rc.sent, blocked=rc.blocked, failed=rc.failed) }}</div>
+      {% if model.unreached %}
+      <div class="text-muted mb-2">{{ _('web.mailing.recipients.unreached', n=model.unreached | length) }}</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-vcenter">
+          <thead><tr><th>Telegram ID</th><th>{{ _('web.mailing.recipients.outcome') }}</th></tr></thead>
+          <tbody>
+            {% for r in model.unreached %}
+            <tr><td><a href="{{ url_for('admin:details', identity='user', pk=r.user_id) }}">{{ r.user_id }}</a></td>
+              <td>{{ _('web.mailing.outcome.' ~ r.outcome) }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
 {% if model.status == 'sending' or model.status == 'scheduled' %}
 <script>setTimeout(function () { window.location.reload(); }, 5000);</script>
 {% endif %}

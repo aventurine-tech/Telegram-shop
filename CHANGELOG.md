@@ -10,6 +10,15 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Mailings: opt-out, shop timezone, delivery log (2026-10-08)
+- **Added** opting out: every mailing carries a *Stop these messages* button (in the reader's language, with a way back), *Profile* has a Mailings on/off toggle,
+  the client's page shows and edits it, and opted-out people are left out of every audience and its count (roadmap 4.4).
+- **Added** `SHOP_TIMEZONE` (default `Europe/Chisinau`): the time typed in the mailing form is the shop's wall clock and is shown back that way; stored in UTC
+  (roadmap 4.5). Adds the pinned `tzdata` package so the zone exists on slim images.
+- **Added** a delivery log per mailing (who: sent / blocked / failed) with a *Recipients* section on the details page, a CSV download and **Resend to failed**,
+  which makes a draft addressed to the people the first mailing did not reach (roadmap 4.6).
+- **Database** migration `d6f8b0c2e4a6`: `users.mailing_optout`, `mailing_recipients`, `mailings.retry_of`. Depends on the previous PRs (`c5e7a9b1d3f5`).
+
 ### Backups and erasing a client (2026-10-08)
 - **Added** `scripts/backup_db.sh` (compressed, verified, rotated dumps) and `scripts/restore_db.sh` (asks for the database name, stops and restarts the
   bot) plus `docs/BACKUP_AND_RESTORE.md` with a cron line; `backups/` is git-ignored (roadmap 6.4).
