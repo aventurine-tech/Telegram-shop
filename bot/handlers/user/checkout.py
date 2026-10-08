@@ -235,7 +235,8 @@ async def _ask_summary(msg: Message, state: FSMContext, user_id: int, edit: bool
             total=ld["line_total"], currency=cur,
         ))
     lines.append("")
-    lines.extend(delivery_lines({"shipping_name": shipping["name"] if shipping else None, "delivery_fee": fee}, cur))
+    ship_view = {f"shipping_{k}": v for k, v in shipping.items() if k.startswith("name")} if shipping else {}
+    lines.extend(delivery_lines({**ship_view, "delivery_fee": fee}, cur))
     lines.append(localize("order.line.total", total=total, currency=cur))
     if applied > 0:
         lines.append(localize("order.line.balance_used", amount=applied, currency=cur))

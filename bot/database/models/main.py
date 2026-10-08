@@ -340,6 +340,9 @@ class Orders(Database.BASE):
     payment_proof: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     # Delivery: the chosen shipping method's name (as it was) and its price, already part of `total`.
     shipping_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    shipping_name_en: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    shipping_name_ru: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    shipping_name_ro: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     delivery_fee: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0, server_default='0')
     # Unpaid MIA orders are cancelled (and their stock released) after this moment.
     pay_by: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
