@@ -34,6 +34,7 @@ routers: `language` → `bottom_nav` → `admin` → `other` → `user`.
 | `main.py`, `dsn.py` | async engine, `Database().session()`, declarative base |
 | `models/main.py` | **all ORM models** and status/enum classes (`OrderStatus`, `PaymentMethod`, `Fulfillment`, `MailingStatus`, `MailingSegment`, `Permission`, `WebRole`) |
 | `methods/orders.py` | **order transactions**: create (stock reservation, promo, balance, shipping fee), cancel, MIA verify, status changes, expiry, referral commission |
+| `methods/dashboard.py` | numbers for the panel home page (`dashboard_data`: per-day orders/revenue/clients in the shop timezone, top products, attention box) |
 | `methods/shipping.py` | active shipping methods, `delivery_fee` |
 | `methods/mailings.py` | audiences, claim/progress/finish/cancel, restart handling |
 | `methods/profiles.py` | `refresh_profile` (Telegram names/username/last seen) |
@@ -93,7 +94,7 @@ validates promo/shipping, checks `expected_total`, reserves stock, writes order 
 the same functions; completing pays the referral commission once.
 
 **Mailing:** draft/scheduled row → `claim_due_mailing` (atomic scheduled→sending) → `MailingSender.run` (audience at that moment, batches, progress
-counters, cancel checks) → `sent` | `cancelled` | `failed`. Restart: *sending* → *Interrupted*.
+counters, cancel checks) → `sent` | `cancelled` | `failed`. Restart: *sending* started < 24 h ago → *scheduled* again and resumed (the sender skips people in the delivery log); older → *Interrupted*.
 
 **Language:** per update `LanguageMiddleware` sets the ContextVar from the user row; `localize()` formats with it; staff alerts are built once per
 recipient language; the panel resolves language from the account/cookie (`LanguageMiddleware` in `bot/web/language.py`).
