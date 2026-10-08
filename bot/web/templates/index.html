@@ -1,6 +1,128 @@
 {% extends "layout.html" %}
 {% block content_header %}{% endblock %}
 {% block content %}
+{% if dash %}
+<div class="container-xl py-3" id="dashboard">
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">{{ _('web.dash.title') }}</h2>
+    <div class="btn-group" role="group" aria-label="{{ _('web.dash.period') }}">
+      {% for n in dash.periods %}
+      <a href="?days={{ n }}" class="btn btn-sm {{ 'btn-primary' if n == dash.days else 'btn-outline-secondary' }}">{{ _('web.dash.days', n=n) }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="row row-cards mb-3">
+    <div class="col-6 col-lg-3"><div class="card"><div class="card-body">
+      <div class="text-muted">{{ _('web.dash.orders') }}</div>
+      <div class="h2 mb-0" id="dash-orders">{{ dash.orders }}</div>
+      <div class="text-muted small">{{ _('web.dash.cancelled_share', n=dash.cancelled_share) }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card"><div class="card-body">
+      <div class="text-muted">{{ _('web.dash.revenue') }}</div>
+      <div class="h2 mb-0" id="dash-revenue">{{ dash.revenue }} {{ currency }}</div>
+      <div class="text-muted small">{{ _('web.dash.revenue_hint', n=dash.completed) }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card"><div class="card-body">
+      <div class="text-muted">{{ _('web.dash.average') }}</div>
+      <div class="h2 mb-0" id="dash-average">{{ dash.average }} {{ currency }}</div>
+    </div></div></div>
+    <div class="col-6 col-lg-3"><div class="card"><div class="card-body">
+      <div class="text-muted">{{ _('web.dash.new_clients') }}</div>
+      <div class="h2 mb-0" id="dash-clients">{{ dash.new_clients }}</div>
+    </div></div></div>
+  </div>
+
+  <div class="row row-cards mb-3">
+
+    <div class="col-lg-4">
+      <div class="card h-100" id="dash-attention">
+        <div class="card-header"><h3 class="card-title">{{ _('web.dash.attention') }}</h3></div>
+        <div class="card-body">
+          <p class="mb-2">
+            <a href="{{ url_for('admin:list', identity='orders') }}?status=new">{{ _('web.dash.new_orders') }}</a>:
+            <b>{{ dash.attention.new_orders }}</b>
+          </p>
+          <p class="mb-2">
+            <a href="{{ url_for('admin:list', identity='orders') }}?pay=awaiting_confirmation">{{ _('web.dash.to_check') }}</a>:
+            <b>{{ dash.attention.to_check }}</b>
+          </p>
+          <div class="mb-1">{{ _('web.dash.low_stock') }}:</div>
+          {% if dash.attention.low_stock %}
+          <ul class="mb-0">
+            {% for g in dash.attention.low_stock %}
+            <li><a href="{{ url_for('admin:details', identity='goods', pk=g.id) }}">{{ g.name }}</a> —
+              {% if g.stock == 0 %}<span class="text-danger">{{ _('web.dash.sold_out') }}</span>{% else %}{{ g.stock }}{% endif %}</li>
+            {% endfor %}
+          </ul>
+          {% else %}<div class="text-muted">{{ _('web.dash.nothing') }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100" id="dash-top">
+        <div class="card-header"><h3 class="card-title">{{ _('web.dash.top') }}</h3></div>
+        <div class="card-body">
+          {% if dash.top_products %}
+          <table class="table table-sm table-vcenter mb-0">
+            <thead><tr><th>{{ _('web.dash.col_product') }}</th><th class="text-end">{{ _('web.dash.col_qty') }}</th>
+              <th class="text-end">{{ currency }}</th></tr></thead>
+            <tbody>
+              {% for p in dash.top_products %}
+              <tr><td>{{ p.name }}</td><td class="text-end">{{ p.qty }}</td><td class="text-end">{{ p.sum }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="text-muted">{{ _('web.dash.nothing') }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100" id="dash-statuses">
+        <div class="card-header"><h3 class="card-title">{{ _('web.dash.statuses') }}</h3></div>
+        <div class="card-body">
+          {% if dash.statuses %}
+          <ul class="list-unstyled mb-0">
+            {% for st, n in dash.statuses %}
+            <li class="d-flex justify-content-between"><span>{{ _('order.status.' ~ st) }}</span><b>{{ n }}</b></li>
+            {% endfor %}
+          </ul>
+          {% else %}<div class="text-muted">{{ _('web.dash.nothing') }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="card mb-4" id="dash-days">
+    <div class="card-header"><h3 class="card-title">{{ _('web.dash.per_day') }}</h3></div>
+    <div class="table-responsive">
+      <table class="table table-sm table-vcenter card-table">
+        <thead><tr>
+          <th>{{ _('web.dash.col_date') }}</th><th class="text-end">{{ _('web.dash.orders') }}</th>
+          <th class="text-end">{{ _('web.dash.new_clients') }}</th><th class="text-end">{{ _('web.dash.revenue') }}</th>
+          <th style="width:30%"></th>
+        </tr></thead>
+        <tbody>
+          {% for d in dash.per_day %}
+          <tr>
+            <td>{{ d.date.strftime('%d.%m.%Y') }}</td><td class="text-end">{{ d.orders }}</td>
+            <td class="text-end">{{ d.clients }}</td><td class="text-end">{{ d.revenue }}</td>
+            <td><div class="progress progress-sm"><div class="progress-bar" style="width: {{ d.share }}%"></div></div></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer text-muted small">{{ _('web.dash.footnote') }}</div>
+  </div>
+
+</div>
+{% endif %}
+
 <div class="container-xl py-3">
 
   <div class="mb-3">

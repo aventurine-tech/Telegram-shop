@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqladmin import Admin, ModelView, action
-from sqladmin.authentication import AuthenticationBackend
+from sqladmin.authentication import AuthenticationBackend, login_required
 from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -1732,6 +1732,17 @@ async def metrics_json(request: Request) -> JSONResponse:
 
 
 # App Factory
+class ShopAdmin(Admin):
+    """The panel with a home page that opens on the shop's numbers, followed by the help cards."""
+
+    @login_required
+    async def index(self, request: Request):
+        from bot.database.methods.dashboard import dashboard_data, parse_days
+        data = await dashboard_data(parse_days(request.query_params.get("days")))
+        return await self.templates.TemplateResponse(
+            request, "index.html", {"dash": data, "currency": EnvKeys.PAY_CURRENCY})
+
+
 def create_admin_app(bot: Any = None) -> Starlette:
     """Build the admin panel app."""
     set_notifier_bot(bot)
@@ -1763,7 +1774,7 @@ def create_admin_app(bot: Any = None) -> Starlette:
     )
 
     auth_backend = AdminAuth(secret_key=EnvKeys.SECRET_KEY)
-    admin = Admin(
+    admin = ShopAdmin(
         app,
         engine=Database().engine,
         authentication_backend=auth_backend,
