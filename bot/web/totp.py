@@ -59,6 +59,15 @@ def provisioning_uri(secret: str, username: str, issuer: str) -> str:
     return f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer, safe='')}&digits={DIGITS}&period={PERIOD}"
 
 
+def qr_svg(uri: str) -> str:
+    """The setup link as an inline SVG QR code ('' if the segno package is missing: the typed key still works)."""
+    try:
+        import segno
+    except ImportError:
+        return ""
+    return segno.make(uri, error="m", micro=False).svg_inline(scale=5, border=2, dark="#000", light="#fff")
+
+
 def group(secret: str) -> str:
     """The secret in groups of four, easier to type by hand."""
     return " ".join(secret[i:i + 4] for i in range(0, len(secret), 4))

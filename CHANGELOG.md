@@ -10,6 +10,12 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### QR code for two-step setup (2026-10-08)
+- **Added** the two-step setup box under **My account** now shows a **QR code** to scan with the authenticator app; the typed setup key and the
+  "open on this device" link stay as the fallback (en/ru/ro wording updated). The code is drawn on the server as inline SVG, so nothing is sent to an outside service.
+- **Changed** new dependency `segno==1.6.1` (pure Python, no further packages) — rebuild the image on deploy (`docker compose up -d --build`). If the package is
+  missing the page still works without the QR code.
+
 ### Reviews: choose product and customer in the panel (2026-10-08)
 - **Fixed** the panel's **Create review** form only had Rating and Text, so a review could not be attached to anything. It now has a **Product** dropdown and a **Customer (Telegram ID)** field (PR #46).
 - **Added** checks on save: rating 1-5, the customer must exist, and one review per customer and product (en/ru/ro messages).
