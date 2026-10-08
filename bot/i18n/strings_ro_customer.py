@@ -59,6 +59,10 @@ TRANSLATIONS = {"ro": {
         "orders.cancel_confirm": "Anulați comanda #{id}?",
         "orders.cancelled": "Comanda #{id} a fost anulată",
         "btn.order.cancel": "❌ Anulează comanda",
+        "btn.order.repeat": "🔁 Comandă din nou",
+        "orders.repeat_done": "🔁 Produse adăugate în coș: {added}. Prețurile și stocul sunt cele de azi.",
+        "orders.repeat_skipped": "Neadăugate (stoc epuizat sau scoase din vânzare): {skipped}.",
+        "orders.repeat_none": "Nimic din această comandă nu este în stoc acum.",
 
         # === Checkout: steps ===
         "checkout.unavailable": "Plasarea comenzilor nu este disponibilă momentan. Vă rugăm să încercați mai târziu.",

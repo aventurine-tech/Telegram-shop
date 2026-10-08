@@ -15,7 +15,7 @@ in a live Telegram chat by Claude. Update this table in the same PR that changes
 | **Cart, promo codes (applied in the cart), sales, reviews, restock notify** | upstream, adapted | ✅ | `test_cart_reviews`, `test_cart_promo`, `test_promo_*`, `test_sales`, `test_user_handlers` | |
 | **Checkout** (delivery/pickup, name, phone, address, shipping, comment, payment, summary) | #1, #23 | ✅ | `test_payment_handlers`, `test_shipping` | |
 | **Payments** — MIA (staff-verified) + cash on delivery/pickup | #1 | ✅ / 🔧 | `test_orders`, `test_payment_handlers` | MIA needs real `MIA_*` details in the server `.env`; cash recorded on completion |
-| **Orders** — lifecycle, stock reservation, expiry, referral commission | #1 | ✅ | `test_orders`, `test_orders_admin`, `test_recovery` | order ownership intentionally not built |
+| **Orders** — lifecycle, stock reservation, expiry, referral commission, order again | #1 | ✅ | `test_orders`, `test_orders_admin`, `test_recovery`, `test_shop_handlers` | order ownership intentionally not built; *Order again* refills the cart from a completed/cancelled order |
 | **Order management in chat** | #1 | ✅ | `test_orders_admin`, `test_admin_handlers` | |
 | **Payment reminders & stale-order alerts** | — | ✅ | `test_recovery` | recovery sweeps every 60 s; once per order (`reminder_sent_at`, `staff_alerted_at`); 0 in `.env` switches each off |
 | **Error alerts** | — | ✅ | `test_error_alerts` | `bot/misc/error_alerts.py`: logging handler → owner (+ `ERROR_ALERT_CHAT_ID`); dedupe 10 min, 5 per 10 min, no tracebacks; **not seen in live Telegram** |

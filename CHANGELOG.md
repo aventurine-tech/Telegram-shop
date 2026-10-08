@@ -10,6 +10,10 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Order again (2026-10-08)
+- **Added** 🔁 **Order again** on a completed or cancelled order in *My orders*: its lines go back into the cart at today's prices; quantities are cut
+  to the stock on hand and sold-out or deleted products are skipped, with a note saying how many (roadmap 5.2).
+
 ### Error alerts and secret scan (2026-10-08)
 - **Added** error alerts: when the bot logs an error, the owner (and `ERROR_ALERT_CHAT_ID`, if set) gets one short message with the logger and the
   first line of the error. The same problem is announced once per 10 minutes (repeats are counted), at most 5 alerts go out per 10 minutes (the rest become one

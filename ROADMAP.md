@@ -45,7 +45,7 @@ menu · UMBRA crawler/importer removed (catalog is entered by staff, D-21).
 | # | Item |
 |---|---|
 | 5.1 | ✅ Prefill checkout name/phone/address from the saved profile — delivered in #29 |
-| 5.2 | Re-order from *My orders* |
+| 5.2 | ✅ Re-order from *My orders* (completed / cancelled orders) |
 | 5.3 | ✅ Order status notifications with tracking text (note on the order page, sent with *shipped*) |
 | 5.4 | Wishlist / "notify me" for sold-out options (restock notifier already exists per product) |
 | 5.5 | Product search by flavour/strength attributes |

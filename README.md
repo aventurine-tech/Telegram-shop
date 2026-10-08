@@ -83,7 +83,7 @@ in a web panel. Role-based admin, store balance + referrals, optional Redis cach
   - **Cash on delivery / pickup** — nothing to do up front; the cash is recorded as collected
     when staff mark the order completed.
 - **Order tracking** — `new → confirmed → shipped → completed` (or `cancelled`). Customers get
-  a message at every step and can open **My orders** at any time; staff get an alert for every
+  a message at every step and can open **My orders** at any time (and put a finished order back in the cart with **Order again**); staff get an alert for every
   new order and every "I've paid" claim.
 - **Backups** — `scripts/backup_db.sh` / `scripts/restore_db.sh` make and restore verified, rotated database dumps ([guide](docs/BACKUP_AND_RESTORE.md));
   an Admin can erase a client's personal data from the client's page.
