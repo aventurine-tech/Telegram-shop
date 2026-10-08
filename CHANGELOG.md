@@ -10,6 +10,11 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### Fix: placing an order as the owner (2026-10-08)
+- **Fixed** when the person placing an order is also staff (the owner testing the shop), the "new order" alert sent into their own chat counted as their new
+  screen, clean chat deleted the confirm screen, and the next edit failed with *message to edit not found* (the order itself was saved). Staff alerts and
+  customer notices no longer replace the screen of the chat being served. Found through the new error alerts.
+
 ### Order again (2026-10-08)
 - **Added** 🔁 **Order again** on a completed or cancelled order in *My orders*: its lines go back into the cart at today's prices; quantities are cut
   to the stock on hand and sold-out or deleted products are skipped, with a note saying how many (roadmap 5.2).

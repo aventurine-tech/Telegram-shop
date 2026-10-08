@@ -10,6 +10,7 @@ from bot.database.methods.read import get_user_languages
 from bot.database.models.main import Fulfillment, PaymentMethod, PaymentStatus
 from bot.i18n import localize, esc, use_language
 from bot.misc import EnvKeys
+from bot.middleware.clean_chat import outside_screen
 from bot.misc.localized import pick
 
 logger = logging.getLogger(__name__)
@@ -105,11 +106,14 @@ async def _send_to_staff(bot: Bot, build, photo: str | None = None) -> int:
                 built[lang] = build()
         text, markup = built[lang]
         try:
-            if photo:
-                # A caption is capped at 1024 chars; the order card fits, the proof goes first.
-                await bot.send_photo(chat_id, photo, caption=text[:1024], reply_markup=markup)
-            else:
-                await bot.send_message(chat_id, text, reply_markup=markup)
+            # Staff may be the very person being served (the owner testing an order): an alert into their chat must
+            # not count as their new screen, or clean chat deletes the screen the handler is about to edit.
+            with outside_screen():
+                if photo:
+                    # A caption is capped at 1024 chars; the order card fits, the proof goes first.
+                    await bot.send_photo(chat_id, photo, caption=text[:1024], reply_markup=markup)
+                else:
+                    await bot.send_message(chat_id, text, reply_markup=markup)
             sent += 1
         except Exception as e:  # blocked bot, deleted chat, ...: never break the customer's checkout
             logger.warning("order alert to %s failed: %s", chat_id, e)
@@ -174,7 +178,8 @@ async def notify_customer(bot: Bot, order: dict, kind: str) -> bool:
             if kind == "mia_reminder":
                 rows.insert(0, [InlineKeyboardButton(text=localize("btn.mia.paid"), callback_data=f"mia_paid:{order['id']}")])
             markup = InlineKeyboardMarkup(inline_keyboard=rows)
-        await bot.send_message(order["user_id"], text, reply_markup=markup)
+        with outside_screen():      # same reason as the staff alerts: this is not the sender's own screen
+            await bot.send_message(order["user_id"], text, reply_markup=markup)
         return True
     except Exception as e:
         logger.warning("customer notice %s for order %s failed: %s", kind, order.get("id"), e)
