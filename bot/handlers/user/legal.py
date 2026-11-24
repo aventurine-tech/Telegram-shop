@@ -220,6 +220,7 @@ async def my_data_text(user_id: int) -> str | None:
     if not user:
         return None
     registered = user.get("registration_date")
+    age_confirmed = user.get("age_confirmed_at")
     values = [
         ("id", str(user_id)),
         ("first_name", user.get("first_name")),
@@ -233,6 +234,7 @@ async def my_data_text(user_id: int) -> str | None:
         ("orders", str(await select_user_items(user_id))),
         ("mailings", localize("my_data.off" if user.get("mailing_optout") else "my_data.on")),
         ("registered", registered.strftime("%Y-%m-%d") if hasattr(registered, "strftime") else None),
+        ("age_confirmed", age_confirmed.strftime("%Y-%m-%d") if hasattr(age_confirmed, "strftime") else None),
     ]
     lines = [localize("my_data.title"), ""]
     lines += [localize("my_data.line", label=localize(f"my_data.label.{key}"), value=esc(str(value)))

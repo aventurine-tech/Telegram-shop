@@ -22,6 +22,14 @@ from bot.states.checkout_state import CheckoutFSM
 _KEYS = ("btn.nav.catalog", "btn.nav.cart", "btn.nav.profile")
 
 
+@pytest.fixture(autouse=True)
+def no_age_question(monkeypatch):
+    """These tests are about the language and the menu; the 18+ question (D-27) has its own in test_age_gate.py."""
+    from bot.misc import EnvKeys
+    monkeypatch.setattr(EnvKeys, "ADULTS_ONLY", "0", raising=False)
+    monkeypatch.setattr(EnvKeys, "BUSINESS_ONLY", "0", raising=False)
+
+
 def _tap(text, user_id=910001, chat_type=ChatType.PRIVATE):
     """A real-Message-shaped mock (so `isinstance(.., Message)` holds) for a tap on the bottom keyboard."""
     msg = AsyncMock(spec=Message)
@@ -205,6 +213,11 @@ class TestRouterOrder:
         # the ☰ menu commands sit between the language picker and the bottom keyboard
         from bot.handlers.user.commands import router as commands_router
         assert order.index(language_router) < order.index(commands_router) < order.index(bottom_nav.router)
+        # the 18+ question (D-27) comes right after the language and before every other handler
+        from bot.handlers.user.age_gate import router as age_gate_router
+        from bot.handlers.user.legal import router as legal_router
+        assert order.index(language_router) < order.index(age_gate_router) < order.index(commands_router)
+        assert order.index(age_gate_router) < order.index(legal_router)
 
 
 class TestCarrierReplacement:

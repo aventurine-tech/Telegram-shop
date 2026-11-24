@@ -108,7 +108,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• From Telegram: your ID, name, @username and language.\n"
             "• From you at checkout: the name for delivery, phone, city, address and pre-order comment.\n"
             "• Your pre-orders, cart, favorites and reviews, and the payment confirmation you send for a MIA transfer.\n"
-            "• When you last used the bot, whether you receive shop news, and notes our staff make about your pre-orders.\n"
+            "• When you confirmed that you are 18 or over, when you last used the bot, whether you receive shop news, "
+            "and notes our staff make about your pre-orders.\n"
             "We never receive your card details, your contacts or messages from your other chats.\n\n"
             "<b>Why</b>\n"
             "To take, deliver and support your pre-orders and to show you your pre-order history: we need it to carry "
@@ -131,6 +132,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• If you think we handle your data wrongly, you can complain to the National Center "
             "for Personal Data Protection (datepersonale.md)."
         ),
+        "age.ask": (
+            "🔞 <b>Are you 18 or over?</b>\n\n"
+            "This bot is only for adults. See /terms and /privacy."
+        ),
+        "age.denied": "This bot is only for adults, so it stays closed for you. See /privacy for your data.",
+        "btn.age.yes": "✅ Yes, I am 18 or over",
+        "btn.age.no": "No",
         "btn.my_data": "📋 My data",
         "btn.my_data_erase": "🗑 Delete my data",
         "btn.my_data_erase_yes": "🗑 Yes, delete",
@@ -148,6 +156,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "my_data.label.orders": "Pre-orders",
         "my_data.label.mailings": "Shop news",
         "my_data.label.registered": "With us since",
+        "my_data.label.age_confirmed": "Confirmed 18+ on",
         "my_data.on": "on",
         "my_data.off": "off",
         "my_data.orders_hint": "Each pre-order also keeps the name, phone, address and comment you gave for it. See /orders.",
@@ -279,7 +288,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• Из Telegram: ваш ID, имя, @username и язык.\n"
             "• От вас при оформлении: имя для доставки, телефон, город, адрес и комментарий к предзаказу.\n"
             "• Ваши предзаказы, корзину, избранное и отзывы, а также подтверждение оплаты, которое вы присылаете при переводе MIA.\n"
-            "• Когда вы последний раз пользовались ботом, получаете ли новости магазина, и заметки сотрудников о ваших предзаказах.\n"
+            "• Когда вы подтвердили, что вам есть 18 лет, когда последний раз пользовались ботом, получаете ли "
+            "новости магазина, и заметки сотрудников о ваших предзаказах.\n"
             "Мы никогда не получаем данные вашей карты, ваши контакты или сообщения из других чатов.\n\n"
             "<b>Зачем</b>\n"
             "Чтобы принимать, доставлять и сопровождать ваши предзаказы и показывать вам историю предзаказов: это нужно "
@@ -304,6 +314,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• Если вы считаете, что мы обрабатываем ваши данные неправильно, вы можете обратиться "
             "в Национальный центр по защите персональных данных (datepersonale.md)."
         ),
+        "age.ask": (
+            "🔞 <b>Вам есть 18 лет?</b>\n\n"
+            "Этот бот только для взрослых. См. /terms и /privacy."
+        ),
+        "age.denied": "Этот бот только для взрослых, поэтому для вас он закрыт. О ваших данных см. /privacy.",
+        "btn.age.yes": "✅ Да, мне есть 18",
+        "btn.age.no": "Нет",
         "btn.my_data": "📋 Мои данные",
         "btn.my_data_erase": "🗑 Удалить мои данные",
         "btn.my_data_erase_yes": "🗑 Да, удалить",
@@ -321,6 +338,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "my_data.label.orders": "Предзаказов",
         "my_data.label.mailings": "Новости магазина",
         "my_data.label.registered": "С нами с",
+        "my_data.label.age_confirmed": "Возраст 18+ подтверждён",
         "my_data.on": "включены",
         "my_data.off": "выключены",
         "my_data.orders_hint": "В каждом предзаказе также хранятся имя, телефон, адрес и комментарий, которые вы для него указали. См. /orders.",
@@ -457,7 +475,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• Din Telegram: ID-ul, numele, @username și limba.\n"
             "• De la dumneavoastră, la finalizarea precomenzii: numele pentru livrare, telefonul, orașul, adresa și comentariul la precomandă.\n"
             "• Precomenzile, coșul, favoritele și recenziile, precum și confirmarea plății pe care o trimiteți pentru un transfer MIA.\n"
-            "• Când ați folosit ultima dată botul, dacă primiți noutățile magazinului și notițele personalului despre precomenzile dumneavoastră.\n"
+            "• Când ați confirmat că aveți cel puțin 18 ani, când ați folosit ultima dată botul, dacă primiți noutățile "
+            "magazinului și notițele personalului despre precomenzile dumneavoastră.\n"
             "Nu primim niciodată datele cardului, contactele sau mesajele din celelalte conversații ale dumneavoastră.\n\n"
             "<b>De ce</b>\n"
             "Pentru a prelua, livra și susține precomenzile și pentru a vă arăta istoricul precomenzilor: sunt necesare "
@@ -481,6 +500,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• Dacă considerați că prelucrăm datele greșit, vă puteți adresa Centrului Național "
             "pentru Protecția Datelor cu Caracter Personal (datepersonale.md)."
         ),
+        "age.ask": (
+            "🔞 <b>Aveți cel puțin 18 ani?</b>\n\n"
+            "Acest bot este doar pentru adulți. Vedeți /terms și /privacy."
+        ),
+        "age.denied": "Acest bot este doar pentru adulți, de aceea rămâne închis pentru dumneavoastră. Despre datele dumneavoastră vedeți /privacy.",
+        "btn.age.yes": "✅ Da, am cel puțin 18 ani",
+        "btn.age.no": "Nu",
         "btn.my_data": "📋 Datele mele",
         "btn.my_data_erase": "🗑 Șterge datele mele",
         "btn.my_data_erase_yes": "🗑 Da, șterge",
@@ -498,6 +524,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "my_data.label.orders": "Precomenzi",
         "my_data.label.mailings": "Noutățile magazinului",
         "my_data.label.registered": "Client din",
+        "my_data.label.age_confirmed": "Vârsta 18+ confirmată la",
         "my_data.on": "activate",
         "my_data.off": "dezactivate",
         "my_data.orders_hint": "Fiecare precomandă păstrează și numele, telefonul, adresa și comentariul indicate pentru ea. Vedeți /orders.",

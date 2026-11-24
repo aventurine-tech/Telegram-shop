@@ -17,6 +17,11 @@ The owner decided that nothing is sold through the bot: a customer places a **pr
 - **Changed** `/terms` is now *Pre-order terms*: a pre-order reserves the products and is not yet a sale; the age is checked at handover.
 - **Changed** the payment clause of the terms follows the shop's settings: payment on receipt only (no `MIA_*` details: "Nothing is paid in the bot"), a MIA advance
   only, or both. An advance is returned in full if the pre-order is cancelled.
+- **Added** the **18+ question**: after choosing a language and before the menu or the catalog, a person is asked "Are you 18 or over?" (en/ru/ro). Until they answer
+  *Yes*, every message and button leads back to the question; `/terms`, `/privacy`, `/help`, `/support`, `/language` and *Delete my data* stay open. *No* saves nothing
+  and keeps the bot closed. Existing customers are asked once. It follows `ADULTS_ONLY` (on by default) and `BUSINESS_ONLY`.
+- **Added** *My data* shows the date the person confirmed their age; the privacy policy lists it among what is stored.
+- **Database** migration `a9c1e3f5b7d0`: `users.age_confirmed_at` (runs on start).
 
 ### Terms and privacy brought in line with the seller's website (2026-11-24)
 The owner asked for the two texts to be completed from <https://umbramd.com> and adjusted where needed (see D-26).
