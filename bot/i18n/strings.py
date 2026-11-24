@@ -54,7 +54,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "referral.description": (
             "📔 Реферальная система позволит Вам заработать деньги без всяких вложений. "
             "Необходимо всего лишь распространять свою реферальную ссылку и Вы будете получать "
-            "{percent}% от суммы выполненных заказов Ваших рефералов на Ваш баланс в магазине."
+            "{percent}% от суммы выполненных предзаказов Ваших рефералов на Ваш баланс в магазине."
         ),
         "btn.view_referrals": "👥 Мои рефералы",
         "btn.view_earnings": "💰 Мои поступления",
@@ -71,7 +71,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
                                "👤 Реферал: <code>{telegram_id}</code> (<a href='tg://user?id={telegram_id}'>{name}</a>)\n"
                                "🔢 Количество: {amount} {currency}\n"
                                "🕘 Дата: <code>{date}</code>\n"
-                               "💵 С заказа на {original_amount} {currency}"),
+                               "💵 С предзаказа на {original_amount} {currency}"),
 
         "all.earnings.title": "💰 Все ваши реферальные поступления:",
         "all.earnings.empty": "У вас пока нет реферальных поступлений",
@@ -81,7 +81,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "📊 Статистика реферальной системы:\n\n"
             "👥 Активных рефералов: {active_count}\n"
             "💰 Всего заработано: {total_earned} {currency}\n"
-            "📈 Общая сумма заказов рефералов: {total_original} {currency}\n"
+            "📈 Общая сумма предзаказов рефералов: {total_original} {currency}\n"
             "🔢 Количество начислений: {earnings_count}"
         ),
 
@@ -307,7 +307,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn.cart": "🛒 Корзина ({count})",
         "btn.cart_empty": "🛒 Корзина",
         "btn.add_to_cart": "🛒 В корзину",
-        "btn.cart_checkout": "💳 Оформить заказ",
+        "btn.cart_checkout": "💳 Оформить предзаказ",
         "btn.cart_clear": "🗑 Очистить корзину",
         "btn.cart_remove_item": "❌ {name}",
         "btn.cart_remove_promo": "🏷 Убрать промокод {code}",
@@ -347,7 +347,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "review.prompt_text": "Напишите текст отзыва (до 500 символов) или нажмите «Пропустить»:",
         "review.created": "✅ Спасибо за отзыв!",
         "review.already_exists": "Вы уже оставили отзыв на этот товар.",
-        "review.not_purchased": "Вы не покупали этот товар.",
+        "review.not_purchased": "Отзыв можно оставить только о полученном товаре.",
         "review.avg_rating": "⭐ Рейтинг: {rating}/5 ({count} отзывов)",
         "review.item": "⭐ {rating}/5 — {text}",
         "review.item_no_text": "⭐ {rating}/5",
@@ -421,7 +421,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "referral.description": (
             "📔 The referral system lets you earn without any investment. "
             "Share your personal link and you will receive {percent}% of your referrals’ "
-            "completed orders, credited to your store balance."
+            "completed pre-orders, credited to your store balance."
         ),
         "btn.view_referrals": "👥 My referrals",
         "btn.view_earnings": "💰 My earnings",
@@ -438,7 +438,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
                                "👤 Referral: <code>{telegram_id}</code> (<a href='tg://user?id={telegram_id}'>{name}</a>)\n"
                                "🔢 Amount: {amount} {currency}\n"
                                "🕘 Date: <code>{date}</code>\n"
-                               "💵 From an order of {original_amount} {currency}"),
+                               "💵 From a pre-order of {original_amount} {currency}"),
 
         "all.earnings.title": "💰 All your referral earnings:",
         "all.earnings.empty": "You have no referral earnings yet",
@@ -448,7 +448,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "📊 Referral system statistics:\n\n"
             "👥 Active referrals: {active_count}\n"
             "💰 Total earned: {total_earned} {currency}\n"
-            "📈 Total referral orders: {total_original} {currency}\n"
+            "📈 Total referral pre-orders: {total_original} {currency}\n"
             "🔢 Number of earnings: {earnings_count}"
         ),
 
@@ -714,7 +714,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "review.prompt_text": "Write a review (up to 500 chars) or click Skip:",
         "review.created": "✅ Thank you for your review!",
         "review.already_exists": "You already reviewed this item.",
-        "review.not_purchased": "You haven't purchased this item.",
+        "review.not_purchased": "You can review a product only after you have received it.",
         "review.avg_rating": "⭐ Rating: {rating}/5 ({count} reviews)",
         "review.item": "⭐ {rating}/5 — {text}",
         "review.item_no_text": "⭐ {rating}/5",

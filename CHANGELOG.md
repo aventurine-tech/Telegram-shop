@@ -10,6 +10,14 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### The bot takes pre-orders (2026-11-24)
+The owner decided that nothing is sold through the bot: a customer places a **pre-order**, and the sale takes place when the products are handed over (see D-27).
+- **Changed** everything a customer reads says *pre-order* instead of *order* (en/ru/ro): buttons, checkout, *My pre-orders*, notifications, the MIA screen, help and
+  support. The staff side (web panel, admin menu, staff alerts) still says *orders*.
+- **Changed** `/terms` is now *Pre-order terms*: a pre-order reserves the products and is not yet a sale; the age is checked at handover.
+- **Changed** the payment clause of the terms follows the shop's settings: payment on receipt only (no `MIA_*` details: "Nothing is paid in the bot"), a MIA advance
+  only, or both. An advance is returned in full if the pre-order is cancelled.
+
 ### Terms and privacy brought in line with the seller's website (2026-11-24)
 The owner asked for the two texts to be completed from <https://umbramd.com> and adjusted where needed (see D-26).
 - **Changed** `/terms` (en/ru/ro): the customer is asked to check the order on receipt; a product of proper quality can be returned within 14 days if unopened; a new

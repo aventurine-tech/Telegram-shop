@@ -1,4 +1,5 @@
 """What Telegram's bot rules ask for: /help, /settings, /support, the terms, the privacy policy, "my data"."""
+import re
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -129,6 +130,41 @@ class TestTexts:
         assert "datepersonale.md" in privacy and "15" in privacy and "telegram.org/privacy" in privacy
         assert "30" not in privacy
         assert [n for n in range(1, 12) if f"<b>{n}." not in terms] == []      # clauses 1 to 11, none skipped
+
+    @pytest.mark.parametrize("lang", LANGS)
+    def test_the_payment_clause_says_only_what_the_shop_offers(self, lang, env):
+        """D-27: with no MIA details nothing is paid in the bot, and the terms say so instead of naming MIA."""
+        env(SELLER_INFO="", ADULTS_ONLY="0", BUSINESS_ONLY="0", MIA_PAY_TIMEOUT_MIN=45)
+        with use_language(lang):
+            env(MIA_RECIPIENT="", MIA_PHONE="", MIA_IBAN="", COD_ENABLED="1")
+            on_receipt = terms_text()
+            env(MIA_IBAN="MD00TEST000000000000", COD_ENABLED="1")
+            both = terms_text()
+            env(COD_ENABLED="0")
+            advance = terms_text()
+        assert "MIA" not in on_receipt and "45" not in on_receipt
+        assert "MIA" in both and "45" in both and "MIA" in advance and "45" in advance
+        assert len({on_receipt, both, advance}) == 3
+        for text in (on_receipt, both, advance):
+            assert text.count("<b>3.") == 1 and "{" not in text
+
+    @pytest.mark.parametrize("lang", LANGS)
+    def test_customers_place_pre_orders_and_staff_still_see_orders(self, lang):
+        """D-27: what a customer reads says pre-order in every language; the staff side keeps its own wording."""
+        from bot.i18n.strings import TRANSLATIONS as ALL
+        word = {"en": r"[Oo]rder", "ru": r"[Зз]аказ", "ro": r"[Cc]omand|[Cc]omenz"}[lang]
+        prefix = {"en": r"[Pp]re-", "ru": r"[Пп]ред", "ro": r"[Pp]re"}[lang]
+        staff = ("web.", "admin.", "notify.admin", "twofa.", "dashboard.", "broadcast.", "mailing.")
+        left = []
+        for key, text in ALL[lang].items():
+            if key.startswith(staff):
+                continue
+            rest = re.sub(prefix + "(?:" + word + ")", "", text)
+            rest = re.sub(r"/\w+|\{\w+\}", "", rest)                   # commands and placeholders are not wording
+            if re.search(word, rest):
+                left.append(key)
+        assert left == []
+        assert re.search(word, ALL[lang]["notify.admin.new_order"])    # staff alerts were not renamed
 
     def test_the_new_keys_exist_in_every_language(self):
         keys = set(TRANSLATIONS["en"]) & {k for k in __import__(

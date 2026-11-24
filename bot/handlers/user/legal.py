@@ -1,5 +1,6 @@
 """What Telegram asks every shop bot to have (D-25): /help, /settings and /support, the terms of sale and the
-privacy policy, and a way for a customer to see and delete what the shop holds about them.
+privacy policy, and a way for a customer to see and delete what the shop holds about them. The bot takes pre-orders
+(D-27): the terms say that a pre-order reserves the products and that the sale takes place at handover.
 
 /help, /settings and /support are screens like the other ☰ commands. /terms and /privacy are different: they are
 sent as a separate message with a Close button and leave any flow in progress alone, because the checkout summary
@@ -54,10 +55,16 @@ def _seller() -> str:
     return esc(EnvKeys.SELLER_INFO.strip()) if EnvKeys.SELLER_INFO.strip() else localize("legal.seller_default")
 
 
+def _payment_clause() -> str:
+    """Clause 3 says only what the shop really offers: payment on receipt, a MIA advance, or both (D-27)."""
+    mia, on_receipt = EnvKeys.mia_enabled(), str(EnvKeys.COD_ENABLED).strip() == "1"
+    key = "legal.terms.pay_both" if mia and on_receipt else "legal.terms.pay_mia" if mia else "legal.terms.pay_cod"
+    return localize(key, minutes=EnvKeys.MIA_PAY_TIMEOUT_MIN)
+
+
 def terms_text() -> str:
     return localize("legal.terms", seller=_seller(), currency=esc(EnvKeys.PAY_CURRENCY),
-                    minutes=EnvKeys.MIA_PAY_TIMEOUT_MIN,
-                    adults=_who_can_order_clause())
+                    payment=_payment_clause(), adults=_who_can_order_clause())
 
 
 def privacy_text() -> str:
