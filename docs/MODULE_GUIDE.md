@@ -78,7 +78,8 @@ Alembic revisions (single head), the suite (`TESTING.md`), documentation.
 | Service | Does | Cadence |
 |---|---|---|
 | `recovery.RecoveryManager` | expires unpaid MIA orders (releases stock), health check, **dispatches due mailings** (claims one, runs `MailingSender`), marks interrupted mailings at startup | 60 s / 60 s / 15 s |
-| `mailing_sender.MailingSender` | batches of 25 + 1 s, placeholders, photo reuse, cancel checks, test send | per mailing |
+| `mailing_sender.MailingSender` | batches of 25 + 1 s, placeholders from client records, photo reuse, per-person log, cancel checks, test send | per mailing |
+| `send_pacer.SendPacer` | one pace for every bulk sender (~20 msg/s in total); "retry after" pauses all | shared |
 | `cleanup.CleanupManager` | retention of audit rows etc. | daily |
 | `restock_notifier` | tells subscribers when a sold-out product returns | event-driven |
 | `order_view` | order card text (customer/staff), staff alerts per language, delivery lines | on demand |

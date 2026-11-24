@@ -44,7 +44,7 @@ python -m pytest -q -p no:cacheprovider            # ~100 s, 2055 passed / 6 ski
 
 Migration check (PostgreSQL 16 in the container): `pg_ctlcluster 16 main start`; then with
 `POSTGRES_HOST=localhost POSTGRES_DB=migdb POSTGRES_USER=mig POSTGRES_PASSWORD=mig`: `alembic upgrade head` →
-`alembic downgrade -1` → `alembic upgrade head`. **Alembic head: `e7a9c1b3d5f7`** (panel two-step sign-in) ← `d6f8b0c2e4a6` (mailing opt-out, recipients) ← `c5e7a9b1d3f5` (order alert stamps) ← `b4d6f8a0c2e4` (order tracking note) ← `a9c4e2b7d1f3` (order shipping name translations) ← `f2b8d0e6a3c9` (profile details) ← `e1a7c9d5f2b8` (favorites) ← `d1f6b8c4e5a7` (shipping) ← `c9e5a7b3d4f6` (client profiles)
+`alembic downgrade -1` → `alembic upgrade head`. **Alembic head: `f8c0e2a4b6d8`** (users.unreachable_since) ← `e7a9c1b3d5f7` (panel two-step sign-in) ← `d6f8b0c2e4a6` (mailing opt-out, recipients) ← `c5e7a9b1d3f5` (order alert stamps) ← `b4d6f8a0c2e4` (order tracking note) ← `a9c4e2b7d1f3` (order shipping name translations) ← `f2b8d0e6a3c9` (profile details) ← `e1a7c9d5f2b8` (favorites) ← `d1f6b8c4e5a7` (shipping) ← `c9e5a7b3d4f6` (client profiles)
 ← `b8d4f6a2c3e5` (mailings) ← `a7c3e5f1b2d4` (product options) ← …; files in `migrations/versions/`.
 CI: `.github/workflows/tests.yml` — "Unit tests" + "Migrations on PostgreSQL".
 
@@ -86,8 +86,10 @@ Braille-blank text ("text must be non-empty") and **drops the keyboard if that m
 **Clean chat** (`CLEAN_CHAT=1`) — one screen per private chat; `outside_screen()` excludes messages that must stay; sends to
 other chats / background sends are untouched.
 
-**Mailings** — never resumed after a restart (marked *Interrupted*), batches of 25 + 1 s, placeholders resolved per
-recipient through `bot.get_chat`, picture uploaded once then reused by `file_id`, text sanitised to Telegram's tag set.
+**Mailings** — resumed after a hard restart (D-22), batches of 25 + 1 s on top of the shared `SendPacer` (~20 msg/s for all
+bulk senders; "retry after" pauses all of them), placeholders filled from the client records (no `get_chat` per person),
+people who blocked the bot are skipped (`users.unreachable_since`, D-24), one delivery-log line per person, picture
+uploaded once then reused by `file_id`, text sanitised to Telegram's tag set. The in-bot broadcast uses the same audience.
 
 **Environment** — outbound traffic goes through a proxy with an allow-list; Chromium for panel-script smoke tests is under
 `/opt/pw-browsers`; there is no Playwright Python package.

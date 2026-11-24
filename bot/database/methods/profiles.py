@@ -20,10 +20,12 @@ def _clean(value: str | None, limit: int) -> str | None:
 
 
 async def refresh_profile(user_id: int, username: str | None, first_name: str | None, last_name: str | None) -> bool:
-    """Store what Telegram says about the person and stamp ``last_seen_at``. False when there is no such user yet."""
+    """Store what Telegram says about the person and stamp ``last_seen_at``. False when there is no such user yet.
+    Someone who writes to the bot can be reached again, so ``unreachable_since`` is cleared."""
     values = {
         "username": _clean(username, USERNAME_MAX), "first_name": _clean(first_name, NAME_MAX),
         "last_name": _clean(last_name, NAME_MAX), "last_seen_at": datetime.datetime.now(datetime.timezone.utc),
+        "unreachable_since": None,
     }
     async with Database().session() as s:
         result = await s.execute(update(User).where(User.telegram_id == user_id).values(**values))

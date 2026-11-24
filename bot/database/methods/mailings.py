@@ -19,8 +19,10 @@ def _now() -> datetime.datetime:
 
 
 def _audience(segment: str):
-    """WHERE clauses for a segment (people blocked by an admin, or who opted out of mailings, are never mailed)."""
-    clauses = [or_(User.is_blocked.is_(False), User.is_blocked.is_(None)), User.mailing_optout.is_(False)]
+    """WHERE clauses for a segment. Never mailed: people blocked by an admin, people who opted out, and people Telegram
+    says cannot be reached (they blocked the bot) until they use the bot again."""
+    clauses = [or_(User.is_blocked.is_(False), User.is_blocked.is_(None)), User.mailing_optout.is_(False),
+               User.unreachable_since.is_(None)]
     if segment in (MailingSegment.LANG_RO, MailingSegment.LANG_RU, MailingSegment.LANG_EN):
         code = segment.split("_", 1)[1]
         if code == i18n_main.get_locale():      # people who never picked a language use the shop's main one
@@ -45,6 +47,35 @@ async def segment_user_ids(segment: str, retry_of: int | None = None) -> list[in
                     MailingRecipients.mailing_id == retry_of, MailingRecipients.outcome == "failed")))
         rows = await s.execute(stmt.order_by(User.telegram_id))
         return [int(r[0]) for r in rows.all()]
+
+
+async def mailable_user_ids() -> list[int]:
+    """Everyone a message to "all customers" may go to (the in-bot broadcast uses the same rules as a mailing)."""
+    return await segment_user_ids(MailingSegment.ALL)
+
+
+async def mark_unreachable(user_ids) -> int:
+    """Telegram refused these people (they blocked the bot or deleted their account): stop mailing them until they
+    come back. Returns how many were newly marked."""
+    ids = list(dict.fromkeys(int(i) for i in user_ids))
+    if not ids:
+        return 0
+    async with Database().session() as s:
+        result = await s.execute(update(User).where(User.telegram_id.in_(ids), User.unreachable_since.is_(None))
+                                 .values(unreachable_since=_now()))
+        return result.rowcount or 0
+
+
+async def recipient_profiles(user_ids) -> dict[int, dict]:
+    """{telegram_id: language, names, @username} from our own records, in one query (no Telegram call)."""
+    ids = list(dict.fromkeys(user_ids))
+    if not ids:
+        return {}
+    async with Database().session() as s:
+        rows = await s.execute(select(User.telegram_id, User.language, User.first_name, User.last_name, User.username)
+                               .where(User.telegram_id.in_(ids)))
+        return {int(r[0]): {"telegram_id": int(r[0]), "language": r[1], "first_name": r[2], "last_name": r[3],
+                            "username": r[4]} for r in rows.all()}
 
 
 async def count_segment(segment: str) -> int:
@@ -106,6 +137,15 @@ async def add_progress(mailing_id: int, sent: int, blocked: int, failed: int) ->
         await s.execute(update(Mailings).where(Mailings.id == mailing_id).values(
             sent=Mailings.sent + sent, blocked=Mailings.blocked + blocked, failed=Mailings.failed + failed))
         return (await s.execute(select(Mailings.status).where(Mailings.id == mailing_id))).scalar() or ""
+
+
+async def sync_progress_from_log(mailing_id: int) -> None:
+    """Make the counters say what the delivery log says (a mailing that resumes may have logged people whose batch
+    was never counted)."""
+    counts = await recipient_counts(mailing_id)
+    async with Database().session() as s:
+        await s.execute(update(Mailings).where(Mailings.id == mailing_id).values(
+            sent=counts["sent"], blocked=counts["blocked"], failed=counts["failed"]))
 
 
 async def mailing_status(mailing_id: int) -> str:

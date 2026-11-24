@@ -144,7 +144,7 @@ class TestBroadcastSend:
         await user_factory(telegram_id=910070)
 
         msg, _ = sending_message("Hello")
-        with patch.object(broadcast_mod, 'get_all_users',
+        with patch.object(broadcast_mod, 'mailable_user_ids',
                           new_callable=AsyncMock, side_effect=RuntimeError("db down")):
             await broadcast_messages(msg, fsm_context)
 
@@ -187,3 +187,40 @@ class TestCancelBroadcast:
         await cancel_broadcast_handler(call)
 
         call.answer.assert_called_once()
+
+
+class TestBroadcastAudience:
+    """The in-bot broadcast follows the same rules as a panel mailing."""
+
+    async def test_unsubscribed_blocked_and_unreachable_people_are_skipped(self, sending_message, fsm_context,
+                                                                          user_factory):
+        from sqlalchemy import update
+        from bot.database.main import Database
+        from bot.database.methods.mailings import mark_unreachable
+        from bot.database.models.main import User
+
+        for tid in (910101, 910102, 910103, 910104):
+            await user_factory(telegram_id=tid)
+        async with Database().session() as s:
+            await s.execute(update(User).where(User.telegram_id == 910102).values(mailing_optout=True))
+            await s.execute(update(User).where(User.telegram_id == 910103).values(is_blocked=True))
+        await mark_unreachable([910104])
+
+        msg, _ = sending_message("News")
+        await broadcast_messages(msg, fsm_context)
+
+        recipients = {c.kwargs["chat_id"] for c in msg.bot.send_message.await_args_list}
+        assert recipients == {910101}
+
+    async def test_every_message_carries_unsubscribe_in_the_readers_language(self, sending_message, fsm_context,
+                                                                           user_factory):
+        await user_factory(telegram_id=910111, language="ro")
+        await user_factory(telegram_id=910112, language="ru")
+
+        msg, _ = sending_message("News")
+        await broadcast_messages(msg, fsm_context)
+
+        buttons = {c.kwargs["chat_id"]: c.kwargs["reply_markup"].inline_keyboard[0][0]
+                   for c in msg.bot.send_message.await_args_list}
+        assert {b.callback_data for b in buttons.values()} == {"mailing_optout"}
+        assert buttons[910111].text != buttons[910112].text

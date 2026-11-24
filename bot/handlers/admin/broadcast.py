@@ -8,13 +8,15 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 from bot.i18n import localize
 from bot.database.models import Permission
-from bot.database.methods import get_all_users
-from bot.keyboards import back, close, simple_buttons
+from bot.database.methods.mailings import mailable_user_ids
+from bot.database.methods.read import get_user_languages
+from bot.keyboards import back, simple_buttons
 from bot.database.methods.audit import log_audit
 from bot.filters import HasPermissionFilter
 from bot.handlers.other import caller_name
 from bot.misc import BroadcastMessage, sanitize_html
 from bot.misc.services import BroadcastManager, BroadcastStats
+from bot.misc.services.mailing_sender import unsubscribe_markup
 from bot.states import BroadcastFSM
 
 router = Router()
@@ -61,8 +63,9 @@ async def broadcast_messages(message: Message, state: FSMContext):
         # Sanitize HTML if needed
         safe_text = sanitize_html(broadcast_msg.text) if broadcast_msg.parse_mode == "HTML" else broadcast_msg.text
 
-        users = await get_all_users()
-        user_ids = [int(row[0]) for row in users]
+        # Same audience rules as a panel mailing: nobody who unsubscribed, was blocked by staff, or blocked the bot.
+        user_ids = await mailable_user_ids()
+        languages = await get_user_languages(user_ids)
 
         await message.delete()
 
@@ -96,7 +99,7 @@ async def broadcast_messages(message: Message, state: FSMContext):
         stats = await manager.broadcast(
             user_ids=user_ids,
             text=safe_text,
-            reply_markup=close(),
+            reply_markup=lambda uid: unsubscribe_markup(languages.get(uid)),   # every mass message carries a way out
             parse_mode=str(broadcast_msg.parse_mode),
             progress_callback=update_progress
         )

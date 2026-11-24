@@ -163,6 +163,16 @@ async def db_cleanup(setup_test_database):
 
 
 @pytest.fixture(autouse=True)
+def unpaced_bulk_sends(monkeypatch):
+    """The shared send pacer spaces real messages out; tests send at once and start with no pause pending."""
+    from bot.misc.services.send_pacer import shared_pacer
+    pacer = shared_pacer()
+    monkeypatch.setattr(pacer, "interval", 0.0)
+    monkeypatch.setattr(pacer, "_next", 0.0)
+    monkeypatch.setattr(pacer, "_paused_until", 0.0)
+
+
+@pytest.fixture(autouse=True)
 def fake_cache():
     """Provide a FakeCacheManager and patch get_cache_manager everywhere."""
     cache = FakeCacheManager()

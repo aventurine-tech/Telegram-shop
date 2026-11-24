@@ -485,7 +485,7 @@ TRANSLATIONS = {
         "web.mailing.delivered": "{sent} out of {total}",
         "web.mailing.segment_option": "{label} ({count})",
         "web.mailing.title_hint": "For you only; customers never see it.",
-        "web.mailing.segment_hint": "Who receives the message. People who blocked the bot are skipped; the number is how many would get it now.",
+        "web.mailing.segment_hint": "Who receives the message. People who unsubscribed or blocked the bot are skipped; the number is how many would get it now.",
         "web.mailing.text_hint": "Placeholders are replaced for every person; {first_name|friend} uses \"friend\" when the name is unknown.",
         "web.mailing.image_hint": "JPEG, PNG or WEBP, up to 10 MB. With a picture the text is its caption (up to 1024 characters); a longer text follows as a second message.",
         "web.mailing.editor.caption_overflow": "sent as a separate message after the picture",
@@ -549,6 +549,7 @@ TRANSLATIONS = {
         "web.mailing.outcome.blocked": "Blocked the bot",
         "web.mailing.outcome.failed": "Failed",
         "web.col.mailing_optout": "No mailings",
+        "web.col.unreachable_since": "Blocked the bot since",
 
         # === Help page ===
         "web.help.title": "Telegram Shop — Admin Panel",
@@ -1075,7 +1076,7 @@ TRANSLATIONS = {
         "web.mailing.delivered": "{sent} из {total}",
         "web.mailing.segment_option": "{label} ({count})",
         "web.mailing.title_hint": "Только для вас; клиенты его не видят.",
-        "web.mailing.segment_hint": "Кто получит сообщение. Заблокировавшие бота пропускаются; в скобках — сколько получили бы сейчас.",
+        "web.mailing.segment_hint": "Кто получит сообщение. Отписавшиеся и заблокировавшие бота пропускаются; в скобках — сколько получили бы сейчас.",
         "web.mailing.text_hint": "Переменные подставляются для каждого получателя; {first_name|friend} подставит «friend», если имя неизвестно.",
         "web.mailing.image_hint": "JPEG, PNG или WEBP до 10 МБ. С картинкой текст — это подпись (до 1024 символов); более длинный текст уйдёт вторым сообщением.",
         "web.mailing.remove_image": "Удалить текущую картинку",
@@ -1138,6 +1139,7 @@ TRANSLATIONS = {
         "web.mailing.outcome.blocked": "Заблокировал бота",
         "web.mailing.outcome.failed": "Ошибка",
         "web.col.mailing_optout": "Без рассылок",
+        "web.col.unreachable_since": "Заблокировал бота с",
         "web.mailing.editor.caption_overflow": "уйдёт отдельным сообщением после картинки",
 
 
