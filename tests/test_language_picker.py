@@ -17,6 +17,14 @@ from bot.keyboards.inline import language_keyboard, profile_keyboard
 from bot.middleware.language import LanguageMiddleware
 
 
+@pytest.fixture(autouse=True)
+def no_age_question(monkeypatch):
+    """These tests are about the language and the menu; the 18+ question (D-27) has its own in test_age_gate.py."""
+    from bot.misc import EnvKeys
+    monkeypatch.setattr(EnvKeys, "ADULTS_ONLY", "0", raising=False)
+    monkeypatch.setattr(EnvKeys, "BUSINESS_ONLY", "0", raising=False)
+
+
 def _buttons(markup):
     return [(b.text, b.callback_data) for row in markup.inline_keyboard for b in row]
 

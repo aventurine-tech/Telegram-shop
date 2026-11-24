@@ -49,8 +49,9 @@ routers: `language` → `commands` → `legal` → `bottom_nav` → `admin` → 
 |---|---|
 | `user/main.py` | `/start`, welcome line, profile, referral entry, registration |
 | `user/bottom_nav.py` | the persistent keyboard actions |
-| `user/legal.py` | `/help`, `/settings`, `/support`, `/terms`, `/privacy`, *My data* / *Delete my data* (D-25) |
+| `user/legal.py` | `/help`, `/settings`, `/support`, `/terms`, `/privacy`, *My data* / *Delete my data* (D-25); the 18+ and trade-only clauses (D-26) |
 | `user/shop_and_goods.py`, `cart.py`, `checkout.py` | catalog, cart, checkout FSM (fulfilment → name → phone → address → **shipping** → comment → payment → summary), MIA "I've paid" |
+| `user/age_gate.py` | the 18+ question asked after the language and before the menu; what stays open before the answer (D-27) |
 | `user/language.py`, `referral_system.py`, `_screen.py` | language picker, referrals, screen helpers |
 | `admin/*` | staff flows in chat: orders, goods + options, categories, translations, promo, sales, roles, users, shop settings, broadcast (text) |
 | `other.py` | misc commands/fallbacks (stale buttons) |

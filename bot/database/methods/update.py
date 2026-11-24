@@ -1,3 +1,5 @@
+import datetime
+
 from sqlalchemy import exc, select, update
 
 from bot.database.methods.read import invalidate_user_cache, invalidate_item_cache, \
@@ -156,6 +158,19 @@ async def set_user_language(telegram_id: int, language: str) -> bool:
         if not user:
             return False
         user.language = language
+
+    safe_create_task(invalidate_user_cache(telegram_id))
+    return True
+
+
+async def set_age_confirmed(telegram_id: int) -> bool:
+    """Remember that the person confirmed they are 18 or over (D-27). False for an unknown user."""
+    async with Database().session() as s:
+        user = (await s.execute(select(User).where(User.telegram_id == telegram_id))).scalars().first()
+        if not user:
+            return False
+        if user.age_confirmed_at is None:           # the first answer is the one that is kept
+            user.age_confirmed_at = datetime.datetime.now(datetime.timezone.utc)
 
     safe_create_task(invalidate_user_cache(telegram_id))
     return True

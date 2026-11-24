@@ -105,6 +105,12 @@ async def choose_language(call: CallbackQuery, state: FSMContext):
     with use_language(code):
         await call.answer(localize("language.changed", language=_LABELS[code]))
         await state.clear()
+        from bot.handlers.user.age_gate import ask_age, needs_age     # imported here: age_gate imports this package
+        if await needs_age(user_id):
+            # The 18+ question comes right after the language, before any menu (D-27).
+            await _delete_quietly(call.message)
+            await ask_age(call.message)
+            return
         if had_language and payload is None:
             # Changed from the profile. The reply keyboard keeps its old labels until a message replaces it, and
             # that message (the welcome line) must stay above the menu: remove the picker, send the welcome line,

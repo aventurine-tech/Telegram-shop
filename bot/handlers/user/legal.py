@@ -1,5 +1,6 @@
 """What Telegram asks every shop bot to have (D-25): /help, /settings and /support, the terms of sale and the
-privacy policy, and a way for a customer to see and delete what the shop holds about them.
+privacy policy, and a way for a customer to see and delete what the shop holds about them. The bot takes pre-orders
+(D-27): the terms say that a pre-order reserves the products and that the sale takes place at handover.
 
 /help, /settings and /support are screens like the other ☰ commands. /terms and /privacy are different: they are
 sent as a separate message with a Close button and leave any flow in progress alone, because the checkout summary
@@ -31,18 +32,39 @@ router.message.filter(F.chat.type == ChatType.PRIVATE)
 
 # --- texts -----------------------------------------------------------------------------------------------------------
 
+def _on(value) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
 def adults_only() -> bool:
-    return str(EnvKeys.ADULTS_ONLY).strip().lower() in ("1", "true", "yes", "on")
+    return _on(EnvKeys.ADULTS_ONLY)
+
+
+def business_only() -> bool:
+    """Trade customers only (D-26). It includes the 18+ rule, so it wins over ADULTS_ONLY."""
+    return _on(EnvKeys.BUSINESS_ONLY)
+
+
+def _who_can_order_clause() -> str:
+    if business_only():
+        return localize("legal.terms.business")
+    return localize("legal.terms.adults") if adults_only() else ""
 
 
 def _seller() -> str:
     return esc(EnvKeys.SELLER_INFO.strip()) if EnvKeys.SELLER_INFO.strip() else localize("legal.seller_default")
 
 
+def _payment_clause() -> str:
+    """Clause 3 says only what the shop really offers: payment on receipt, a MIA advance, or both (D-27)."""
+    mia, on_receipt = EnvKeys.mia_enabled(), str(EnvKeys.COD_ENABLED).strip() == "1"
+    key = "legal.terms.pay_both" if mia and on_receipt else "legal.terms.pay_mia" if mia else "legal.terms.pay_cod"
+    return localize(key, minutes=EnvKeys.MIA_PAY_TIMEOUT_MIN)
+
+
 def terms_text() -> str:
     return localize("legal.terms", seller=_seller(), currency=esc(EnvKeys.PAY_CURRENCY),
-                    minutes=EnvKeys.MIA_PAY_TIMEOUT_MIN,
-                    adults=localize("legal.terms.adults") if adults_only() else "")
+                    payment=_payment_clause(), adults=_who_can_order_clause())
 
 
 def privacy_text() -> str:
@@ -51,6 +73,8 @@ def privacy_text() -> str:
 
 def agreement_line() -> str:
     """The last line of the checkout summary: pressing Confirm is the customer's agreement."""
+    if business_only():
+        return localize("checkout.summary.agree_business")
     return localize("checkout.summary.agree_adults" if adults_only() else "checkout.summary.agree")
 
 
@@ -196,6 +220,7 @@ async def my_data_text(user_id: int) -> str | None:
     if not user:
         return None
     registered = user.get("registration_date")
+    age_confirmed = user.get("age_confirmed_at")
     values = [
         ("id", str(user_id)),
         ("first_name", user.get("first_name")),
@@ -209,6 +234,7 @@ async def my_data_text(user_id: int) -> str | None:
         ("orders", str(await select_user_items(user_id))),
         ("mailings", localize("my_data.off" if user.get("mailing_optout") else "my_data.on")),
         ("registered", registered.strftime("%Y-%m-%d") if hasattr(registered, "strftime") else None),
+        ("age_confirmed", age_confirmed.strftime("%Y-%m-%d") if hasattr(age_confirmed, "strftime") else None),
     ]
     lines = [localize("my_data.title"), ""]
     lines += [localize("my_data.line", label=localize(f"my_data.label.{key}"), value=esc(str(value)))

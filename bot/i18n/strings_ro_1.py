@@ -51,7 +51,7 @@ TRANSLATIONS = {"ro": {
     "referral.description": (
         "📔 Sistemul de referire vă permite să câștigați fără nicio investiție. "
         "Distribuiți link-ul dumneavoastră personal și veți primi {percent}% din valoarea "
-        "comenzilor finalizate ale referiților dumneavoastră, creditat în soldul magazinului."
+        "precomenzilor finalizate ale referiților dumneavoastră, creditat în soldul magazinului."
     ),
     "btn.view_referrals": "👥 Referiții mei",
     "btn.view_earnings": "💰 Câștigurile mele",
@@ -68,7 +68,7 @@ TRANSLATIONS = {"ro": {
                            "👤 Referit: <code>{telegram_id}</code> (<a href='tg://user?id={telegram_id}'>{name}</a>)\n"
                            "🔢 Sumă: {amount} {currency}\n"
                            "🕘 Data: <code>{date}</code>\n"
-                           "💵 Dintr-o comandă de {original_amount} {currency}"),
+                           "💵 Dintr-o precomandă de {original_amount} {currency}"),
 
     "all.earnings.title": "💰 Toate câștigurile dumneavoastră din referiri:",
     "all.earnings.empty": "Nu aveți încă câștiguri din referiri",
@@ -78,7 +78,7 @@ TRANSLATIONS = {"ro": {
         "📊 Statistici ale sistemului de referire:\n\n"
         "👥 Referiți activi: {active_count}\n"
         "💰 Total câștigat: {total_earned} {currency}\n"
-        "📈 Total comenzi ale referiților: {total_original} {currency}\n"
+        "📈 Total precomenzi ale referiților: {total_original} {currency}\n"
         "🔢 Număr de câștiguri: {earnings_count}"
     ),
 

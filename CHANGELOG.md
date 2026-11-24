@@ -10,6 +10,31 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### The bot takes pre-orders (2026-11-24)
+The owner decided that nothing is sold through the bot: a customer places a **pre-order**, and the sale takes place when the products are handed over (see D-27).
+- **Changed** everything a customer reads says *pre-order* instead of *order* (en/ru/ro): buttons, checkout, *My pre-orders*, notifications, the MIA screen, help and
+  support. The staff side (web panel, admin menu, staff alerts) still says *orders*.
+- **Changed** `/terms` is now *Pre-order terms*: a pre-order reserves the products and is not yet a sale; the age is checked at handover.
+- **Changed** the payment clause of the terms follows the shop's settings: payment on receipt only (no `MIA_*` details: "Nothing is paid in the bot"), a MIA advance
+  only, or both. An advance is returned in full if the pre-order is cancelled.
+- **Added** the **18+ question**: after choosing a language and before the menu or the catalog, a person is asked "Are you 18 or over?" (en/ru/ro). Until they answer
+  *Yes*, every message and button leads back to the question; `/terms`, `/privacy`, `/help`, `/support`, `/language` and *Delete my data* stay open. *No* saves nothing
+  and keeps the bot closed. Existing customers are asked once. It follows `ADULTS_ONLY` (on by default) and `BUSINESS_ONLY`.
+- **Added** *My data* shows the date the person confirmed their age; the privacy policy lists it among what is stored.
+- **Database** migration `a9c1e3f5b7d0`: `users.age_confirmed_at` (runs on start).
+
+### Terms and privacy brought in line with the seller's website (2026-11-24)
+The owner asked for the two texts to be completed from <https://umbramd.com> and adjusted where needed (see D-26).
+- **Changed** `/terms` (en/ru/ro): the customer is asked to check the order on receipt; a product of proper quality can be returned within 14 days if unopened; a new
+  clause *Law and disputes* (law of the Republic of Moldova, complaints answered within 15 calendar days as the seller's website promises, the competent Moldovan court,
+  the Agency for Consumer Protection and Market Surveillance). *Changes* is now clause 11 and the closing clause is 12.
+- **Changed** `/privacy` (en/ru/ro): names Moldovan data protection law, says why each kind of data is needed, who else touches it (authorised staff, the delivery
+  service, the hosting provider, Telegram, state bodies when the law requires), how to correct details, that requests are answered within 15 calendar days (was 30) and
+  that a complaint can go to the National Center for Personal Data Protection.
+- **Changed** `ADULTS_ONLY` is now **on by default**: the 18+ clause and the age confirmation in the checkout line appear unless `.env` says `ADULTS_ONLY=0`.
+- **Added** optional `BUSINESS_ONLY=1` (`.env.example`): the closing clause and the checkout line say the shop is only for trade businesses under Law 278/2007
+  art. 21(2), acting through adult representatives, which is the wording of the seller's website. Off by default: it is the owner's statement of who orders here.
+
 ### What Telegram's bot rules ask a shop for (2026-11-24)
 The bot was checked against Telegram's bot pages and the Bot Developer Terms (see D-25).
 - **Added** `/help` (what the bot does and every command), `/settings` (language, shop news on/off, privacy) and `/support` (a button to the support account, or the

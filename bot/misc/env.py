@@ -92,8 +92,12 @@ class EnvKeys(ABC):
     # Who the shop is, as named in /terms and /privacy (legal name, registration number, city). Empty: "the shop
     # that runs this bot".
     SELLER_INFO: Final = _get_optional("SELLER_INFO", "")
-    # "1": the terms get an 18+ clause and the checkout summary asks the customer to confirm their age.
-    ADULTS_ONLY: Final = _get_optional("ADULTS_ONLY", "0")
+    # "1" (default, D-26): the terms get an 18+ clause and the checkout summary asks the customer to confirm their
+    # age. "0": off, for a shop whose whole catalog may be sold to anyone.
+    ADULTS_ONLY: Final = _get_optional("ADULTS_ONLY", "1")
+    # "1": the shop sells only to trade businesses (the wording of the seller's own website, Law 278/2007 art. 21(2)).
+    # The last clause of the terms and the checkout line say so; it includes the 18+ confirmation.
+    BUSINESS_ONLY: Final = _get_optional("BUSINESS_ONLY", "0")
 
     # Locale & logs (BOT_LOCALE = default language: for people who have not picked one and for system text)
     BOT_LOCALE: Final = _get_optional("BOT_LOCALE", "ru")
