@@ -359,6 +359,7 @@ class TestSummary:
         assert (await fsm_context.get_data())["co_total"] == "80.00"     # stale 999 replaced by the live cart
         assert "Mug" in text
         assert "Ana &lt;b&gt;" in text and "Ring &lt;twice&gt;" in text   # user text escaped
+        assert "/terms" in text and "/privacy" in text                     # confirming = agreeing to the terms
         assert "Str 1" in text
         assert {"co_confirm", "co_to_payment", "co_cancel"} <= set(_cbs(call.message))
 

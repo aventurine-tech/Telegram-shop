@@ -10,6 +10,18 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### What Telegram's bot rules ask a shop for (2026-11-24)
+The bot was checked against Telegram's bot pages and the Bot Developer Terms (see D-25).
+- **Added** `/help` (what the bot does and every command), `/settings` (language, shop news on/off, privacy) and `/support` (a button to the support account, or the
+  owner when `HELPER_ID` is empty, with the note that Telegram cannot help with purchases); all five new commands are in the ☰ menu (en/ru/ro).
+- **Added** `/terms` (terms of sale) and `/privacy` (privacy policy), drafted in en/ru/ro from what the bot really stores and does. They open as a separate message with
+  *Close*, so reading them in the middle of a checkout does not cancel it.
+- **Added** under the privacy policy: **My data** (what the profile holds about the person) and **Delete my data** (asks first, then erases at once with the same rules
+  as the panel's *Erase personal data*; refused while an order is in progress).
+- **Changed** the checkout summary ends with "By confirming you accept the Terms of sale (/terms) and the Privacy policy (/privacy)".
+- **Added** two optional settings (`.env.example`): `SELLER_INFO` (who the shop is, named in both texts) and `ADULTS_ONLY=1` (an 18+ clause in the terms and an age
+  confirmation in the checkout line).
+
 ### Mass messages: fewer reasons for spam reports and flood limits (2026-11-24)
 After Telegram blocked the bot again, the way the bot sends mass messages was audited (see D-24).
 - **Fixed** the broadcast in the bot's admin menu wrote to **every** user: it now follows the same rules as a panel mailing (nobody who unsubscribed, was blocked by staff,

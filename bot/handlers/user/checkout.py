@@ -16,6 +16,7 @@ from bot.database.methods.read import check_user
 from bot.database.methods.shipping import active_methods, delivery_fee, get_active_method
 from bot.database.models.main import Fulfillment, PaymentMethod, PaymentStatus, OrderStatus
 from bot.handlers.user.cart import _cart_view_data, _show_cart
+from bot.handlers.user.legal import agreement_line
 from bot.keyboards.inline import (
     checkout_fulfillment_keyboard, checkout_shipping_keyboard, checkout_name_keyboard, checkout_address_keyboard, checkout_cancel_keyboard, checkout_comment_keyboard,
     checkout_payment_keyboard, checkout_confirm_keyboard, mia_keyboard, simple_buttons, back,
@@ -250,6 +251,8 @@ async def _ask_summary(msg: Message, state: FSMContext, user_id: int, edit: bool
         lines.append(localize("order.line.comment", comment=esc(data["co_comment"])))
     if data["co_ful"] == Fulfillment.PICKUP and EnvKeys.PICKUP_ADDRESS:
         lines.append(localize("checkout.pickup_info", address=esc(EnvKeys.PICKUP_ADDRESS)))
+    # Pressing Confirm is the customer's agreement to the terms (Telegram asks for it before a purchase, D-25).
+    lines += ["", f"<i>{agreement_line()}</i>"]
 
     await state.update_data(co_total=str(total))
     await state.set_state(CheckoutFSM.confirming)

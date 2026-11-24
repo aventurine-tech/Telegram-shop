@@ -32,6 +32,7 @@ the owner is testing the deployed bot and reporting issues from screenshots.
 3. Deploy the latest code: `git pull && docker compose up -d --build`, then `/start` (migrations run on start).
 4. Promote `development` → `main` when satisfied (manual, owner only).
 5. Priorities for the next phase — see `ROADMAP.md` Phase 4–6 (customer groups, unsubscribe, …).
+6. **Telegram rules (D-24, D-25):** decide what to do about the catalog (the Bot Developer Terms forbid bots that sell regulated goods such as tobacco); set `SELLER_INFO` (and `ADULTS_ONLY=1` if wanted) in the server `.env`; read and confirm the `/terms` and `/privacy` drafts; put the database on an encrypted disk.
 
 ## Known limitations / risks
 - **Welcome line.** Telegram needs a message to hold the reply keyboard, so one short welcome line always stays at the top of the chat.

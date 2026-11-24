@@ -47,6 +47,8 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 - [ ] Redis enabled with a password if you run more than one worker; database not exposed to the internet.
 - [ ] Regular PostgreSQL backups (`scripts/backup_db.sh` + cron, copied off the machine, restore practised — `docs/BACKUP_AND_RESTORE.md`); log rotation; disk alerts.
 - [ ] Staff accounts: Staff level unless Admin is needed; remove accounts of people who left.
+- [ ] Customer data encrypted at rest: put the PostgreSQL volume and the backups on an encrypted disk (Telegram's Bot Developer Terms 4.4 require it; the application does not encrypt the database itself).
+- [ ] `SELLER_INFO` set, and the `/terms` and `/privacy` texts read and confirmed by the owner (D-25).
 - [ ] Set real `MIA_*` details only on the server `.env`; verify transfers manually before confirming.
 
 ## 6. Known gaps / roadmap

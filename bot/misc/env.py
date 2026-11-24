@@ -89,6 +89,11 @@ class EnvKeys(ABC):
     CHANNEL_ID: Final = _get_optional("CHANNEL_ID", "")
     HELPER_ID: Final = _get_optional("HELPER_ID", "")
     RULES: Final = _get_optional("RULES", "")
+    # Who the shop is, as named in /terms and /privacy (legal name, registration number, city). Empty: "the shop
+    # that runs this bot".
+    SELLER_INFO: Final = _get_optional("SELLER_INFO", "")
+    # "1": the terms get an 18+ clause and the checkout summary asks the customer to confirm their age.
+    ADULTS_ONLY: Final = _get_optional("ADULTS_ONLY", "0")
 
     # Locale & logs (BOT_LOCALE = default language: for people who have not picked one and for system text)
     BOT_LOCALE: Final = _get_optional("BOT_LOCALE", "ru")
