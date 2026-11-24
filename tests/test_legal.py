@@ -64,15 +64,18 @@ class TestTexts:
 
     @pytest.mark.parametrize("lang", LANGS)
     def test_every_text_fits_one_telegram_message(self, lang, env):
-        env(SELLER_INFO="SRL Exemplu Comerț, IDNO 1000000000000, mun. Chișinău, str. Exemplu 1", ADULTS_ONLY="1")
-        with use_language(lang):
-            for text in (terms_text(), privacy_text(), legal.help_text()):
-                assert 0 < len(text) < 4096
-                assert "{" not in text and "}" not in text          # every placeholder was filled
+        seller = "SRL Exemplu Comerț, IDNO 1000000000000, mun. Chișinău, sec. Exemplu, str. Exemplu 1"
+        for switches in ({"ADULTS_ONLY": "1", "BUSINESS_ONLY": "0"}, {"ADULTS_ONLY": "1", "BUSINESS_ONLY": "1"}):
+            env(SELLER_INFO=seller, **switches)
+            with use_language(lang):
+                for text in (terms_text(), privacy_text(), legal.help_text()):
+                    assert 0 < len(text) < 4096
+                    assert "{" not in text and "}" not in text          # every placeholder was filled
 
     @pytest.mark.parametrize("lang", LANGS)
     def test_terms_name_the_seller_the_currency_and_the_payment_time(self, lang, env):
-        env(SELLER_INFO="SRL Test <Shop>", PAY_CURRENCY="MDL", MIA_PAY_TIMEOUT_MIN=45, ADULTS_ONLY="0")
+        env(SELLER_INFO="SRL Test <Shop>", PAY_CURRENCY="MDL", MIA_PAY_TIMEOUT_MIN=45, ADULTS_ONLY="0",
+            BUSINESS_ONLY="0")
         with use_language(lang):
             text = terms_text()
         assert "SRL Test &lt;Shop&gt;" in text and "MDL" in text and "45" in text
@@ -87,13 +90,45 @@ class TestTexts:
     @pytest.mark.parametrize("lang", LANGS)
     def test_the_adults_clause_and_the_checkout_line_follow_the_switch(self, lang, env):
         with use_language(lang):
-            env(ADULTS_ONLY="0")
+            env(ADULTS_ONLY="0", BUSINESS_ONLY="0")
             plain_terms, plain_line = terms_text(), agreement_line()
             env(ADULTS_ONLY="1")
             adult_terms, adult_line = terms_text(), agreement_line()
         assert "18" not in plain_terms and "18" not in plain_line
         assert "18" in adult_terms and "18" in adult_line
         assert "/terms" in plain_line and "/privacy" in adult_line
+
+    def test_a_shop_is_for_adults_unless_the_owner_says_otherwise(self):
+        """D-26: the 18+ clause is on by default, the trade-only clause is the owner's choice."""
+        import inspect
+        source = inspect.getsource(legal.EnvKeys)
+        assert '_get_optional("ADULTS_ONLY", "1")' in source and '_get_optional("BUSINESS_ONLY", "0")' in source
+
+    @pytest.mark.parametrize("lang", LANGS)
+    def test_a_trade_only_shop_says_so_in_the_terms_and_at_checkout(self, lang, env):
+        """BUSINESS_ONLY replaces the 18+ clause with the trade-only one (which still asks for 18+)."""
+        with use_language(lang):
+            env(ADULTS_ONLY="1", BUSINESS_ONLY="0")
+            adult_terms, adult_line = terms_text(), agreement_line()
+            for adults in ("1", "0"):                   # trade-only includes 18+, whatever ADULTS_ONLY says
+                env(ADULTS_ONLY=adults, BUSINESS_ONLY="1")
+                trade_terms, trade_line = terms_text(), agreement_line()
+                assert "278/2007" in trade_terms and "18" in trade_terms and "18" in trade_line
+                assert trade_terms != adult_terms and trade_line != adult_line
+                assert trade_terms.count("<b>12.") == 1          # one closing clause, never both
+                assert "/terms" in trade_line and "/privacy" in trade_line
+        assert "278/2007" not in adult_terms
+
+    @pytest.mark.parametrize("lang", LANGS)
+    def test_the_texts_say_where_to_complain_and_how_fast_the_shop_answers(self, lang, env):
+        """D-26: Moldovan law, a 15-day answer, the consumer agency and the data protection authority."""
+        env(SELLER_INFO="", ADULTS_ONLY="0", BUSINESS_ONLY="0")
+        with use_language(lang):
+            terms, privacy = terms_text(), privacy_text()
+        assert "consumator.gov.md" in terms and "15" in terms and "14" in terms
+        assert "datepersonale.md" in privacy and "15" in privacy and "telegram.org/privacy" in privacy
+        assert "30" not in privacy
+        assert [n for n in range(1, 12) if f"<b>{n}." not in terms] == []      # clauses 1 to 11, none skipped
 
     def test_the_new_keys_exist_in_every_language(self):
         keys = set(TRANSLATIONS["en"]) & {k for k in __import__(

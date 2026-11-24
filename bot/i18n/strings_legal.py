@@ -1,6 +1,7 @@
 """Help, settings, support, terms of sale and the privacy policy (Telegram's bot rules ask for all of them, D-25).
 
-The terms and the policy are the shop's own texts: `{seller}` comes from SELLER_INFO, the 18+ clause from ADULTS_ONLY.
+The terms and the policy are the shop's own texts: `{seller}` comes from SELLER_INFO, the last clause of the terms
+from ADULTS_ONLY (18+) or BUSINESS_ONLY (trade customers only, the wording of the shop's own website, D-26).
 Each must stay under Telegram's 4096-character message limit in every language.
 """
 
@@ -48,10 +49,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "when you receive the order. A MIA order that is not paid within {minutes} minutes is cancelled "
             "automatically. The bot never asks for card details.\n\n"
             "<b>4. Delivery.</b> Delivery methods, their prices and the pickup address are shown at checkout. "
-            "Delivery times are estimates.\n\n"
-            "<b>5. Problems with an order.</b> If a product arrives damaged or is not what you ordered, write to "
-            "/support with the order number. We replace it or return your money. These terms do not limit "
-            "your rights under consumer protection law.\n\n"
+            "Delivery times are estimates. Please check the order when you receive it.\n\n"
+            "<b>5. Problems and returns.</b> If a product arrives damaged or is not what you ordered, write to "
+            "/support with the order number. We replace it or return your money. A product of proper quality "
+            "can be returned within 14 days if it is unopened and in its original packaging, unless the law "
+            "excludes it from returns. These terms do not limit your rights under consumer protection law.\n\n"
             "<b>6. Balance and promo codes.</b> Shop balance can be spent only on orders in this shop "
             "and cannot be paid out in cash.\n\n"
             "<b>7. Messages.</b> The bot writes to you about your orders. Shop news can be turned off at any time "
@@ -59,16 +61,28 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<b>8. Support.</b> Use /support. Telegram support and @BotSupport cannot help with purchases "
             "made in this bot.\n\n"
             "<b>9. Your data.</b> See /privacy.\n\n"
-            "<b>10. Changes.</b> We may update these terms. The version shown here applies to new orders."
+            "<b>10. Law and disputes.</b> These terms follow the law of the Republic of Moldova. Send any "
+            "complaint to /support: we answer within 15 calendar days. A dispute we cannot settle together goes to "
+            "the competent court of the Republic of Moldova. You can also turn to the Agency for Consumer "
+            "Protection and Market Surveillance (consumator.gov.md).\n\n"
+            "<b>11. Changes.</b> We may update these terms. The version shown here applies to new orders."
             "{adults}"
         ),
         "legal.terms.adults": (
-            "\n\n<b>11. Adults only.</b> This shop sells only to people aged 18 or over. By placing an order "
-            "you confirm that you are. We may ask for proof of age on delivery."
+            "\n\n<b>12. Adults only.</b> This shop sells only to people aged 18 or over. By placing an order "
+            "you confirm that you are. We may ask for proof of age on delivery and not hand over the order without it."
+        ),
+        "legal.terms.business": (
+            "\n\n<b>12. Who can order.</b> This shop is intended only for businesses that, under art. 21(2) of "
+            "the Tobacco Control Law of the Republic of Moldova no. 278/2007, make, import or sell tobacco products, "
+            "related products and accessories for their use, acting through representatives aged 18 or over. "
+            "By placing an order you confirm that you are such a representative. We may ask for proof on delivery "
+            "and not hand over the order without it."
         ),
         "legal.privacy": (
             "🔒 <b>Privacy policy</b>\n\n"
-            "Your data in this bot is handled by {seller}.\n\n"
+            "Your data in this bot is handled by {seller}, under the personal data protection law "
+            "of the Republic of Moldova.\n\n"
             "<b>What we store</b>\n"
             "• From Telegram: your ID, name, @username and language.\n"
             "• From you at checkout: the name for delivery, phone, city, address and order comment.\n"
@@ -76,19 +90,25 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• When you last used the bot, whether you receive shop news, and notes our staff make about your orders.\n"
             "We never receive your card details, your contacts or messages from your other chats.\n\n"
             "<b>Why</b>\n"
-            "To take, deliver and support your orders, to show you your order history, and to send shop news "
-            "if you have not turned it off.\n\n"
+            "To take, deliver and support your orders and to show you your order history: we need it to carry "
+            "out the order you place. Shop news is sent only while you have not turned it off.\n\n"
             "<b>Who sees it</b>\n"
-            "The shop's staff. The delivery service gets the name, phone and address needed for your delivery. "
-            "We do not sell your data and give it to nobody else unless the law requires it.\n\n"
+            "The shop's authorised staff. The delivery service gets the name, phone and address needed for your "
+            "delivery. The data is kept on the server the bot runs on, which may belong to a hosting provider "
+            "working for us. Messages travel through Telegram, which has its own privacy policy "
+            "(telegram.org/privacy). We do not sell your data and give it to nobody else, except to state bodies "
+            "when the law requires it.\n\n"
             "<b>How long</b>\n"
             "While you use the shop. Order records are kept for as long as accounting and tax law require.\n\n"
             "<b>Your choices</b>\n"
             "• <b>My data</b> below shows what we hold about you.\n"
             "• <b>Delete my data</b> below removes your name, phone and address. "
             "Order amounts and dates stay, without them.\n"
+            "• To correct your details, enter new ones at your next order or write to /support.\n"
             "• Turn shop news off in /settings.\n"
-            "• For anything else write to /support. We answer within 30 days."
+            "• For anything else write to /support. We answer within 15 calendar days.\n"
+            "• If you think we handle your data wrongly, you can complain to the National Center "
+            "for Personal Data Protection (datepersonale.md)."
         ),
         "btn.my_data": "📋 My data",
         "btn.my_data_erase": "🗑 Delete my data",
@@ -131,6 +151,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "checkout.summary.agree_adults": (
             "By confirming you accept the Terms of sale (/terms) and the Privacy policy (/privacy), "
             "and confirm that you are 18 or over."
+        ),
+        "checkout.summary.agree_business": (
+            "By confirming you accept the Terms of sale (/terms) and the Privacy policy (/privacy), "
+            "and confirm that you are 18 or over and order for a business that trades in these products."
         ),
     },
     "ru": {
@@ -176,10 +200,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "при получении. Заказ MIA, не оплаченный в течение {minutes} мин., отменяется автоматически. "
             "Бот никогда не просит данные карты.\n\n"
             "<b>4. Доставка.</b> Способы доставки, их стоимость и адрес самовывоза показаны при оформлении. "
-            "Сроки доставки ориентировочные.\n\n"
-            "<b>5. Проблемы с заказом.</b> Если товар пришёл повреждённым или не тот, что вы заказали, напишите в "
-            "/support и укажите номер заказа. Мы заменим товар или вернём деньги. Эти условия не ограничивают "
-            "ваши права по закону о защите прав потребителей.\n\n"
+            "Сроки доставки ориентировочные. Пожалуйста, проверяйте заказ при получении.\n\n"
+            "<b>5. Проблемы и возврат.</b> Если товар пришёл повреждённым или не тот, что вы заказали, напишите в "
+            "/support и укажите номер заказа. Мы заменим товар или вернём деньги. Товар надлежащего качества "
+            "можно вернуть в течение 14 дней, если он не вскрыт и сохранена заводская упаковка, кроме товаров, "
+            "которые по закону возврату не подлежат. Эти условия не ограничивают ваши права по закону "
+            "о защите прав потребителей.\n\n"
             "<b>6. Баланс и промокоды.</b> Баланс магазина можно потратить только на заказы в этом магазине, "
             "наличными он не выдаётся.\n\n"
             "<b>7. Сообщения.</b> Бот пишет вам о ваших заказах. Новости магазина можно отключить в любой момент "
@@ -187,16 +213,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<b>8. Поддержка.</b> Откройте /support. Поддержка Telegram и @BotSupport не помогают с покупками "
             "в этом боте.\n\n"
             "<b>9. Ваши данные.</b> См. /privacy.\n\n"
-            "<b>10. Изменения.</b> Мы можем обновлять эти условия. К новым заказам применяется версия, показанная здесь."
+            "<b>10. Право и споры.</b> К этим условиям применяется законодательство Республики Молдова. Любую "
+            "претензию направляйте в /support: мы отвечаем в течение 15 календарных дней. Спор, который не удалось "
+            "решить вместе, рассматривает компетентный суд Республики Молдова. Вы также можете обратиться "
+            "в Агентство по защите прав потребителей и надзору за рынком (consumator.gov.md).\n\n"
+            "<b>11. Изменения.</b> Мы можем обновлять эти условия. К новым заказам применяется версия, показанная здесь."
             "{adults}"
         ),
         "legal.terms.adults": (
-            "\n\n<b>11. Только для взрослых.</b> Магазин продаёт товары только лицам от 18 лет. Оформляя заказ, "
-            "вы подтверждаете, что вам есть 18. При доставке мы можем попросить подтвердить возраст."
+            "\n\n<b>12. Только для взрослых.</b> Магазин продаёт товары только лицам от 18 лет. Оформляя заказ, "
+            "вы подтверждаете, что вам есть 18. При доставке мы можем попросить подтвердить возраст "
+            "и не передать заказ без подтверждения."
+        ),
+        "legal.terms.business": (
+            "\n\n<b>12. Кто может заказывать.</b> Магазин предназначен исключительно для хозяйствующих субъектов, "
+            "которые согласно ч. (2) ст. 21 Закона Республики Молдова о контроле над табаком № 278/2007 являются "
+            "производителями, импортёрами или продавцами табачных изделий, сопутствующих изделий и аксессуаров "
+            "для их использования, в лице представителей старше 18 лет. Оформляя заказ, вы подтверждаете, что "
+            "являетесь таким представителем. При доставке мы можем попросить это подтвердить "
+            "и не передать заказ без подтверждения."
         ),
         "legal.privacy": (
             "🔒 <b>Политика конфиденциальности</b>\n\n"
-            "За ваши данные в этом боте отвечает {seller}.\n\n"
+            "За ваши данные в этом боте отвечает {seller}, в соответствии с законодательством "
+            "Республики Молдова о защите персональных данных.\n\n"
             "<b>Что мы храним</b>\n"
             "• Из Telegram: ваш ID, имя, @username и язык.\n"
             "• От вас при оформлении: имя для доставки, телефон, город, адрес и комментарий к заказу.\n"
@@ -204,11 +244,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• Когда вы последний раз пользовались ботом, получаете ли новости магазина, и заметки сотрудников о ваших заказах.\n"
             "Мы никогда не получаем данные вашей карты, ваши контакты или сообщения из других чатов.\n\n"
             "<b>Зачем</b>\n"
-            "Чтобы принимать, доставлять и сопровождать ваши заказы, показывать вам историю заказов и присылать "
-            "новости магазина, если вы их не отключили.\n\n"
+            "Чтобы принимать, доставлять и сопровождать ваши заказы и показывать вам историю заказов: это нужно "
+            "для исполнения заказа, который вы оформляете. Новости магазина приходят, только пока вы их "
+            "не отключили.\n\n"
             "<b>Кто это видит</b>\n"
-            "Сотрудники магазина. Служба доставки получает имя, телефон и адрес, нужные для вашей доставки. "
-            "Мы не продаём ваши данные и никому больше их не передаём, если этого не требует закон.\n\n"
+            "Уполномоченные сотрудники магазина. Служба доставки получает имя, телефон и адрес, нужные для вашей "
+            "доставки. Данные хранятся на сервере, где работает бот; он может принадлежать хостинг-провайдеру, "
+            "который работает на нас. Сообщения проходят через Telegram, у которого своя политика "
+            "конфиденциальности (telegram.org/privacy). Мы не продаём ваши данные и никому больше их не передаём, "
+            "кроме государственных органов, когда этого требует закон.\n\n"
             "<b>Как долго</b>\n"
             "Пока вы пользуетесь магазином. Записи о заказах хранятся столько, сколько требует бухгалтерское "
             "и налоговое законодательство.\n\n"
@@ -216,8 +260,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• <b>Мои данные</b> ниже показывает, что мы о вас храним.\n"
             "• <b>Удалить мои данные</b> ниже убирает ваше имя, телефон и адрес. "
             "Суммы и даты заказов остаются, но уже без них.\n"
+            "• Чтобы исправить данные, укажите новые при следующем заказе или напишите в /support.\n"
             "• Новости магазина отключаются в /settings.\n"
-            "• По остальным вопросам напишите в /support. Мы отвечаем в течение 30 дней."
+            "• По остальным вопросам напишите в /support. Мы отвечаем в течение 15 календарных дней.\n"
+            "• Если вы считаете, что мы обрабатываем ваши данные неправильно, вы можете обратиться "
+            "в Национальный центр по защите персональных данных (datepersonale.md)."
         ),
         "btn.my_data": "📋 Мои данные",
         "btn.my_data_erase": "🗑 Удалить мои данные",
@@ -260,6 +307,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "checkout.summary.agree_adults": (
             "Подтверждая заказ, вы принимаете Условия продажи (/terms) и Политику конфиденциальности (/privacy) "
             "и подтверждаете, что вам есть 18 лет."
+        ),
+        "checkout.summary.agree_business": (
+            "Подтверждая заказ, вы принимаете Условия продажи (/terms) и Политику конфиденциальности (/privacy) "
+            "и подтверждаете, что вам есть 18 лет и вы заказываете от имени предприятия, торгующего такими товарами."
         ),
     },
     "ro": {
@@ -305,9 +356,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "la primirea comenzii. O comandă MIA neplătită în {minutes} minute se anulează automat. "
             "Botul nu cere niciodată datele cardului.\n\n"
             "<b>4. Livrarea.</b> Metodele de livrare, prețurile lor și adresa de ridicare sunt afișate la finalizare. "
-            "Termenele de livrare sunt estimative.\n\n"
-            "<b>5. Probleme cu o comandă.</b> Dacă un produs ajunge deteriorat sau nu este cel comandat, scrieți la "
-            "/support și indicați numărul comenzii. Îl înlocuim sau vă returnăm banii. Aceste condiții nu limitează "
+            "Termenele de livrare sunt estimative. Vă rugăm să verificați comanda la primire.\n\n"
+            "<b>5. Probleme și returnări.</b> Dacă un produs ajunge deteriorat sau nu este cel comandat, scrieți la "
+            "/support și indicați numărul comenzii. Îl înlocuim sau vă returnăm banii. Un produs de calitate "
+            "corespunzătoare poate fi returnat în 14 zile, dacă este nedesfăcut și în ambalajul original, "
+            "cu excepția produselor pe care legea le exclude de la returnare. Aceste condiții nu limitează "
             "drepturile dumneavoastră prevăzute de legislația privind protecția consumatorilor.\n\n"
             "<b>6. Sold și coduri promoționale.</b> Soldul din magazin poate fi folosit doar pentru comenzi în acest "
             "magazin și nu se plătește în numerar.\n\n"
@@ -316,16 +369,29 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<b>8. Suport.</b> Folosiți /support. Suportul Telegram și @BotSupport nu pot ajuta cu achizițiile "
             "făcute în acest bot.\n\n"
             "<b>9. Datele dumneavoastră.</b> Vedeți /privacy.\n\n"
-            "<b>10. Modificări.</b> Putem actualiza aceste condiții. Pentru comenzile noi se aplică versiunea afișată aici."
+            "<b>10. Legea aplicabilă și litigii.</b> Acestor condiții li se aplică legislația Republicii Moldova. "
+            "Trimiteți orice reclamație la /support: răspundem în 15 zile calendaristice. Un litigiu pe care nu îl "
+            "putem rezolva împreună este examinat de instanța competentă din Republica Moldova. Vă puteți adresa și "
+            "Agenției pentru Protecția Consumatorilor și Supravegherea Pieței (consumator.gov.md).\n\n"
+            "<b>11. Modificări.</b> Putem actualiza aceste condiții. Pentru comenzile noi se aplică versiunea afișată aici."
             "{adults}"
         ),
         "legal.terms.adults": (
-            "\n\n<b>11. Doar pentru adulți.</b> Magazinul vinde doar persoanelor de cel puțin 18 ani. Plasând o comandă, "
-            "confirmați că aveți această vârstă. La livrare vă putem cere o dovadă a vârstei."
+            "\n\n<b>12. Doar pentru adulți.</b> Magazinul vinde doar persoanelor de cel puțin 18 ani. Plasând o comandă, "
+            "confirmați că aveți această vârstă. La livrare vă putem cere o dovadă a vârstei "
+            "și putem reține comanda dacă aceasta lipsește."
+        ),
+        "legal.terms.business": (
+            "\n\n<b>12. Cine poate comanda.</b> Magazinul este destinat exclusiv agenților economici care, potrivit "
+            "art. 21 alin. (2) din Legea nr. 278/2007 privind controlul tutunului, sunt producători, importatori sau "
+            "vânzători de produse din tutun, produse conexe și accesorii pentru utilizarea lor, prin reprezentanții "
+            "lor de cel puțin 18 ani. Plasând o comandă, confirmați că sunteți un astfel de reprezentant. "
+            "La livrare vă putem cere o dovadă și putem reține comanda dacă aceasta lipsește."
         ),
         "legal.privacy": (
             "🔒 <b>Politica de confidențialitate</b>\n\n"
-            "Pentru datele dumneavoastră din acest bot răspunde {seller}.\n\n"
+            "Pentru datele dumneavoastră din acest bot răspunde {seller}, potrivit legislației "
+            "Republicii Moldova privind protecția datelor cu caracter personal.\n\n"
             "<b>Ce păstrăm</b>\n"
             "• Din Telegram: ID-ul, numele, @username și limba.\n"
             "• De la dumneavoastră, la finalizarea comenzii: numele pentru livrare, telefonul, orașul, adresa și comentariul la comandă.\n"
@@ -333,19 +399,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "• Când ați folosit ultima dată botul, dacă primiți noutățile magazinului și notițele personalului despre comenzile dumneavoastră.\n"
             "Nu primim niciodată datele cardului, contactele sau mesajele din celelalte conversații ale dumneavoastră.\n\n"
             "<b>De ce</b>\n"
-            "Pentru a prelua, livra și susține comenzile, pentru a vă arăta istoricul comenzilor și pentru a trimite "
-            "noutățile magazinului, dacă nu le-ați oprit.\n\n"
+            "Pentru a prelua, livra și susține comenzile și pentru a vă arăta istoricul comenzilor: sunt necesare "
+            "pentru executarea comenzii pe care o plasați. Noutățile magazinului se trimit doar cât timp "
+            "nu le-ați oprit.\n\n"
             "<b>Cine le vede</b>\n"
-            "Personalul magazinului. Serviciul de livrare primește numele, telefonul și adresa necesare livrării. "
-            "Nu vindem datele dumneavoastră și nu le dăm nimănui altcuiva, decât dacă legea o cere.\n\n"
+            "Personalul autorizat al magazinului. Serviciul de livrare primește numele, telefonul și adresa necesare "
+            "livrării. Datele se păstrează pe serverul pe care rulează botul, care poate aparține unui furnizor de "
+            "găzduire ce lucrează pentru noi. Mesajele trec prin Telegram, care are propria politică de "
+            "confidențialitate (telegram.org/privacy). Nu vindem datele dumneavoastră și nu le dăm nimănui altcuiva, "
+            "cu excepția autorităților statului, când legea o cere.\n\n"
             "<b>Cât timp</b>\n"
             "Cât timp folosiți magazinul. Evidența comenzilor se păstrează atât cât cere legislația contabilă și fiscală.\n\n"
             "<b>Opțiunile dumneavoastră</b>\n"
             "• <b>Datele mele</b>, mai jos, arată ce păstrăm despre dumneavoastră.\n"
             "• <b>Șterge datele mele</b>, mai jos, elimină numele, telefonul și adresa. "
             "Sumele și datele comenzilor rămân, fără acestea.\n"
+            "• Pentru a corecta datele, indicați altele la următoarea comandă sau scrieți la /support.\n"
             "• Noutățile magazinului se opresc în /settings.\n"
-            "• Pentru orice altceva scrieți la /support. Răspundem în 30 de zile."
+            "• Pentru orice altceva scrieți la /support. Răspundem în 15 zile calendaristice.\n"
+            "• Dacă considerați că prelucrăm datele greșit, vă puteți adresa Centrului Național "
+            "pentru Protecția Datelor cu Caracter Personal (datepersonale.md)."
         ),
         "btn.my_data": "📋 Datele mele",
         "btn.my_data_erase": "🗑 Șterge datele mele",
@@ -388,6 +461,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "checkout.summary.agree_adults": (
             "Confirmând, acceptați Condițiile de vânzare (/terms) și Politica de confidențialitate (/privacy) "
             "și confirmați că aveți cel puțin 18 ani."
+        ),
+        "checkout.summary.agree_business": (
+            "Confirmând, acceptați Condițiile de vânzare (/terms) și Politica de confidențialitate (/privacy) "
+            "și confirmați că aveți cel puțin 18 ani și comandați în numele unui agent economic "
+            "care comercializează astfel de produse."
         ),
     },
 }

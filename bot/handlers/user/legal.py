@@ -31,8 +31,23 @@ router.message.filter(F.chat.type == ChatType.PRIVATE)
 
 # --- texts -----------------------------------------------------------------------------------------------------------
 
+def _on(value) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
 def adults_only() -> bool:
-    return str(EnvKeys.ADULTS_ONLY).strip().lower() in ("1", "true", "yes", "on")
+    return _on(EnvKeys.ADULTS_ONLY)
+
+
+def business_only() -> bool:
+    """Trade customers only (D-26). It includes the 18+ rule, so it wins over ADULTS_ONLY."""
+    return _on(EnvKeys.BUSINESS_ONLY)
+
+
+def _who_can_order_clause() -> str:
+    if business_only():
+        return localize("legal.terms.business")
+    return localize("legal.terms.adults") if adults_only() else ""
 
 
 def _seller() -> str:
@@ -42,7 +57,7 @@ def _seller() -> str:
 def terms_text() -> str:
     return localize("legal.terms", seller=_seller(), currency=esc(EnvKeys.PAY_CURRENCY),
                     minutes=EnvKeys.MIA_PAY_TIMEOUT_MIN,
-                    adults=localize("legal.terms.adults") if adults_only() else "")
+                    adults=_who_can_order_clause())
 
 
 def privacy_text() -> str:
@@ -51,6 +66,8 @@ def privacy_text() -> str:
 
 def agreement_line() -> str:
     """The last line of the checkout summary: pressing Confirm is the customer's agreement."""
+    if business_only():
+        return localize("checkout.summary.agree_business")
     return localize("checkout.summary.agree_adults" if adults_only() else "checkout.summary.agree")
 
 
