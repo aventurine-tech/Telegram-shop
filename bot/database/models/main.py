@@ -123,6 +123,9 @@ class User(Database.BASE):
     # The person asked not to receive mailings (button under every mailing, or the profile toggle).
     mailing_optout: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa_false())
     last_seen_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Telegram refused a message to this person (they blocked the bot or deleted their account). Mailings skip them
+    # until they use the bot again, which clears it.
+    unreachable_since: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     user_operations: Mapped[list["Operations"]] = relationship(
         "Operations", back_populates="user_telegram_id", lazy='raise')
     user_orders: Mapped[list["Orders"]] = relationship(

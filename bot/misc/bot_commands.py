@@ -17,6 +17,12 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("favorites", "cmd.favorites"),
     ("profile", "cmd.profile"),
     ("language", "cmd.language"),
+    # Telegram asks every bot for /help and /settings, and a shop for its terms, support and privacy policy (D-25).
+    ("settings", "cmd.settings"),
+    ("help", "cmd.help"),
+    ("support", "cmd.support"),
+    ("terms", "cmd.terms"),
+    ("privacy", "cmd.privacy"),
 )
 
 

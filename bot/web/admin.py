@@ -317,14 +317,16 @@ class UserAdmin(AuditModelView, model=User):
     column_default_sort = (User.registration_date, True)
     column_details_list = [User.telegram_id, User.first_name, User.last_name, User.username, User.contact_name,
                            User.phone, User.city, User.address, User.language, User.balance, User.role_id, User.referral_id,
-                           User.is_blocked, User.mailing_optout, User.registration_date, User.last_seen_at, User.notes,
+                           User.is_blocked, User.mailing_optout, User.unreachable_since, User.registration_date, User.last_seen_at,
+                           User.notes,
                            User.user_orders]
     column_formatters = {"username": _format_username, "registration_date": _format_when,
-                         "last_seen_at": _format_when, "mailing_optout": _format_yes_no}
+                         "last_seen_at": _format_when, "mailing_optout": _format_yes_no,
+                         "unreachable_since": _format_when}
     column_formatters_detail = column_formatters
     details_template = "client_details.html"
     form_excluded_columns = [
-        User.user_operations, User.user_orders, User.last_seen_at, User.registration_date,
+        User.user_operations, User.user_orders, User.last_seen_at, User.registration_date, User.unreachable_since,
         User.referral_earnings_received, User.referral_earnings_generated,
     ]
     name = Localized("web.model.user.one")

@@ -29,9 +29,10 @@ def _command(text, user_id=UID):
 
 class TestMenuContent:
 
-    def test_the_seven_commands_in_order(self):
+    def test_the_commands_in_order(self):
         assert [c.command for c in commands_for("en")] == [
-            "start", "catalog", "cart", "orders", "favorites", "profile", "language"]
+            "start", "catalog", "cart", "orders", "favorites", "profile", "language",
+            "settings", "help", "support", "terms", "privacy"]
 
     @pytest.mark.parametrize("lang", ["en", "ru", "ro"])
     def test_telegram_limits(self, lang):

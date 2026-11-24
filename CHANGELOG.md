@@ -10,6 +10,32 @@ When `development` is promoted to `main`, the Unreleased block becomes a dated r
 
 ## [Unreleased] — `development`
 
+### What Telegram's bot rules ask a shop for (2026-11-24)
+The bot was checked against Telegram's bot pages and the Bot Developer Terms (see D-25).
+- **Added** `/help` (what the bot does and every command), `/settings` (language, shop news on/off, privacy) and `/support` (a button to the support account, or the
+  owner when `HELPER_ID` is empty, with the note that Telegram cannot help with purchases); all five new commands are in the ☰ menu (en/ru/ro).
+- **Added** `/terms` (terms of sale) and `/privacy` (privacy policy), drafted in en/ru/ro from what the bot really stores and does. They open as a separate message with
+  *Close*, so reading them in the middle of a checkout does not cancel it.
+- **Added** under the privacy policy: **My data** (what the profile holds about the person) and **Delete my data** (asks first, then erases at once with the same rules
+  as the panel's *Erase personal data*; refused while an order is in progress).
+- **Changed** the checkout summary ends with "By confirming you accept the Terms of sale (/terms) and the Privacy policy (/privacy)".
+- **Added** two optional settings (`.env.example`): `SELLER_INFO` (who the shop is, named in both texts) and `ADULTS_ONLY=1` (an 18+ clause in the terms and an age
+  confirmation in the checkout line).
+
+### Mass messages: fewer reasons for spam reports and flood limits (2026-11-24)
+After Telegram blocked the bot again, the way the bot sends mass messages was audited (see D-24).
+- **Fixed** the broadcast in the bot's admin menu wrote to **every** user: it now follows the same rules as a panel mailing (nobody who unsubscribed, was blocked by staff,
+  or blocked the bot) and every message carries the **Unsubscribe** button in the reader's language (it replaces the *Close* button).
+- **Added** people Telegram refuses (they blocked the bot or deleted their account) are remembered and skipped by mailings, the broadcast and audience counts until they
+  use the bot again; the client page shows *Blocked the bot since* (en/ru/ro).
+- **Changed** one shared pace for all mass sends (mailings, broadcast, back-in-stock notices): about 20 messages a second in total even when several run together, and
+  when Telegram answers "retry after N seconds" **every** sender waits, not only the one message.
+- **Changed** mailing placeholders (`{first_name}` …) are filled from the client records instead of one Telegram request per person, which halves the requests of a
+  personalised mailing. A test message to a chat with no record still asks Telegram.
+- **Fixed** a restart in the middle of a mailing could send the last batch (up to 25 people) twice: each person is now logged as soon as their message is out, and a
+  resumed mailing takes its counters from the log. A retry after a flood wait no longer sends the picture twice.
+- **Database** migration `f8c0e2a4b6d8`: `users.unreachable_since` (runs on start).
+
 ### Reviews: one product, all sizes (2026-10-08)
 - **Fixed** the panel's review form listed weight options ("SOLO 11 · 50 g") as separate products, so a review saved on one never showed on the others. It now lists only the main product and moves any option to its main product on save; the bot already shows a product's reviews on every size.
 ### QR code for two-step setup (2026-10-08)

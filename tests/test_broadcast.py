@@ -182,3 +182,79 @@ class TestRestockNotifier:
 
     async def test_unknown_item_is_a_noop(self, mock_bot):
         assert await notify_restock(mock_bot, "NoSuchItemAtAll") == 0
+
+
+class TestBroadcastPacingAndReach:
+
+    async def test_markup_can_be_built_per_person(self):
+        bot = AsyncMock()
+        manager = BroadcastManager(bot=bot, batch_delay=0, retry_count=1)
+        await manager.broadcast([1, 2], "Hi", reply_markup=lambda uid: f"kb-{uid}")
+        assert {c.kwargs["chat_id"]: c.kwargs["reply_markup"] for c in bot.send_message.await_args_list} == {
+            1: "kb-1", 2: "kb-2"}
+
+    async def test_people_who_blocked_the_bot_are_remembered(self, user_factory):
+        from bot.database.methods.mailings import mailable_user_ids
+
+        await user_factory(telegram_id=981001)
+        await user_factory(telegram_id=981002)
+
+        async def _send(chat_id, **kwargs):
+            if chat_id == 981001:
+                raise TelegramForbiddenError(method=MagicMock(), message="bot was blocked by the user")
+
+        bot = AsyncMock()
+        bot.send_message = AsyncMock(side_effect=_send)
+        stats = await BroadcastManager(bot=bot, batch_delay=0, retry_count=1).broadcast([981001, 981002], "Hi")
+
+        assert (stats.sent, stats.blocked) == (1, 1)
+        ids = await mailable_user_ids()
+        assert 981002 in ids and 981001 not in ids
+
+    async def test_retry_after_pauses_every_sender_then_retries(self):
+        from aiogram.exceptions import TelegramRetryAfter
+        from bot.misc.services.send_pacer import SendPacer
+
+        pacer = SendPacer(rate=1000)
+        pauses = []
+        pacer.pause = lambda seconds: pauses.append(seconds)       # record instead of really waiting
+        calls = 0
+
+        async def _send(**kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise TelegramRetryAfter(method=MagicMock(), message="Flood", retry_after=7)
+
+        bot = AsyncMock()
+        bot.send_message = AsyncMock(side_effect=_send)
+        stats = await BroadcastManager(bot=bot, batch_delay=0, pacer=pacer).broadcast([5], "Hi")
+
+        assert stats.sent == 1 and calls == 2 and pauses == [7]
+
+
+class TestSendPacer:
+
+    async def test_turns_are_spaced_by_the_interval(self):
+        import time
+        from bot.misc.services.send_pacer import SendPacer
+
+        pacer = SendPacer(rate=50)                 # one turn every 20 ms
+        start = time.monotonic()
+        for _ in range(4):
+            await pacer.wait()
+        assert time.monotonic() - start >= 0.055   # the first turn is immediate, three more wait
+
+    async def test_a_pause_holds_everyone_including_those_already_waiting(self):
+        import asyncio
+        import time
+        from bot.misc.services.send_pacer import SendPacer
+
+        pacer = SendPacer(rate=100)
+        await pacer.wait()
+        waiter = asyncio.create_task(pacer.wait())  # has its turn 10 ms from now
+        await asyncio.sleep(0)
+        start = time.monotonic()
+        pacer.pause(0.08)
+        await waiter
+        assert time.monotonic() - start >= 0.07

@@ -10,7 +10,7 @@ background tasks (`RecoveryManager`, `CleanupManager`, `CacheScheduler`). Postgr
 **Update path** (registration order in `bot/main.py`; first registered = outermost):
 `CleanChat` → rate limit (Redis-atomic or in-process) → analytics → **auth** (role cache, blocked users) → **language** (per-update
 ContextVar) → **profile** (`ProfileMiddleware`, after the handler) → **security** (audit, maintenance gate, 1 h replay guard) →
-routers: `language` → `bottom_nav` → `admin` → `other` → `user`.
+routers: `language` → `commands` → `legal` → `bottom_nav` → `admin` → `other` → `user`.
 
 ## 2. Package map
 
@@ -49,6 +49,7 @@ routers: `language` → `bottom_nav` → `admin` → `other` → `user`.
 |---|---|
 | `user/main.py` | `/start`, welcome line, profile, referral entry, registration |
 | `user/bottom_nav.py` | the persistent keyboard actions |
+| `user/legal.py` | `/help`, `/settings`, `/support`, `/terms`, `/privacy`, *My data* / *Delete my data* (D-25) |
 | `user/shop_and_goods.py`, `cart.py`, `checkout.py` | catalog, cart, checkout FSM (fulfilment → name → phone → address → **shipping** → comment → payment → summary), MIA "I've paid" |
 | `user/language.py`, `referral_system.py`, `_screen.py` | language picker, referrals, screen helpers |
 | `admin/*` | staff flows in chat: orders, goods + options, categories, translations, promo, sales, roles, users, shop settings, broadcast (text) |
@@ -78,7 +79,8 @@ Alembic revisions (single head), the suite (`TESTING.md`), documentation.
 | Service | Does | Cadence |
 |---|---|---|
 | `recovery.RecoveryManager` | expires unpaid MIA orders (releases stock), health check, **dispatches due mailings** (claims one, runs `MailingSender`), marks interrupted mailings at startup | 60 s / 60 s / 15 s |
-| `mailing_sender.MailingSender` | batches of 25 + 1 s, placeholders, photo reuse, cancel checks, test send | per mailing |
+| `mailing_sender.MailingSender` | batches of 25 + 1 s, placeholders from client records, photo reuse, per-person log, cancel checks, test send | per mailing |
+| `send_pacer.SendPacer` | one pace for every bulk sender (~20 msg/s in total); "retry after" pauses all | shared |
 | `cleanup.CleanupManager` | retention of audit rows etc. | daily |
 | `restock_notifier` | tells subscribers when a sold-out product returns | event-driven |
 | `order_view` | order card text (customer/staff), staff alerts per language, delivery lines | on demand |

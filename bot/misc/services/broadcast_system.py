@@ -8,6 +8,10 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError, TelegramBadRequest
 
 from bot.logger_mesh import logger
+from bot.misc.services.send_pacer import SendPacer, shared_pacer
+
+# One keyboard for everyone, or a function that builds it per person (e.g. a button in their language).
+Markup = Union[InlineKeyboardMarkup, Callable[[int], Optional[InlineKeyboardMarkup]], None]
 
 
 @dataclass
@@ -44,7 +48,8 @@ class BroadcastManager:
             bot: Bot,
             batch_size: int = DEFAULT_BATCH_SIZE,
             batch_delay: float = DEFAULT_BATCH_DELAY,
-            retry_count: int = 3
+            retry_count: int = 3,
+            pacer: Optional[SendPacer] = None,
     ):
         """
         Args:
@@ -52,11 +57,13 @@ class BroadcastManager:
             batch_size: Number of messages in a batch
             batch_delay: Delay between batches (sec)
             retry_count: Number of retries on error
+            pacer: Shared send pace (defaults to the one every bulk sender uses)
         """
         self.bot = bot
         self.batch_size = batch_size
         self.batch_delay = batch_delay
         self.retry_count = retry_count
+        self.pacer = pacer or shared_pacer()
         self._cancelled = False
 
     async def _send_message_safe(
@@ -73,6 +80,7 @@ class BroadcastManager:
         (bad request / retries exhausted / unknown).
         """
         for attempt in range(self.retry_count):
+            await self.pacer.wait()
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
@@ -84,14 +92,14 @@ class BroadcastManager:
                 return "sent"
 
             except TelegramRetryAfter as e:
-                # Telegram asks to wait
+                # Telegram asks to wait: every bulk sender pauses, not only this message
+                self.pacer.pause(e.retry_after)
                 if attempt < self.retry_count - 1:
-                    await asyncio.sleep(e.retry_after)
                     continue
                 return "failed"
 
             except TelegramForbiddenError:
-                # Bot blocked by user
+                # The person blocked the bot or deleted their account
                 logger.debug(f"Bot blocked by user {user_id}")
                 return "blocked"
 
@@ -114,7 +122,7 @@ class BroadcastManager:
             self,
             user_ids: List[int],
             text: str,
-            reply_markup: Optional[InlineKeyboardMarkup] = None,
+            reply_markup: Markup = None,
             parse_mode: str = "HTML",
             progress_callback: Optional[Union[
                 Callable[[BroadcastStats], None],
@@ -127,7 +135,7 @@ class BroadcastManager:
         Args:
             user_ids: List of user IDs
             text: Message text
-            reply_markup: Keyboard
+            reply_markup: Keyboard, or a function ``user_id -> keyboard``
             parse_mode: Parsing mode
             progress_callback: Callback for tracking progress (can be async or sync)
 
@@ -151,7 +159,8 @@ class BroadcastManager:
 
             # Create tasks for the batch
             tasks = [
-                self._send_message_safe(user_id, text, reply_markup, parse_mode)
+                self._send_message_safe(
+                    user_id, text, reply_markup(user_id) if callable(reply_markup) else reply_markup, parse_mode)
                 for user_id in batch
             ]
 
@@ -167,6 +176,9 @@ class BroadcastManager:
                 else:
                     # "failed" or an unexpected Exception from gather
                     stats.failed += 1
+
+            # People Telegram refused are not written to again until they come back to the bot.
+            await self._remember_unreachable([uid for uid, r in zip(batch, results) if r == "blocked"])
 
             if (i // self.batch_size) % 20 == 0:
                 logger.info(
@@ -192,6 +204,16 @@ class BroadcastManager:
 
         stats.end_time = datetime.now()
         return stats
+
+    @staticmethod
+    async def _remember_unreachable(user_ids: List[int]) -> None:
+        if not user_ids:
+            return
+        try:
+            from bot.database.methods.mailings import mark_unreachable
+            await mark_unreachable(user_ids)
+        except Exception as e:                  # bookkeeping: never let it stop the send
+            logger.warning("could not mark %s people as unreachable: %s", len(user_ids), e)
 
     def cancel(self):
         """Cancel the current mailing"""

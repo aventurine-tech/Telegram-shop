@@ -22,7 +22,7 @@ Out of scope: a compromised host or database, Telegram itself.
 | **Rate limiting** | Global and per-action limits with temporary bans (Redis atomic script, per-process fallback); admins bypass windows but not bans. |
 | **Replay/stale guard** | Taps on transactional messages older than 1 h are rejected; webhook secret token compared in constant time. |
 | **Secrets** | Only via environment (`.env`, never committed); `/health` does not leak internals to anonymous callers. |
-| **Messaging safety** | Mailings are Admin-only, scheduled/cancellable, never auto-resumed (no duplicate sends), batch-throttled, test-to-self first; blocked and opted-out users skipped; every message has an unsubscribe button; a per-recipient log (ids and outcomes only) is kept. |
+| **Messaging safety** | Mailings are Admin-only, scheduled/cancellable, never auto-resumed (no duplicate sends), paced by one shared limiter (~20 msg/s for all bulk sends, a Telegram "retry after" pauses all of them), test-to-self first; blocked, opted-out and unreachable users (they blocked the bot) skipped — by panel mailings and the in-bot broadcast alike; every mass message has an unsubscribe button; a per-recipient log (ids and outcomes only) is kept. |
 
 ## 3. Personal data
 Stored about customers: Telegram id, first/last name, @username, language, phone, delivery address, order history, staff notes.
@@ -47,6 +47,8 @@ Stored about customers: Telegram id, first/last name, @username, language, phone
 - [ ] Redis enabled with a password if you run more than one worker; database not exposed to the internet.
 - [ ] Regular PostgreSQL backups (`scripts/backup_db.sh` + cron, copied off the machine, restore practised — `docs/BACKUP_AND_RESTORE.md`); log rotation; disk alerts.
 - [ ] Staff accounts: Staff level unless Admin is needed; remove accounts of people who left.
+- [ ] Customer data encrypted at rest: put the PostgreSQL volume and the backups on an encrypted disk (Telegram's Bot Developer Terms 4.4 require it; the application does not encrypt the database itself).
+- [ ] `SELLER_INFO` set, and the `/terms` and `/privacy` texts read and confirmed by the owner (D-25).
 - [ ] Set real `MIA_*` details only on the server `.env`; verify transfers manually before confirming.
 
 ## 6. Known gaps / roadmap

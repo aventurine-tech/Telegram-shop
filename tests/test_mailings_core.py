@@ -44,9 +44,9 @@ class TestText:
         assert personalize("{unknown}", {}) == "{unknown}"
 
 
-async def add_user(tid, language=None, blocked=False):
+async def add_user(tid, language=None, blocked=False, first_name=None):
     async with Database().session() as s:
-        s.add(User(telegram_id=tid, language=language, is_blocked=blocked))
+        s.add(User(telegram_id=tid, language=language, is_blocked=blocked, first_name=first_name))
 
 
 async def add_mailing(**kw):
@@ -204,14 +204,17 @@ class TestSender:
         assert 7101 in targets and 7103 not in targets
         assert all(kw["disable_notification"] is True and kw["parse_mode"] == "HTML" for *_x, kw in bot.sent)
 
-    async def test_placeholders_use_each_persons_name(self):
-        await add_user(7111, "ro")
-        await add_user(7112, "ro")
+    async def test_placeholders_use_each_persons_name_from_our_records(self):
+        await add_user(7111, "ro", first_name="Ana")
+        await add_user(7112, "ro", first_name="Ion")
+        await add_user(7113, "ro")                      # no name on record: the default after "|"
         mid = await add_mailing(segment=MailingSegment.LANG_RO, text="Hi {first_name|friend}!")
-        bot = fake_bot(names={7111: "Ana", 7112: "Ion"})
+        bot = fake_bot()
+        bot.get_chat = AsyncMock(side_effect=AssertionError("a mailing must not ask Telegram for each person"))
         await MailingSender(bot, batch_delay=0).run(mid)
         texts = {c: t for _k, c, t, _kw in bot.sent}
-        assert texts[7111] == "Hi Ana!" and texts[7112] == "Hi Ion!"
+        assert texts[7111] == "Hi Ana!" and texts[7112] == "Hi Ion!" and texts[7113] == "Hi friend!"
+        bot.get_chat.assert_not_awaited()
 
     async def test_picture_is_sent_as_a_photo_and_its_file_id_cached(self):
         await add_user(7121, "ro")
@@ -256,3 +259,126 @@ class TestSender:
         assert ok and code == "sent" and bot.sent[0][1] == 55 and bot.sent[0][2] == "Hello Radu"
         ok, code = await MailingSender(fake_bot(forbidden={56})).send_test(mid, 56)
         assert not ok and code == "blocked"
+
+
+class TestUnreachable:
+    """People Telegram refused (they blocked the bot) are left alone until they come back."""
+
+    async def test_the_sender_remembers_them_and_the_next_mailing_skips_them(self):
+        for tid in (7401, 7402):
+            await add_user(tid, "ro")
+        first = await add_mailing(segment=MailingSegment.LANG_RO)
+        await MailingSender(fake_bot(forbidden={7402}), batch_delay=0).run(first)
+        assert await mdb.segment_user_ids(MailingSegment.LANG_RO) == [7401]
+        assert await mdb.count_segment(MailingSegment.LANG_RO) == 1
+
+        second = await add_mailing(segment=MailingSegment.LANG_RO)
+        bot = fake_bot(forbidden={7402})
+        await MailingSender(bot, batch_delay=0).run(second)
+        m = await mdb.get_mailing(second)
+        assert {c for _k, c, _t, _kw in bot.sent} == {7401} and (m["total"], m["blocked"]) == (1, 0)
+
+    async def test_using_the_bot_again_makes_them_reachable(self):
+        from bot.database.methods.profiles import refresh_profile
+
+        await add_user(7411, "ro")
+        assert await mdb.mark_unreachable([7411, 7411]) == 1
+        assert await mdb.mark_unreachable([7411]) == 0            # already marked: the first date stays
+        assert 7411 not in await mdb.segment_user_ids(MailingSegment.ALL)
+        await refresh_profile(7411, "ana", "Ana", None)
+        assert 7411 in await mdb.segment_user_ids(MailingSegment.ALL)
+
+    async def test_a_failed_send_is_not_unreachable(self):
+        await add_user(7421, "ro")
+        mid = await add_mailing(segment=MailingSegment.LANG_RO)
+        await MailingSender(fake_bot(bad={7421}), batch_delay=0).run(mid)
+        assert 7421 in await mdb.segment_user_ids(MailingSegment.LANG_RO)
+
+
+class TestPacingAndRestart:
+
+    async def test_retry_after_pauses_the_shared_pace_and_the_message_still_goes(self):
+        from aiogram.exceptions import TelegramRetryAfter
+        from bot.misc.services.send_pacer import SendPacer
+
+        await add_user(7501, "ro")
+        mid = await add_mailing(segment=MailingSegment.LANG_RO)
+        pacer = SendPacer(rate=1000)
+        pauses = []
+        pacer.pause = lambda seconds: pauses.append(seconds)
+        bot = fake_bot()
+        real_send, calls = bot.send_message, 0
+
+        async def flood_once(chat_id, text, **kw):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise TelegramRetryAfter(method=MagicMock(), message="Flood", retry_after=9)
+            await real_send(chat_id, text, **kw)
+
+        bot.send_message = flood_once
+        assert await MailingSender(bot, batch_delay=0, pacer=pacer).run(mid) == MailingStatus.SENT
+        assert pauses == [9] and [c for _k, c, *_ in bot.sent] == [7501]
+
+    async def test_a_retry_does_not_send_the_picture_twice(self):
+        from aiogram.exceptions import TelegramRetryAfter
+
+        await add_user(7511, "ro")
+        mid = await add_mailing(segment=MailingSegment.LANG_RO, text="x" * 1100, image=b"img")
+        bot = fake_bot()
+        real_send, calls = bot.send_message, 0
+
+        async def flood_once(chat_id, text, **kw):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise TelegramRetryAfter(method=MagicMock(), message="Flood", retry_after=0)
+            await real_send(chat_id, text, **kw)
+
+        bot.send_message = flood_once
+        await MailingSender(bot, batch_delay=0).run(mid)
+        assert [k for k, *_ in bot.sent] == ["photo", "msg"]
+
+    async def test_each_person_is_logged_as_soon_as_their_message_is_out(self):
+        """A restart in the middle of a batch must find the people already written to in the log."""
+        for tid in (7521, 7522, 7523):
+            await add_user(tid, "ro")
+        mid = await add_mailing(segment=MailingSegment.LANG_RO)
+        bot = fake_bot()
+        real_send, seen = bot.send_message, []
+
+        async def send_and_peek(chat_id, text, **kw):
+            seen.append(len(await mdb.reached_user_ids(mid)))
+            await real_send(chat_id, text, **kw)
+
+        bot.send_message = send_and_peek
+        await MailingSender(bot, batch_size=3, batch_delay=0, pacer=_one_at_a_time()).run(mid)
+        assert seen == [0, 1, 2]                 # one batch of three, yet the log grew person by person
+
+    async def test_a_resumed_mailing_counts_what_the_log_says(self):
+        for tid in (7531, 7532, 7533):
+            await add_user(tid, "ro")
+        # The restart came after two people were logged but before their batch was counted.
+        mid = await add_mailing(segment=MailingSegment.LANG_RO, sent=0)
+        await mdb.log_recipients(mid, [(7531, "sent"), (7532, "sent")])
+        bot = fake_bot()
+        await MailingSender(bot, batch_delay=0).run(mid)
+        m = await mdb.get_mailing(mid)
+        assert {c for _k, c, _t, _kw in bot.sent} == {7533} and (m["total"], m["sent"]) == (3, 3)
+
+
+def _one_at_a_time():
+    """A pacer that lets the previous person finish (send + log line) before the next one starts."""
+    import asyncio
+    from bot.misc.services.send_pacer import SendPacer
+
+    class Stepped(SendPacer):
+        def __init__(self):
+            super().__init__(rate=1000)
+            self._turn = 0
+
+        async def wait(self):
+            mine, self._turn = self._turn, self._turn + 1
+            await asyncio.sleep(0.05 * mine)
+
+    return Stepped()

@@ -448,7 +448,7 @@ TRANSLATIONS = {
         "web.mailing.delivered": "{sent} din {total}",
         "web.mailing.segment_option": "{label} ({count})",
         "web.mailing.title_hint": "Doar pentru dumneavoastră; clienții nu îl văd.",
-        "web.mailing.segment_hint": "Destinatarii campaniei. Utilizatorii care au blocat botul sunt omiși; între paranteze apare numărul de destinatari actuali.",
+        "web.mailing.segment_hint": "Destinatarii campaniei. Utilizatorii care s-au dezabonat sau au blocat botul sunt omiși; între paranteze apare numărul de destinatari actuali.",
         "web.mailing.text_hint": "Variabilele se înlocuiesc individual pentru fiecare destinatar; {first_name|friend} folosește „friend” când prenumele nu este cunoscut.",
         "web.mailing.image_hint": "JPEG, PNG sau WEBP, până la 10 MB. Cu imagine, textul este legenda (până la 1024 de caractere); un text mai lung urmează ca al doilea mesaj.",
         "web.mailing.editor.caption_overflow": "se trimite ca mesaj separat după imagine",
@@ -512,6 +512,7 @@ TRANSLATIONS = {
         "web.mailing.outcome.blocked": "A blocat botul",
         "web.mailing.outcome.failed": "Eșuat",
         "web.col.mailing_optout": "Fără mesaje promoționale",
+        "web.col.unreachable_since": "A blocat botul din",
 
         "web.help.title": "Telegram Shop — panou de administrare",
         "web.help.intro": ("Ghid rapid pentru panou. Fiecare creare, modificare sau ștergere este înregistrată în "
